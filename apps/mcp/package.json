@@ -1,0 +1,31 @@
+{
+  "name": "@visual-brainstorm/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stdio MCP server for Claude Code + local bridge (http/WS) serving the Visual Brainstorm studio.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "visual-brainstorm-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "demo": "node dist/demo.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@visual-brainstorm/protocol": "0.1.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,205 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  ArtifactSchema,
+  BoardResponseSchema,
+  BoardSchema,
+  SessionInfoSchema,
+  type Artifact,
+  type Board,
+  type BoardResponse,
+  type DiscussionSummary,
+  type RoundRecord,
+  type SessionInfo,
+} from '@visual-brainstorm/protocol';
+
+export function slugify(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'session'
+  );
+}
+
+function stamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+/**
+ * Persists every board, per-option SVG, response, and artifact (CLAUDE.md rule 7) to the
+ * donor-style discussion folder: <root>/<stamp>-<slug>/. Nothing is ever regenerated —
+ * threads reload via SessionStore.open() and list via SessionStore.list().
+ * A directory is a brainstorm thread iff it contains session.json (plans coexist).
+ */
+export class SessionStore {
+  readonly info: SessionInfo;
+  readonly rounds: RoundRecord[] = [];
+  readonly artifacts: Artifact[] = [];
+
+  /** Create a NEW thread under the discussion root. */
+  constructor(title: string, root: string) {
+    const now = new Date();
+    const slug = slugify(title);
+    const dir = path.join(root, `${stamp(now)}-${slug}`);
+    fs.mkdirSync(path.join(dir, 'artifacts'), { recursive: true });
+    this.info = {
+      id: path.basename(dir),
+      slug,
+      title,
+      startedAt: now.toISOString(),
+      dir,
+    };
+    fs.writeFileSync(
+      path.join(dir, 'session.json'),
+      JSON.stringify(this.info, null, 2),
+    );
+  }
+
+  /** Reopen an existing thread directory — full history reloads from disk. */
+  static open(dir: string): SessionStore {
+    const info = SessionInfoSchema.parse(
+      JSON.parse(fs.readFileSync(path.join(dir, 'session.json'), 'utf8')),
+    );
+    const store = Object.create(SessionStore.prototype) as SessionStore;
+    Object.assign(store, {
+      info: { ...info, id: path.basename(dir), dir },
+      rounds: [],
+      artifacts: [],
+    });
+    const roundDirs = fs
+      .readdirSync(dir)
+      .filter((d) => /^round-\d+$/.test(d))
+      .sort();
+    for (const roundDir of roundDirs) {
+      const boardFile = path.join(dir, roundDir, 'board.json');
+      if (!fs.existsSync(boardFile)) continue;
+      const board = BoardSchema.parse(JSON.parse(fs.readFileSync(boardFile, 'utf8')));
+      const responseFile = path.join(dir, roundDir, 'response.json');
+      const response = fs.existsSync(responseFile)
+        ? BoardResponseSchema.parse(JSON.parse(fs.readFileSync(responseFile, 'utf8')))
+        : null;
+      store.rounds.push({ board: board as Board, response });
+    }
+    const artifactsDir = path.join(dir, 'artifacts');
+    if (fs.existsSync(artifactsDir)) {
+      for (const file of fs.readdirSync(artifactsDir).filter((f) => f.endsWith('.json'))) {
+        try {
+          store.artifacts.push(
+            ArtifactSchema.parse(JSON.parse(fs.readFileSync(path.join(artifactsDir, file), 'utf8'))),
+          );
+        } catch (err) {
+          console.error(`[store] skipping artifact ${file}: ${String(err)}`);
+        }
+      }
+    }
+    return store;
+  }
+
+  /**
+   * All threads under the discussion root, newest first. Threads moved to
+   * `_completed/` (plan-closeout) are included with `archived: true` — the
+   * studio shows them under the top-level Archive nav section.
+   */
+  static list(root: string): DiscussionSummary[] {
+    const scan = (dir: string, archived: boolean): DiscussionSummary[] => {
+      if (!fs.existsSync(dir)) return [];
+      const summaries: DiscussionSummary[] = [];
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const threadDir = path.join(dir, entry.name);
+        const sessionFile = path.join(threadDir, 'session.json');
+        if (!fs.existsSync(sessionFile)) continue; // a plan folder, not a thread
+        try {
+          const info = SessionInfoSchema.parse(JSON.parse(fs.readFileSync(sessionFile, 'utf8')));
+          const rounds = fs.readdirSync(threadDir).filter((d) => /^round-\d+$/.test(d)).length;
+          const artifactsDir = path.join(threadDir, 'artifacts');
+          const artifacts = fs.existsSync(artifactsDir)
+            ? fs.readdirSync(artifactsDir).filter((f) => f.endsWith('.svg')).length
+            : 0;
+          summaries.push({
+            id: entry.name,
+            title: info.title,
+            startedAt: info.startedAt,
+            dir: threadDir,
+            rounds,
+            artifacts,
+            archived,
+          });
+        } catch (err) {
+          console.error(`[store] skipping ${entry.name}: ${String(err)}`);
+        }
+      }
+      return summaries;
+    };
+    return [...scan(root, false), ...scan(path.join(root, '_completed'), true)].sort((a, b) =>
+      b.startedAt.localeCompare(a.startedAt),
+    );
+  }
+
+  /** Resolve a thread id to its directory, checking live root then _completed/. */
+  static resolveDir(root: string, id: string): string {
+    const base = path.basename(id);
+    const live = path.join(root, base);
+    if (fs.existsSync(path.join(live, 'session.json'))) return live;
+    return path.join(root, '_completed', base);
+  }
+
+  private roundDir(round: number): string {
+    const dir = path.join(this.info.dir, `round-${String(round).padStart(2, '0')}`);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  recordBoard(board: Board): void {
+    this.rounds.push({ board, response: null });
+    const dir = this.roundDir(board.round);
+    fs.writeFileSync(path.join(dir, 'board.json'), JSON.stringify(board, null, 2));
+    for (const option of board.options) {
+      fs.writeFileSync(path.join(dir, `option-${option.id}.svg`), option.svg);
+    }
+  }
+
+  recordResponse(response: BoardResponse): void {
+    const round = this.rounds.find((r) => r.board.id === response.boardId);
+    if (!round) return;
+    round.response = response;
+    const dir = this.roundDir(round.board.round);
+    fs.writeFileSync(path.join(dir, 'response.json'), JSON.stringify(response, null, 2));
+  }
+
+  captureArtifact(
+    name: string,
+    svg: string,
+    notes: string,
+    provenance: { boardId?: string; optionIds: string[] },
+  ): Artifact {
+    const base = slugify(name);
+    let slug = base;
+    for (let i = 2; this.artifacts.some((a) => a.slug === slug); i++) {
+      slug = `${base}-${i}`;
+    }
+    const svgPath = path.join(this.info.dir, 'artifacts', `${slug}.svg`);
+    fs.writeFileSync(svgPath, svg);
+    const artifact: Artifact = {
+      slug,
+      name,
+      svgPath,
+      notes,
+      provenance,
+      capturedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(
+      path.join(this.info.dir, 'artifacts', `${slug}.json`),
+      JSON.stringify(artifact, null, 2),
+    );
+    this.artifacts.push(artifact);
+    return artifact;
+  }
+
+  nextRound(): number {
+    return this.rounds.length + 1;
+  }
+}

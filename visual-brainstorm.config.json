@@ -1,0 +1,8 @@
+{
+  "$comment": "Visual Brainstorm config — human-editable. targetRepo (optional) also receives accepted artifacts under brainstorm-artifacts/. stylesDir is scanned for theme JSON drop-ins. theme picks the default; the studio picker can override per-browser.",
+  "stylesDir": "styles",
+  "theme": "neon-purple",
+  "models": ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5"],
+  "defaultModel": "claude-fable-5",
+  "discussionDir": ".docs/discussion"
+}

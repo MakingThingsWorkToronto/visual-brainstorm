@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.visual-brainstorm/
+.env
+.DS_Store

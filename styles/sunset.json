@@ -1,0 +1,22 @@
+{
+  "name": "sunset",
+  "label": "Sunset (ingested example)",
+  "light": {
+    "canvas": "#fdf6f0",
+    "surface": "#ffffff",
+    "surface2": "#faeee4",
+    "line": "#f0ddcc",
+    "ink": "#291812",
+    "inkDim": "#8a7263",
+    "accent": "#f43f5e"
+  },
+  "dark": {
+    "canvas": "#170f0b",
+    "surface": "#221712",
+    "surface2": "#2d1f18",
+    "line": "#443228",
+    "ink": "#faf0e8",
+    "inkDim": "#b39c8d",
+    "accent": "#fb7185"
+  }
+}

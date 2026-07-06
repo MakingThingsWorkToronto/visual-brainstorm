@@ -1,0 +1,21 @@
+{
+  "boardId": "board-r1-demo",
+  "selectedOptionIds": [
+    "bulb-classic",
+    "bulb-chat"
+  ],
+  "elaboration": "combine both and present 10 more options. ",
+  "perOptionNotes": {},
+  "axisValues": {
+    "tone": 0,
+    "weight": 87,
+    "glow": 81,
+    "shape": 76,
+    "color": 40,
+    "read": 40
+  },
+  "remixPairs": [],
+  "action": "iterate",
+  "model": "claude-fable-5",
+  "respondedAt": "2026-07-06T02:38:32.113Z"
+}

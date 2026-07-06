@@ -1,0 +1,24 @@
+{
+  "name": "visual-brainstorm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SVG-based visual brainstorming beside Claude Code — replies as interactive visual surveys, not text.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w packages/protocol && npm run build -w apps/studio && npm run build -w apps/mcp",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "demo": "npm run demo -w apps/mcp",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
