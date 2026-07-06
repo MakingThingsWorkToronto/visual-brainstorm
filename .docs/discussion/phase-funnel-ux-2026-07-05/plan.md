@@ -44,3 +44,52 @@ Response schema grows optional per-phase fields: `triage`, `mutations`, `flaws`,
 
 build + smoke (extended: phase round-trip, per-phase response fields, /api/command queue,
 archive listing) + demo per phase (`npm run demo -- wreck` etc.).
+
+## Addendum — operator UX-test feedback (same session)
+
+Defects found by live testing and fixed:
+1. **Dial-only response was a no-op** → "axis deltas are a complete instruction" enforced in
+   tool description, `feedbackDigest`, phases skill, and the demo (dials re-render
+   stroke/caps/accent visibly). Studio marks moved dials (● + "steers next round").
+2. **Phase tabs not clickable** → PhaseBar is steerable; local mechanic switches instantly;
+   `requestedPhase` returns to the orchestrator (protocol field added).
+3. **No feedback while Claude works** → rotating progress strings under the shimmer marker;
+   bridge gained `think()`.
+4. **No full-cycle test path** → ✚ New Brainstorm button (`new-brainstorm` command) + demo
+   rewritten as a five-phase self-driving orchestrator with dial-responsive regeneration.
+5. **Feedback packaging contract** (operator directive): nothing dropped (touched mechanics
+   always ship state), tool result carries labeled executable `feedbackDigest`. Wiki
+   interaction-protocol §Feedback packaging is authoritative.
+6. **Per-surface verification** → `npm run smoke:ui` server-renders all five mechanics.
+7. mindmapcn/mind-elixir evaluated (operator link) → `wiki/Research/visualization-engines.md`,
+   phase-2 adoption verdict.
+8. **Synthesis vector + brainstorm.md** (operator): selections → next round is pure synthesis
+   (2 picks → 5 compositions; 1 pick → spins); every round/response auto-appended to the
+   thread's `brainstorm.md` (the re-synthesis memory); per-tab execution guides added.
+9. **expand phase** (6-phase funnel): selections GROW the pool with syntheses, nothing removed.
+10. **🏁 finalize** (operator): crown one keep in the Triage Gate → capture THE artifact +
+    auto-trigger plan-closeout (demo simulates by archiving the thread to `_completed/`).
+11. **Prompt-seeded ✚ New Brainstorm**: dialog asks "what are we brainstorming?"; seed rides
+    the command (queued or via-board) into the digest; demo titles/seeds the new thread.
+12. Bug found by live verify: board ids collided across demo cycles and the bridge's
+    first-response-wins dedup swallowed new-cycle responses — ids now cycle-scoped and
+    `attachStore` clears response state.
+13. **↩ Back action** (operator): rejects the current round and re-presents the previous
+    board; bypasses all gates; demo keeps per-round snapshots; digest instructs the
+    orchestrator to recover round N-1 from cache and not advance.
+14. **Synthesis by MEANING** (operator): overlaying parent SVGs is forbidden — combine what
+    the parents MEAN and draw fresh (system-map: merge architectures into one diagram).
+    Demo now ships hand-drawn semantic offspring for all 6 stock pairs; mechanical
+    composites only as honestly-labeled fallback for offspring-of-offspring.
+15. **Engine honesty + kickoff brief** (operator: "prompt was not respected — demo is
+    hardcoded"): `StudioState.engine` (claude|demo) surfaces who is driving; the New
+    Brainstorm dialog says so. On the demo engine a seeded brainstorm runs a KICKOFF BRIEF
+    round — direction cards (literal/abstract/diagrammatic/playful) rendered from the
+    user's own prompt — captures the response to the thread, and hands off to Claude
+    (resume via discussionId; brief lives in brainstorm.md). No fake generation, ever.
+16. **DE-SLOP: demo orchestrator deleted** (operator: "why hardcode anything demo? slop").
+    All accreted pseudo-intelligence (pool engine, mechanical/semantic synthesis tables,
+    dial-restyling, kickoff brief, kill list, cycle loop) removed with demo.ts. Replaced by
+    `preview.ts`: fixtures-only surface exerciser, temp-dir threads, engine `'preview'`
+    declared in the UI, `npm run preview [phase]` (`npm run demo` aliases to it).
+    `diagnose-demo.md` → `diagnose-studio.md`. One engine: Claude + skills.

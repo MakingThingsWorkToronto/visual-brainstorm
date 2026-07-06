@@ -21,6 +21,31 @@ interface Thread {
 
 type Preview = { svg: string; label: string } | null;
 
+/** Rotating progress strings — visible feedback while Claude works between rounds. */
+const PROGRESS = [
+  'reading your selections…',
+  'weighing the dials…',
+  'breeding remix offspring…',
+  'inking new candidates…',
+  'checking lineage against earlier rounds…',
+  'sharpening strokes…',
+  'arguing with itself about composition…',
+];
+
+function ThinkingMarker({ note }: { note: string }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 2200);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <div className="space-y-1">
+      <Marker shimmer>{note}</Marker>
+      <div className="text-center text-[11px] text-ink-dim">{PROGRESS[tick % PROGRESS.length]}</div>
+    </div>
+  );
+}
+
 /** A completed round in the timeline: Claude's bubble + mini grid + user's reply bubble. */
 function RoundHistoryView({
   record,
@@ -81,13 +106,20 @@ export default function App() {
   const [themeName, setThemeName] = useState<string | null>(storedThemeName());
   const [navOpen, setNavOpen] = useState(false);
   const [commandStatus, setCommandStatus] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
+  const [newPrompt, setNewPrompt] = useState('');
+  const [logs, setLogs] = useState<{ file: string | null; lines: string[] } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const invokeCommand = useCallback(async (command: 'plan-closeout' | 'discover-skills') => {
+  const openLogs = useCallback(async () => {
+    setLogs(await (await fetch('/api/logs')).json());
+  }, []);
+
+  const invokeCommand = useCallback(async (command: 'plan-closeout' | 'discover-skills' | 'new-brainstorm', prompt?: string) => {
     const res = await fetch('/api/command', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ command }),
+      body: JSON.stringify({ command, prompt }),
     });
     const body = await res.json();
     setCommandStatus(
@@ -187,6 +219,14 @@ export default function App() {
             )}
             <button
               type="button"
+              onClick={() => setNewOpen(true)}
+              title="Start a fresh brainstorm from your own prompt (requires the Claude engine)"
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:brightness-105"
+            >
+              ✚ New Brainstorm
+            </button>
+            <button
+              type="button"
               onClick={() => invokeCommand('discover-skills')}
               title="Interactive: match local skills to the task, or web-discover new techniques and ingest them as skills — quality compounds every turn"
               className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs hover:border-accent"
@@ -218,6 +258,14 @@ export default function App() {
                 ))}
               </div>
             )}
+            <button
+              type="button"
+              onClick={openLogs}
+              title="Live bridge logs — every board, response, command, and error"
+              className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink-dim hover:border-accent hover:text-ink"
+            >
+              🧾
+            </button>
             <ThemePicker
               themes={state.themes}
               current={themeName ?? state.theme}
@@ -283,11 +331,87 @@ export default function App() {
           )}
 
           {viewingLive && !state.activeBoard && state.thinking && (
-            <Marker shimmer>{state.thinking}</Marker>
+            <ThinkingMarker note={state.thinking} />
           )}
           <div ref={bottomRef} />
         </main>
       </div>
+
+      {newOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 shadow-2xl">
+            <h2 className="text-sm font-bold">✚ New Brainstorm</h2>
+            <p className="mt-1 text-xs text-ink-dim">
+              What are we brainstorming? Your prompt seeds the first board.
+            </p>
+            {state.engine === 'preview' && (
+              <div className="mt-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-[11px] leading-snug text-ink-dim">
+                <span className="font-semibold text-ink">Preview harness — no generator attached.</span>{' '}
+                This server only shows static fixture boards for exercising the UI. To brainstorm
+                for real, start Claude Code in this repo (the MCP server auto-loads via .mcp.json)
+                and ask it to brainstorm your prompt.
+              </div>
+            )}
+            <textarea
+              autoFocus
+              value={newPrompt}
+              onChange={(e) => setNewPrompt(e.target.value)}
+              placeholder="e.g. app icons for a note-taking tool — hand-drawn, warm, must read at 16px"
+              rows={3}
+              className="mt-3 w-full resize-y rounded-xl border border-line bg-surface-2 p-3 text-sm outline-none focus:border-accent"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setNewOpen(false)}
+                className="rounded-lg px-3 py-1.5 text-xs text-ink-dim hover:text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!newPrompt.trim()}
+                onClick={() => {
+                  invokeCommand('new-brainstorm', newPrompt.trim());
+                  setNewOpen(false);
+                  setNewPrompt('');
+                }}
+                className="rounded-lg bg-accent px-4 py-1.5 text-xs font-semibold text-white hover:brightness-105 disabled:opacity-50"
+              >
+                Start brainstorm →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {logs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex h-[70vh] w-full max-w-4xl flex-col rounded-2xl border border-line bg-surface p-4 shadow-2xl">
+            <div className="mb-2 flex items-center gap-2">
+              <h2 className="text-sm font-bold">Bridge logs</h2>
+              <span className="truncate text-xs text-ink-dim">{logs.file ?? 'in-memory only'}</span>
+              <button
+                type="button"
+                onClick={openLogs}
+                className="ml-auto rounded-lg border border-line px-2.5 py-1 text-xs hover:border-accent"
+              >
+                ↻ refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogs(null)}
+                className="rounded-lg border border-line px-2.5 py-1 text-xs hover:border-accent"
+              >
+                ✕
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto rounded-xl bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-dim">
+              {logs.lines.join('\n') || '(empty)'}
+            </pre>
+          </div>
+        </div>
+      )}
 
       {preview && (
         <PreviewModal svg={preview.svg} label={preview.label} onClose={() => setPreview(null)} />

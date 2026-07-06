@@ -8,3 +8,18 @@
 - 2026-07-05 — Requirements/interaction-protocol.md — funnel section referencing phase-funnel + phases skill — reason: same plan
 - 2026-07-05 — Meta/conventions.md — .claude/commands authority, self-improving closeout loop — reason: same plan
 - 2026-07-05 — README.md — index phase-funnel page — reason: same plan
+- 2026-07-05 — Requirements/interaction-protocol.md — Feedback packaging contract (nothing dropped; executable feedbackDigest; dial-deltas-are-complete-instruction; clickable PhaseBar/requestedPhase; new-brainstorm command) — reason: operator UX-test feedback, `.docs/discussion/phase-funnel-ux-2026-07-05/plan.md` addendum
+- 2026-07-05 — Research/visualization-engines.md — NEW: mindmapcn/mind-elixir evaluation (operator-flagged); verdict adopt as phase-2 co-editing mechanic — reason: operator reference
+- 2026-07-06 — Requirements/system-architecture.md — /api/health self-diagnosis endpoint; file logging to `<discussionRoot>/.logs/` (demo-/mcp-<date>.log, pid-tagged, crash handlers) — reason: operator report "demo failed" (was a port-conflict ghost); diagnose procedure at .claude/commands/diagnose-demo.md
+- 2026-07-06 — Requirements/system-architecture.md + interaction-protocol.md — brainstorm.md append-only text memory per thread; synthesis-vector rule (selections → next round is pure synthesis) — reason: operator: disconnect between user action and previous results
+- 2026-07-06 — Product/phase-funnel.md — expand phase (pool grows with syntheses of selections) + 🏁 finalize contract (final option → capture + auto plan-closeout) + prompt-seeded new brainstorms — reason: operator directives
+- 2026-07-06 — (skills, protocol) — synthesis-by-MEANING law + ↩ back action (re-present previous board, bypasses gates) — reason: operator: overlays aren't synthesis; need a way back when a round fails
+- 2026-07-06 — Requirements/system-architecture.md — engine honesty non-negotiable: StudioState.engine claude|demo; demo seeded brainstorms = kickoff brief + handoff, never fake generation — reason: operator: "prompt was not respected, demo is hardcoded"
+- 2026-07-06 — Requirements/system-architecture.md — de-slop: demo orchestrator DELETED; one engine (Claude); `preview.ts` fixtures-only harness; engine enum claude|preview — reason: operator: "why would we hardcode anything demo? seems like slop"
+- 2026-07-06 — System/testing-observability.md — NEW authoritative page: three test layers (unit/smoke/ui-smoke) + conventions; observability (file logs, /api/logs ring, /api/health, diagnosis) — reason: `.docs/discussion/docs-tests-agents-2026-07-06/plan.md`
+- 2026-07-06 — System/agents.md — NEW: specialized agent roster (devops-diagnostician, svg-artisan, test-engineer, wiki-librarian) + model-delegation flow — reason: same plan
+- 2026-07-06 — Meta/conventions.md — features-ship-with-tests rule; harness-stays-dumb rule; docs home — reason: same plan
+- 2026-07-06 — README.md — index System pages — reason: same plan
+- 2026-07-06 — Meta/agentic-loop.md (+ agentic-loop.svg) — NEW authoritative page: the five-stage build→learn→document→improve loop, exit criteria, memory map, cold-start guarantee — reason: operator directive, `.docs/discussion/docs-tests-agents-2026-07-06/plan.md`
+- 2026-07-06 — README.md — index Meta/agentic-loop — reason: same
+- 2026-07-06 — (root) CLAUDE.md — optimized for agents/skills: Session bootstrap + quick map + rules 11 (route through specialized layers) and 12 (docs move with the product) — reason: operator directive (new chats must understand the entire agentic layer)

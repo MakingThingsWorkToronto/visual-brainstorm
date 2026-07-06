@@ -11,6 +11,7 @@ const EMPTY: StudioState = {
   activeBoard: null,
   artifacts: [],
   thinking: null,
+  engine: 'claude',
   themes: [],
   theme: 'neon-purple',
   models: [],

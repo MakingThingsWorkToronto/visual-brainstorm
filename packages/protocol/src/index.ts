@@ -23,7 +23,7 @@ export type BoardKind = z.infer<typeof BoardKindSchema>;
 // The studio physically re-architects itself per phase.
 // ---------------------------------------------------------------------------
 
-export const PHASES = ['diverge', 'mutate', 'wreck', 'cluster', 'converge'] as const;
+export const PHASES = ['diverge', 'expand', 'mutate', 'wreck', 'cluster', 'converge'] as const;
 export const PhaseSchema = z.enum(PHASES);
 export type Phase = z.infer<typeof PhaseSchema>;
 
@@ -89,7 +89,7 @@ export type Board = z.infer<typeof BoardSchema>;
 // Response
 // ---------------------------------------------------------------------------
 
-export const ResponseActionSchema = z.enum(['iterate', 'accept', 'park']);
+export const ResponseActionSchema = z.enum(['iterate', 'accept', 'park', 'finalize', 'back']);
 export type ResponseAction = z.infer<typeof ResponseActionSchema>;
 
 export const BoardResponseSchema = z.object({
@@ -118,8 +118,12 @@ export const BoardResponseSchema = z.object({
   gapNotes: z
     .array(z.object({ between: z.tuple([z.number(), z.number()]), note: z.string() }))
     .default([]),
-  /** UI-invoked repo procedures (plan-closeout, discover-skills) to run now. */
+  /** UI-invoked repo procedures (plan-closeout, discover-skills, new-brainstorm) to run now. */
   commands: z.array(z.string()).default([]),
+  /** User clicked a phase tab — present the NEXT board in this phase. */
+  requestedPhase: PhaseSchema.optional(),
+  /** action=finalize: THE one — capture it, then run plan-closeout (finality). */
+  finalOptionId: z.string().optional(),
   respondedAt: z.string(),
 });
 export type BoardResponse = z.infer<typeof BoardResponseSchema>;
@@ -201,6 +205,8 @@ export interface StudioState {
   activeBoard: Board | null;
   artifacts: Artifact[];
   thinking: string | null;
+  /** Who is driving: 'claude' (the real engine) or 'preview' (static fixture harness). */
+  engine: 'claude' | 'preview';
   /** Available themes (built-ins + ingested user styles). */
   themes: Theme[];
   /** Default theme name from config. */

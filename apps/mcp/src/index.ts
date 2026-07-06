@@ -17,12 +17,16 @@ import {
   type BoardOption,
 } from '@visual-brainstorm/protocol';
 import { Bridge, type BridgeOptions } from './bridge-server.js';
+import { buildFeedbackDigest } from './feedback.js';
 import { SessionStore } from './session-store.js';
 import { discussionRoot, loadConfig } from './config.js';
+import { FileLog, installCrashHandlers } from './log.js';
 import { loadThemes } from './themes.js';
 
 const config = loadConfig();
 const root = discussionRoot(config);
+const logger = new FileLog(path.join(root, '.logs'), 'mcp');
+installCrashHandlers(logger);
 
 let store: SessionStore | null = null;
 let bridge: Bridge | null = null;
@@ -34,6 +38,10 @@ function bridgeOptions(): BridgeOptions {
     theme: config.theme,
     models: config.models,
     defaultModel: config.defaultModel,
+    engine: 'claude',
+    log: (m) => logger.log(m),
+    recentLogs: () => logger.recent(),
+    logFile: () => logger.filePath,
   };
 }
 
@@ -74,8 +82,12 @@ server.tool(
     'response.flaws into fixes next round) → cluster (proximity field; response.positions/clusters/gapNotes ' +
     'encode the user’s implicit mental model — the gaps between clusters are where breakthroughs live) → ' +
     'converge (triage gate: response.triage keep/kill/merge is final). ' +
-    'If the response carries commands (plan-closeout, discover-skills), STOP brainstorming and run the ' +
-    'matching .claude/commands/<command>.md procedure immediately. ' +
+    'AXIS DELTAS ARE A COMPLETE INSTRUCTION: if axisValues moved versus their defaults — even with zero ' +
+    'selections and no elaboration — regenerate the SAME concepts re-tuned to the new dial values and say so ' +
+    'in the next prompt. A dial-only response must NEVER produce a no-op. ' +
+    'If response.requestedPhase is set the user clicked a phase tab — present the next board in exactly that phase. ' +
+    'If the response carries commands (plan-closeout, discover-skills, new-brainstorm), STOP brainstorming and run ' +
+    'the matching .claude/commands/<command>.md procedure immediately (new-brainstorm → run-brainstorm.md from step 1). ' +
     'REQUIRED: at least 5 axes TAILORED to the domain of the prompt — never absolutes, always a range ' +
     'between two poles (icons: e.g. playful↔serious, flat↔glowing, geometric↔organic; ' +
     'system design: e.g. low↔high cloud cost, simple↔complex, monolith↔distributed, managed↔self-hosted). ' +
@@ -132,23 +144,22 @@ server.tool(
         hint: 'User has not responded yet. The board is still live in the studio; call peek_response with this boardId to collect the response. Do not treat this as failure.',
       });
     }
-    const orchestration: string[] = [];
-    if (response.model) {
-      orchestration.push(
-        `User selected model "${response.model}" — delegate the next round's SVG generation to that model.`,
-      );
-    }
-    for (const command of [...response.commands, ...bridge.drainCommands()]) {
-      orchestration.push(
-        `User invoked "${command}" from the studio — STOP brainstorming and run the procedure in .claude/commands/${command}.md now.`,
+    // Package EVERY UI gesture into labeled, executable instructions — the
+    // iterative-cycle contract (wiki/Requirements/interaction-protocol.md).
+    const digest = buildFeedbackDigest(board, response);
+    for (const { command, prompt } of bridge.drainCommands()) {
+      const file = command === 'new-brainstorm' ? 'run-brainstorm' : command;
+      digest.push(
+        `Command (queued from UI): run .claude/commands/${file}.md NOW.` +
+          (prompt ? ` Seed prompt from the user: "${prompt}"` : ''),
       );
     }
     return text({
       status: 'responded',
       boardId: board.id,
+      feedbackDigest: digest,
       response,
       threadDir: store.info.dir,
-      orchestration: orchestration.length ? orchestration : undefined,
     });
   },
 );

@@ -37,9 +37,11 @@ Works for the opposite pole too: system/product design via `system-map`, `storyb
 ```sh
 npm install
 npm run build
-npm run smoke     # headless round-trip self-test
-npm run demo      # play with the studio, no Claude needed → http://127.0.0.1:5199
+npm test          # unit + integration smoke + UI render smoke
+npm run preview   # fixtures-only UI tour (no generator) → http://127.0.0.1:5199
 ```
+
+Full walkthrough of every control: **[.docs/user-guide.md](.docs/user-guide.md)**.
 
 Register with Claude Code (from your own project directory):
 

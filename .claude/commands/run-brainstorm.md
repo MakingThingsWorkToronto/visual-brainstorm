@@ -6,7 +6,9 @@ The complete operator procedure. Follow it literally; the skills carry the craft
 
 1. **Pre-phrase** with AskUserQuestion (never skip): domain (icons? system? palette? flow?),
    style references/colors, constraints, and how divergent to go. The consensus — not the raw
-   request — seeds the first board.
+   request — seeds the first board. If this run was triggered by the studio's ✚ New
+   Brainstorm button, the user's typed seed prompt arrives in the tool result/digest — build
+   the AskUserQuestion clarifications ON that seed, don't re-ask what it already says.
 2. **Load the craft**: read `.claude/skills/svg-authoring/SKILL.md` (how to draw options)
    and `.claude/skills/brainstorm-phases/SKILL.md` (when to use which phase and how to
    interpret each response field).
@@ -22,7 +24,8 @@ The complete operator procedure. Follow it literally; the skills carry the craft
    discover-skills, stop brainstorming and run that command file immediately.
 7. **Capture** — on `accept`, call `capture_artifact` for every kept option (provenance:
    boardId + optionIds). On `park`, summarize state and stop; the thread resumes later via
-   `discussionId`.
+   `discussionId`. On **`finalize`** (`finalOptionId` set): capture the final artifact, then
+   run `.claude/commands/plan-closeout.md` immediately — finality IS the closeout trigger.
 8. **Timeouts are not failures** — `{status:"pending"}` means the human is thinking; use
    `peek_response` later.
 

@@ -34,6 +34,9 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
 
 - Bridge port: `VIBR_PORT` env, default **5199**, loopback only (`127.0.0.1`).
 - `GET /` static studio (dist resolved `../../studio/dist` from apps/mcp/dist; override `VIBR_STUDIO_DIST`).
+- `GET /api/health` — self-diagnosis: pid, port, startedAt, session id/dir, active board,
+  connected clients, studio-dist existence. First stop when anything "seems broken"
+  (`.claude/commands/diagnose-demo.md`).
 - `GET /api/state` — full session state (hello payload) incl. themes/models for initial load/reconnect.
 - `GET /api/discussions` — all cached threads (left-nav source), newest first; threads in
   `_completed/` carry `archived: true` and populate the Archive nav section.
@@ -78,6 +81,8 @@ reloadable in the UI (left nav) and by Claude (`list_discussions` / `load_discus
 ```
 .docs/discussion/<yyyy-mm-dd-hhmm>-<slug>/
   session.json                 thread meta (id = directory basename)
+  brainstorm.md                append-only TEXT memory: every round's options (labels,
+                               lineage) + every response digest — the re-synthesis source
   round-01/board.json          full board payload
   round-01/option-<id>.svg     every presented SVG, individually cached
   round-01/response.json       the user's survey response (incl. chosen model)
@@ -90,3 +95,10 @@ reloadable in the UI (left nav) and by Claude (`list_discussions` / `load_discus
 - apps/mcp: **stderr-only logging** (stdout is the MCP channel).
 - Studio sanitizes all SVG before DOM insertion (no scripts / on* / foreignObject / js: hrefs).
 - protocol package has zero runtime deps besides zod.
+- **One engine: Claude.** All orchestration and generation live in Claude + the
+  `.claude/{commands,skills}` procedures — NEVER in harness code. `StudioState.engine` is
+  `'claude'` (real sessions over MCP) or `'preview'` (`apps/mcp/src/preview.ts`: a dumb
+  fixtures-only harness for exercising UI surfaces; fixture threads persist to a temp dir,
+  not the discussion cache). The preview never simulates intelligence — no synthesis, no
+  pool logic, no prompt handling; it says so in the UI. Hardcoded pseudo-orchestration is
+  slop and a rule-6 fake-success.

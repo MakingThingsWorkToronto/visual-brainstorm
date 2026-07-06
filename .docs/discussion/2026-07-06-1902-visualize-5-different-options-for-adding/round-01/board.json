@@ -1,0 +1,103 @@
+{
+  "id": "board-c2-r1-brief",
+  "sessionId": "2026-07-06-1902-visualize-5-different-options-for-adding",
+  "round": 1,
+  "kind": "freeform",
+  "phase": "diverge",
+  "title": "Kickoff brief — visualize 5 different options for adding a search feature",
+  "prompt": "Your brainstorm: “visualize 5 different options for adding a search feature”. The demo engine cannot generate options from a prompt — but this brief CAN steer the real generator. Select the directions that fit, set the dials, elaborate, and send: everything is captured to this thread for Claude to pick up.",
+  "options": [
+    {
+      "id": "brief-literal",
+      "label": "Literal take",
+      "description": "draw exactly what the prompt says",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 150\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><rect x=\"4\" y=\"4\" width=\"192\" height=\"142\" rx=\"10\"/><text x=\"14\" y=\"24\" font-size=\"12\" font-weight=\"bold\" fill=\"#a855f7\" stroke=\"none\">LITERAL</text><circle cx=\"178\" cy=\"20\" r=\"8\"/><circle cx=\"178\" cy=\"20\" r=\"3\" fill=\"#a855f7\" stroke=\"none\"/><text x=\"14\" y=\"52\" font-size=\"9\" fill=\"currentColor\" stroke=\"none\"><tspan x=\"14\" dy=\"0\">visualize 5 different options for</tspan><tspan x=\"14\" dy=\"13\">adding a search feature</tspan></text><text x=\"14\" y=\"132\" font-size=\"8\" fill=\"currentColor\" opacity=\"0.6\" stroke=\"none\">draw exactly what the prompt says</text></svg>",
+      "tags": [
+        "literal"
+      ],
+      "parents": []
+    },
+    {
+      "id": "brief-abstract",
+      "label": "Abstract take",
+      "description": "capture the feeling, drop the objects",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 150\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><rect x=\"4\" y=\"4\" width=\"192\" height=\"142\" rx=\"10\"/><text x=\"14\" y=\"24\" font-size=\"12\" font-weight=\"bold\" fill=\"#a855f7\" stroke=\"none\">ABSTRACT</text><path d=\"M166 14c8-6 18 2 12 9s-18 2-12-9Z\" stroke=\"#a855f7\"/><text x=\"14\" y=\"52\" font-size=\"9\" fill=\"currentColor\" stroke=\"none\"><tspan x=\"14\" dy=\"0\">visualize 5 different options for</tspan><tspan x=\"14\" dy=\"13\">adding a search feature</tspan></text><text x=\"14\" y=\"132\" font-size=\"8\" fill=\"currentColor\" opacity=\"0.6\" stroke=\"none\">capture the feeling, drop the objects</text></svg>",
+      "tags": [
+        "abstract"
+      ],
+      "parents": []
+    },
+    {
+      "id": "brief-diagram",
+      "label": "Diagrammatic take",
+      "description": "structure, parts, relationships",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 150\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><rect x=\"4\" y=\"4\" width=\"192\" height=\"142\" rx=\"10\"/><text x=\"14\" y=\"24\" font-size=\"12\" font-weight=\"bold\" fill=\"#a855f7\" stroke=\"none\">DIAGRAMMATIC</text><rect x=\"164\" y=\"12\" width=\"10\" height=\"8\" rx=\"2\"/><rect x=\"180\" y=\"24\" width=\"10\" height=\"8\" rx=\"2\"/><path d=\"M174 20l6 4\" stroke=\"#a855f7\"/><text x=\"14\" y=\"52\" font-size=\"9\" fill=\"currentColor\" stroke=\"none\"><tspan x=\"14\" dy=\"0\">visualize 5 different options for</tspan><tspan x=\"14\" dy=\"13\">adding a search feature</tspan></text><text x=\"14\" y=\"132\" font-size=\"8\" fill=\"currentColor\" opacity=\"0.6\" stroke=\"none\">structure, parts, relationships</text></svg>",
+      "tags": [
+        "diagram"
+      ],
+      "parents": []
+    },
+    {
+      "id": "brief-playful",
+      "label": "Playful take",
+      "description": "exaggerate — cartoon energy",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 150\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><rect x=\"4\" y=\"4\" width=\"192\" height=\"142\" rx=\"10\"/><text x=\"14\" y=\"24\" font-size=\"12\" font-weight=\"bold\" fill=\"#a855f7\" stroke=\"none\">PLAYFUL</text><path d=\"M168 24c3 5 13 5 16 0M170 15v3M184 15v3\" stroke=\"#a855f7\"/><text x=\"14\" y=\"52\" font-size=\"9\" fill=\"currentColor\" stroke=\"none\"><tspan x=\"14\" dy=\"0\">visualize 5 different options for</tspan><tspan x=\"14\" dy=\"13\">adding a search feature</tspan></text><text x=\"14\" y=\"132\" font-size=\"8\" fill=\"currentColor\" opacity=\"0.6\" stroke=\"none\">exaggerate — cartoon energy</text></svg>",
+      "tags": [
+        "playful"
+      ],
+      "parents": []
+    }
+  ],
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 1,
+    "elaborationPrompt": "Elaborate — what direction should the next round take?",
+    "allowPerOptionNotes": true,
+    "allowRemix": true,
+    "axes": [
+      {
+        "id": "tone",
+        "label": "Tone",
+        "leftLabel": "Playful",
+        "rightLabel": "Serious",
+        "defaultValue": 50
+      },
+      {
+        "id": "weight",
+        "label": "Density",
+        "leftLabel": "Minimal",
+        "rightLabel": "Detailed",
+        "defaultValue": 50
+      },
+      {
+        "id": "glow",
+        "label": "Neon-ness",
+        "leftLabel": "Flat",
+        "rightLabel": "Full glow",
+        "defaultValue": 50
+      },
+      {
+        "id": "shape",
+        "label": "Geometry",
+        "leftLabel": "Geometric",
+        "rightLabel": "Organic",
+        "defaultValue": 50
+      },
+      {
+        "id": "color",
+        "label": "Color",
+        "leftLabel": "Monochrome",
+        "rightLabel": "Colorful",
+        "defaultValue": 50
+      },
+      {
+        "id": "read",
+        "label": "Reading",
+        "leftLabel": "Literal",
+        "rightLabel": "Abstract",
+        "defaultValue": 50
+      }
+    ]
+  },
+  "createdAt": "2026-07-06T23:02:41.337Z"
+}

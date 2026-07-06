@@ -6,12 +6,16 @@ Claude chooses the phase per board using `.claude/skills/brainstorm-phases/SKILL
 
 ## Theory → mechanic map (as built)
 
-### 1. Divergent-Convergent Funnel → `diverge` + `converge` + the PhaseBar
-The PhaseBar renders the funnel itself (segments narrow toward converge). `diverge` is the
-unconstrained sandbox: airy grid, no selection ceilings, fast spark notes. `converge` is the
-threshold mechanic: generation is over, the **Triage Gate** demands a keep/kill/merge verdict
-on EVERY option before the send buttons unlock — the viewport physically stops expansion and
-forces distillation.
+### 1. Divergent-Convergent Funnel → `diverge` + `expand` + `converge` + the PhaseBar
+The PhaseBar renders the funnel itself (segments narrow toward converge; tabs are clickable
+— the user steers). `diverge` is the unconstrained sandbox: airy grid, no ceilings, fast
+spark notes; selections REPLACE the pool with syntheses (the synthesis vector). `expand` is
+the amplifier: select what resonates (gate: ≥1) and the pool GROWS with multiple new
+syntheses — nothing is removed. `converge` is the threshold mechanic: generation is over,
+the **Triage Gate** demands a keep/kill/merge verdict on EVERY option before send unlocks,
+and one keep can be crowned **🏁 Final** — finalizing captures THE answer and automatically
+triggers `/plan-closeout` (the thread archives to the Archive nav). Finality is a first-class
+action, not a convention.
 
 ### 2. Deconstruction-Mutation (SCAMPER) → `mutate` / Mutation Lab
 The big picture is hidden on purpose: ONE option fills the stage (‹ › to move). Distortion
@@ -42,11 +46,12 @@ accretes in the background without ever interrupting a drag.
 
 | phase | fields Claude must honor |
 |---|---|
-| diverge | selectedOptionIds, perOptionNotes, remixPairs, axisValues |
+| diverge | selectedOptionIds (→ pool REPLACED by syntheses), perOptionNotes, remixPairs, axisValues |
+| expand | selectedOptionIds (→ pool GROWS with syntheses; nothing removed) |
 | mutate | mutations (lens ids per option) |
 | wreck | flaws (→ fix candidates next round) |
 | cluster | positions, clusters, gapNotes |
-| converge | triage (keep → capture; kill → never again; merge → one synthesis) |
+| converge | triage (keep → capture; kill → never again; merge → one synthesis); action `finalize` + finalOptionId → capture THE one, then run plan-closeout |
 
 All phases: elaboration, axisValues (persistent taste calibration), model (delegate),
 commands (run `.claude/commands/<command>.md` immediately).

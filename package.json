@@ -15,10 +15,16 @@
   "scripts": {
     "build": "npm run build -w packages/protocol && npm run build -w apps/studio && npm run build -w apps/mcp",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "demo": "npm run demo -w apps/mcp",
-    "smoke": "node scripts/smoke.mjs"
+    "preview": "npm run preview -w apps/mcp",
+    "demo": "npm run preview -w apps/mcp",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:ui": "tsx scripts/ui-smoke.ts",
+    "test:unit": "node --test \"tests/*.test.mjs\"",
+    "test": "npm run test:unit && npm run smoke && npm run smoke:ui"
   },
   "devDependencies": {
+    "jsdom": "^24.1.0",
+    "tsx": "^4.16.0",
     "typescript": "^5.5.4"
   }
 }

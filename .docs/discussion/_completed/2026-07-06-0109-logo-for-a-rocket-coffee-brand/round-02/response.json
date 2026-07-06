@@ -1,0 +1,19 @@
+{
+  "boardId": "board-c2-r2-expand",
+  "selectedOptionIds": [
+    "syn1-nest-ab"
+  ],
+  "elaboration": "",
+  "perOptionNotes": {},
+  "axisValues": {},
+  "remixPairs": [],
+  "action": "iterate",
+  "triage": {},
+  "mutations": {},
+  "flaws": {},
+  "positions": {},
+  "clusters": [],
+  "gapNotes": [],
+  "commands": [],
+  "respondedAt": "2026-07-06T01:00:01Z"
+}

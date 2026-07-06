@@ -51,6 +51,28 @@ Every round is persisted before the user ever responds — a closed browser lose
 
 The point is to encourage multiple response signals per round beyond selection alone.
 
+## Feedback packaging — the iterative-cycle contract
+
+Visual brainstorming IS the packaging of UI feedback into the next round. Three rules:
+
+1. **Nothing is dropped.** Every gesture in the studio (selection, note, remix mark, dial
+   move, lens mark, flaw, drag position, cluster, gap note, phase-tab click, model pick,
+   command button) lands in `BoardResponse`. Mechanics the user touched ship their state
+   even if a different phase tab is active at send time.
+2. **The tool result is executable.** `present_board` returns a `feedbackDigest`: labeled,
+   imperative instructions compiled from the response (option labels not ids, dial DELTAS
+   with direction, per-verdict triage lists). A delegated model that never saw the board can
+   execute the digest as-is.
+3. **Dial deltas are a complete instruction.** Moved axisValues with zero selections and no
+   text MUST produce a visibly re-tuned next round — never a no-op. The studio marks moved
+   dials (● + count) so the user knows the signal was captured; `requestedPhase` (clickable
+   PhaseBar tabs) must likewise be honored on the very next board.
+4. **Selections define the synthesis vector.** A round following selections consists of
+   syntheses of the selected options (two picks → ~5 distinct compositions descended from
+   both; one pick → spun variants). Unselected directions are dropped, never re-shown.
+   `brainstorm.md` (auto-appended per round/response in the thread dir) is the text memory
+   that makes re-synthesis provable across rounds and resumes.
+
 ## Model routing
 
 The studio composer carries a model picker (list from `visual-brainstorm.config.json`).

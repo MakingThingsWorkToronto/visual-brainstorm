@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="la" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#a855f7"/>
+    </marker>
+  </defs>
+
+  <!-- center -->
+  <circle cx="280" cy="280" r="86" fill="#a855f7" opacity="0.08" stroke="none"/>
+  <text x="280" y="268" text-anchor="middle" font-size="13" font-weight="700" fill="#a855f7">every cycle leaves</text>
+  <text x="280" y="286" text-anchor="middle" font-size="13" font-weight="700" fill="#a855f7">the repo smarter</text>
+  <text x="280" y="306" text-anchor="middle" font-size="10" fill="#8a8a94">commands &#183; skills &#183; wiki &#183; tests</text>
+
+  <!-- ring arrows (clockwise pentagon) -->
+  <g fill="none" stroke="#a855f7" stroke-width="2.5" marker-end="url(#la)">
+    <path d="M352 92 Q 452 130 486 232"/>
+    <path d="M474 330 Q 430 442 320 478"/>
+    <path d="M248 480 Q 180 478 130 452"/>
+    <path d="M86 436 Q 62 380 76 322"/>
+    <path d="M78 232 Q 106 126 196 88"/>
+  </g>
+
+  <!-- PLAN (top) -->
+  <rect x="200" y="36" width="160" height="62" rx="12" fill="none" stroke="#8a8a94" stroke-width="2"/>
+  <text x="280" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#a855f7">1 &#183; PLAN</text>
+  <text x="280" y="76" text-anchor="middle" font-size="9.5" fill="#8a8a94">.docs/discussion/&#60;slug&#62;/plan.md</text>
+  <text x="280" y="89" text-anchor="middle" font-size="9.5" fill="#8a8a94">scope &#183; authority &#183; phases</text>
+
+  <!-- BUILD (right) -->
+  <rect x="416" y="238" width="140" height="76" rx="12" fill="none" stroke="#8a8a94" stroke-width="2"/>
+  <text x="486" y="262" text-anchor="middle" font-size="14" font-weight="700" fill="#a855f7">2 &#183; BUILD</text>
+  <text x="486" y="278" text-anchor="middle" font-size="9.5" fill="#8a8a94">agents + skills do the work;</text>
+  <text x="486" y="291" text-anchor="middle" font-size="9.5" fill="#8a8a94">features ship WITH tests;</text>
+  <text x="486" y="304" text-anchor="middle" font-size="9.5" fill="#8a8a94">npm test proves it (rule 10)</text>
+
+  <!-- LEARN (bottom right) -->
+  <rect x="252" y="452" width="150" height="66" rx="12" fill="none" stroke="#8a8a94" stroke-width="2"/>
+  <text x="327" y="476" text-anchor="middle" font-size="14" font-weight="700" fill="#a855f7">3 &#183; LEARN</text>
+  <text x="327" y="492" text-anchor="middle" font-size="9.5" fill="#8a8a94">.agents/learnings.md &#8212;</text>
+  <text x="327" y="505" text-anchor="middle" font-size="9.5" fill="#8a8a94">gotchas written once, never re-learned</text>
+
+  <!-- DOCUMENT (bottom left) -->
+  <rect x="10" y="440" width="160" height="72" rx="12" fill="none" stroke="#8a8a94" stroke-width="2"/>
+  <text x="90" y="464" text-anchor="middle" font-size="14" font-weight="700" fill="#a855f7">4 &#183; DOCUMENT</text>
+  <text x="90" y="480" text-anchor="middle" font-size="9.5" fill="#8a8a94">facts &#8594; wiki (+ log.md line);</text>
+  <text x="90" y="493" text-anchor="middle" font-size="9.5" fill="#8a8a94">humans &#8594; .docs/user-guide.md;</text>
+  <text x="90" y="506" text-anchor="middle" font-size="9.5" fill="#8a8a94">evidence &#8594; .logs (observable)</text>
+
+  <!-- IMPROVE (left) -->
+  <rect x="8" y="236" width="146" height="80" rx="12" fill="none" stroke="#a855f7" stroke-width="2.5"/>
+  <text x="81" y="260" text-anchor="middle" font-size="14" font-weight="700" fill="#a855f7">5 &#183; IMPROVE</text>
+  <text x="81" y="276" text-anchor="middle" font-size="9.5" fill="#8a8a94">/plan-closeout: learnings EDIT</text>
+  <text x="81" y="289" text-anchor="middle" font-size="9.5" fill="#8a8a94">the commands &#38; skills they</text>
+  <text x="81" y="302" text-anchor="middle" font-size="9.5" fill="#8a8a94">implicate (changelog footers)</text>
+
+  <text x="280" y="546" text-anchor="middle" font-size="10.5" fill="#8a8a94">triggered from the studio too: &#128230; Plan closeout &#183; &#127937; Finalize &#183; &#10024; Discover skills (web branch ingests new skills)</text>
+</svg>

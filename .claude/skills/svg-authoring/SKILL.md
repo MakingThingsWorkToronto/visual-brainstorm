@@ -45,7 +45,9 @@ one structural, one minimal. If two options would earn the same one-line descrip
 - [ ] names/descriptions state the IDEA, not "Option 3"
 - [ ] options are divergent per the discipline above
 - [ ] parents set for every derived option (lineage is the product)
-- [ ] remix requests from last round have visible offspring of BOTH parents
+- [ ] remix/synthesis offspring combine the parents' MEANINGS drawn fresh — never a
+      graphical overlay/composite of the parent SVGs (system-map: merge the architectures
+      into one clean diagram)
 
 ## Changelog
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)

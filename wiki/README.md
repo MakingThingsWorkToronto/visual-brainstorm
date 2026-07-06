@@ -12,6 +12,12 @@ the wiki wins until explicitly amended (and every amendment is logged in `log.md
   - [vision.md](Product/vision.md) — what this is, the two polar use cases, mashup lineage
   - [board-modes.md](Product/board-modes.md) — the 8 board kinds + visionary roadmap
   - [phase-funnel.md](Product/phase-funnel.md) — **authoritative**: the five psychological routes as built interface mechanics
+- **System/**
+  - [testing-observability.md](System/testing-observability.md) — **authoritative**: the three test layers, conventions, logs/health/diagnosis
+  - [agents.md](System/agents.md) — specialized agent roster and when to use each
+- **Research/**
+  - [visualization-engines.md](Research/visualization-engines.md) — engine evaluations (mindmapcn/mind-elixir)
 - **Meta/**
+  - [agentic-loop.md](Meta/agentic-loop.md) — **authoritative**: the build→learn→document→improve loop (with diagram) and the memory map
   - [conventions.md](Meta/conventions.md) — wiki editing rules, discussion/plan format, learnings format
 - [log.md](log.md) — append-only edit log

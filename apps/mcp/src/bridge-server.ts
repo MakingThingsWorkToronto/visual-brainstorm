@@ -16,6 +16,12 @@ import {
 } from '@visual-brainstorm/protocol';
 import { SessionStore } from './session-store.js';
 
+export interface CommandRequest {
+  command: string;
+  /** Seed text, e.g. the new-brainstorm topic the user typed. */
+  prompt?: string;
+}
+
 export interface BridgeOptions {
   /** Discussion root scanned for reloadable threads. */
   discussionRoot: string;
@@ -23,6 +29,14 @@ export interface BridgeOptions {
   theme: string;
   models: string[];
   defaultModel: string;
+  /** Who is driving — the studio adapts its promises to this. */
+  engine: 'claude' | 'preview';
+  /** Diagnostic sink — see log.ts. Defaults to console.error. */
+  log?: (message: string) => void;
+  /** Live log tail source for GET /api/logs (FileLog.recent). */
+  recentLogs?: () => string[];
+  /** Log file path reported by GET /api/logs. */
+  logFile?: () => string | null;
 }
 
 const MIME: Record<string, string> = {
@@ -72,13 +86,40 @@ export class Bridge {
   private thinking: string | null = null;
   private browserOpened = false;
   /** UI-invoked procedures queued while no board is awaiting a response. */
-  private commandQueue: string[] = [];
+  private commandQueue: CommandRequest[] = [];
   port = 0;
 
+  /** Invoked when a UI command is queued (no board waiting) — demo orchestrator hook. */
+  onQueuedCommand: ((request: CommandRequest) => void) | null = null;
+  private startedAt: string | null = null;
+
   constructor(
-    private readonly store: SessionStore,
+    private store: SessionStore,
     private readonly options: BridgeOptions,
   ) {}
+
+  private log(message: string): void {
+    (this.options.log ?? console.error)(`[bridge] ${message}`);
+  }
+
+  /** Point the bridge at a fresh thread (New Brainstorm) and resync all clients. */
+  attachStore(store: SessionStore): void {
+    this.store = store;
+    this.activeBoard = null;
+    this.thinking = null;
+    // Old-thread response/wait state must not shadow the new thread's boards.
+    // (Orphaned waits resolve as null via their own timeouts.)
+    this.responses.clear();
+    this.pending.clear();
+    this.log(`attached new thread "${store.info.id}" — response state cleared`);
+    this.broadcast({ type: 'hello', state: this.state() });
+  }
+
+  /** Live progress feedback — shown as the shimmer marker in the studio. */
+  think(note: string | null): void {
+    this.thinking = note;
+    this.broadcast({ type: 'thinking', note });
+  }
 
   get url(): string {
     return `http://127.0.0.1:${this.port}`;
@@ -91,6 +132,7 @@ export class Bridge {
       activeBoard: this.activeBoard,
       artifacts: this.store.artifacts,
       thinking: this.thinking,
+      engine: this.options.engine,
       themes: this.options.themes,
       theme: this.options.theme,
       models: this.options.models,
@@ -111,6 +153,39 @@ export class Bridge {
 
     const server = http.createServer((req, res) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
+      if (req.method === 'GET' && url.pathname === '/api/health') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            name: 'visual-brainstorm-bridge',
+            pid: process.pid,
+            port: this.port,
+            startedAt: this.startedAt,
+            studioDist: dist,
+            studioDistExists: fs.existsSync(dist),
+            session: { id: this.store.info.id, dir: this.store.info.dir },
+            rounds: this.store.rounds.length,
+            activeBoard: this.activeBoard
+              ? { id: this.activeBoard.id, round: this.activeBoard.round, phase: this.activeBoard.phase }
+              : null,
+            awaitingResponse: this.pending.size > 0,
+            connectedClients: this.sockets.size,
+            queuedCommands: this.commandQueue.length,
+          }),
+        );
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/logs') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            file: this.options.logFile?.() ?? null,
+            lines: this.options.recentLogs?.() ?? ['(no log source attached to this bridge)'],
+          }),
+        );
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/api/state') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify(this.state()));
@@ -126,10 +201,13 @@ export class Bridge {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            const { command } = z
-              .object({ command: z.enum(['plan-closeout', 'discover-skills']) })
+            const { command, prompt } = z
+              .object({
+                command: z.enum(['plan-closeout', 'discover-skills', 'new-brainstorm']),
+                prompt: z.string().max(2000).optional(),
+              })
               .parse(JSON.parse(body));
-            const delivered = this.dispatchCommand(command);
+            const delivered = this.dispatchCommand(command, prompt);
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, delivered }));
           } catch (err) {
@@ -208,10 +286,23 @@ export class Bridge {
       this.port = await tryListen(port);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE' && port !== 0) {
-        console.error(
-          `[bridge] port ${port} in use (another bridge running?) — falling back to an ephemeral port`,
-        );
         this.port = await tryListen(0);
+        this.log(`!!! PORT CONFLICT: ${port} is held by another instance — THIS instance is on ${this.port}.`);
+        this.log(`!!! A browser tab open on port ${port} shows the OTHER instance, not this one.`);
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1500);
+          const other = (await (
+            await fetch(`http://127.0.0.1:${port}/api/health`, { signal: controller.signal })
+          ).json()) as { pid?: number; startedAt?: string; session?: { id?: string } };
+          clearTimeout(timer);
+          this.log(
+            `!!! the holder of ${port}: pid ${other.pid}, started ${other.startedAt}, session "${other.session?.id}". ` +
+              `Kill it with: Stop-Process -Id ${other.pid} -Force`,
+          );
+        } catch {
+          this.log(`!!! the holder of ${port} did not answer /api/health — likely a stale non-bridge process.`);
+        }
       } else {
         throw err;
       }
@@ -220,8 +311,12 @@ export class Bridge {
     const wss = new WebSocketServer({ server, path: '/ws' });
     wss.on('connection', (socket) => {
       this.sockets.add(socket);
+      this.log(`studio connected (${this.sockets.size} client${this.sockets.size === 1 ? '' : 's'})`);
       socket.send(JSON.stringify({ type: 'hello', state: this.state() } satisfies ServerToStudio));
-      socket.on('close', () => this.sockets.delete(socket));
+      socket.on('close', () => {
+        this.sockets.delete(socket);
+        this.log(`studio disconnected (${this.sockets.size} left)`);
+      });
       socket.on('message', (raw) => {
         try {
           const msg = JSON.parse(String(raw));
@@ -229,18 +324,26 @@ export class Bridge {
             this.acceptResponse(BoardResponseSchema.parse(msg.response));
           }
         } catch (err) {
-          console.error(`[bridge] bad ws message: ${String(err)}`);
+          this.log(`bad ws message: ${String(err)}`);
         }
       });
     });
     this.server = server;
     this.wss = wss;
-    console.error(`[bridge] listening on ${this.url} (studio: ${dist})`);
+    this.startedAt = new Date().toISOString();
+    this.log(`listening on ${this.url} (studio: ${dist}${fs.existsSync(dist) ? '' : ' — MISSING, run npm run build -w apps/studio'})`);
+    this.log(`session "${this.store.info.id}" → ${this.store.info.dir}`);
   }
 
   private acceptResponse(response: BoardResponse): void {
     if (this.responses.has(response.boardId)) return; // first response wins
     this.responses.set(response.boardId, response);
+    this.log(
+      `response for ${response.boardId}: action=${response.action}, selected=${response.selectedOptionIds.length}, ` +
+        `kills=${Object.values(response.triage).filter((v) => v === 'kill').length}, remix=${response.remixPairs.length}, ` +
+        `flaws=${Object.keys(response.flaws).length}, commands=[${response.commands.join(',')}]` +
+        (response.requestedPhase ? `, requestedPhase=${response.requestedPhase}` : ''),
+    );
     this.store.recordResponse(response);
     if (this.activeBoard?.id === response.boardId) {
       this.activeBoard = null;
@@ -258,6 +361,10 @@ export class Bridge {
   /** Push a board and block until the studio responds (or timeout → null). */
   async presentAndWait(board: Board, timeoutMs: number, open = true): Promise<BoardResponse | null> {
     await this.start();
+    this.log(
+      `presenting ${board.id}: round ${board.round}, phase ${board.phase}, ${board.options.length} options, ` +
+        `timeout ${Math.round(timeoutMs / 1000)}s, ${this.sockets.size} client(s) connected`,
+    );
     this.store.recordBoard(board);
     this.activeBoard = board;
     this.thinking = null;
@@ -289,28 +396,33 @@ export class Bridge {
    * carrying the command — Claude stops brainstorming and runs the procedure.
    * Otherwise queue it; it drains into the next present_board tool result.
    */
-  dispatchCommand(command: string): 'via-board-response' | 'queued' {
+  dispatchCommand(command: string, prompt?: string): 'via-board-response' | 'queued' {
+    this.log(`UI command: ${command}${prompt ? ` (seed: "${prompt.slice(0, 60)}")` : ''} (${this.activeBoard && this.pending.has(this.activeBoard.id) ? 'board waiting — delivering via response' : 'queueing'})`);
     if (this.activeBoard && this.pending.has(this.activeBoard.id)) {
       const response = BoardResponseSchema.parse({
         boardId: this.activeBoard.id,
         action: 'park',
         commands: [command],
+        // The seed text rides in elaboration so the digest surfaces it verbatim.
+        elaboration: prompt ?? '',
         respondedAt: new Date().toISOString(),
       });
       this.acceptResponse(response);
       return 'via-board-response';
     }
-    this.commandQueue.push(command);
+    const request: CommandRequest = { command, prompt };
+    this.commandQueue.push(request);
+    this.onQueuedCommand?.(request);
     return 'queued';
   }
 
-  drainCommands(): string[] {
+  drainCommands(): CommandRequest[] {
     const drained = this.commandQueue;
     this.commandQueue = [];
     return drained;
   }
 
-  peekCommands(): string[] {
+  peekCommands(): CommandRequest[] {
     return [...this.commandQueue];
   }
 

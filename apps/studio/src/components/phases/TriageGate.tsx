@@ -16,11 +16,15 @@ const VERDICTS: { value: Verdict; label: string; className: string }[] = [
 export function TriageGate({
   board,
   triage,
+  finalId,
   onTriage,
+  onFinal,
 }: {
   board: Board;
   triage: Record<string, Verdict>;
+  finalId: string | null;
   onTriage: (triage: Record<string, Verdict>) => void;
+  onFinal: (id: string | null) => void;
 }) {
   const done = board.options.filter((o) => triage[o.id]).length;
   return (
@@ -67,7 +71,10 @@ export function TriageGate({
                   <button
                     key={v.value}
                     type="button"
-                    onClick={() => onTriage({ ...triage, [option.id]: v.value })}
+                    onClick={() => {
+                      onTriage({ ...triage, [option.id]: v.value });
+                      if (v.value !== 'keep' && finalId === option.id) onFinal(null);
+                    }}
                     className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
                       verdict === v.value ? `${v.className} bg-current/10` : 'border-line text-ink-dim hover:text-ink'
                     }`}
@@ -75,6 +82,25 @@ export function TriageGate({
                     {v.label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  title="Crown as THE final answer — finalizing captures it and triggers plan closeout"
+                  onClick={() => {
+                    if (finalId === option.id) {
+                      onFinal(null);
+                    } else {
+                      onFinal(option.id);
+                      onTriage({ ...triage, [option.id]: 'keep' });
+                    }
+                  }}
+                  className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
+                    finalId === option.id
+                      ? 'border-accent bg-accent/15 text-accent'
+                      : 'border-line text-ink-dim hover:text-ink'
+                  }`}
+                >
+                  🏁 Final
+                </button>
               </div>
             </div>
           );

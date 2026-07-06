@@ -19,6 +19,7 @@ const bridge = new Bridge(store, {
   theme: 'neon-purple',
   models: ['claude-fable-5', 'claude-haiku-4-5'],
   defaultModel: 'claude-fable-5',
+  engine: 'claude',
 });
 await bridge.start(0); // ephemeral port
 
@@ -117,6 +118,13 @@ for (const file of ['board.json', 'option-a.svg', 'option-b.svg', 'response.json
   assert.ok(fs.existsSync(path.join(roundDir, file)), `missing ${file}`);
 }
 
+// brainstorm.md — the append-only text memory (re-synthesis source).
+const md = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+assert.ok(md.includes('## Round 1 — diverge'), 'brainstorm.md records the round');
+assert.ok(md.includes('**B** (`b`)'), 'brainstorm.md lists options with labels');
+assert.ok(md.includes('### User response'), 'brainstorm.md records the response digest');
+assert.ok(md.includes('mash up "A" × "B"'), 'digest lines use labels');
+
 // Artifact capture.
 const artifact = store.captureArtifact('winner', board.options[1].svg, 'final', {
   boardId: board.id,
@@ -155,7 +163,7 @@ let cmd = await (
   })
 ).json();
 assert.equal(cmd.delivered, 'queued');
-assert.deepEqual(bridge.drainCommands(), ['plan-closeout']);
+assert.deepEqual(bridge.drainCommands().map((c) => c.command), ['plan-closeout']);
 assert.deepEqual(bridge.peekCommands(), []);
 
 // …and resolving the active wait when a board IS waiting.

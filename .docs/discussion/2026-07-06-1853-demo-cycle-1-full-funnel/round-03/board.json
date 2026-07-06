@@ -1,0 +1,105 @@
+{
+  "id": "board-c1-r3-diverge",
+  "sessionId": "2026-07-06-1853-demo-cycle-1-full-funnel",
+  "round": 3,
+  "kind": "icon-grid",
+  "phase": "diverge",
+  "title": "Demo cycle 1 — full funnel — round 3 (diverge)",
+  "prompt": "Your last response landed: ↩ went back one step — the previous board is re-presented; answer it differently. Select the directions with legs — the next round will be pure syntheses of your picks. Pool: 4 options.",
+  "options": [
+    {
+      "id": "bulb-classic",
+      "label": "Classic bulb",
+      "description": "Literal, friendly, instantly read",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M24 6a12 12 0 0 0-7 21.5c1.6 1.3 3 3 3 5v1.5h8V32.5c0-2 1.4-3.7 3-5A12 12 0 0 0 24 6Z\" stroke=\"#a855f7\"/><path d=\"M20 39h8M22 43h4\"/></svg>",
+      "tags": [
+        "literal",
+        "rounded"
+      ],
+      "parents": []
+    },
+    {
+      "id": "bulb-spark",
+      "label": "Spark burst",
+      "description": "Abstract energy — the moment of the idea",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M24 10v8M24 30v8M10 24h8M30 24h8\" stroke=\"#a855f7\"/><path d=\"M14 14l5.5 5.5M28.5 28.5 34 34M34 14l-5.5 5.5M19.5 28.5 14 34\"/></svg>",
+      "tags": [
+        "abstract",
+        "energetic"
+      ],
+      "parents": []
+    },
+    {
+      "id": "bulb-chat",
+      "label": "Idea in a bubble",
+      "description": "Brainstorm-as-conversation framing",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 12a4 4 0 0 1 4-4h24a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-8 8v-8h-2a4 4 0 0 1-4-4V12Z\"/><circle cx=\"24\" cy=\"18\" r=\"4.5\" stroke=\"#a855f7\"/><path d=\"M24 24.5v3\" stroke=\"#a855f7\"/></svg>",
+      "tags": [
+        "conversational"
+      ],
+      "parents": []
+    },
+    {
+      "id": "bulb-branch",
+      "label": "Branching mind",
+      "description": "Mind-map lineage — ideas beget ideas",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"24\" cy=\"24\" r=\"5\" stroke=\"#a855f7\"/><circle cx=\"10\" cy=\"10\" r=\"3.5\"/><circle cx=\"38\" cy=\"10\" r=\"3.5\"/><circle cx=\"24\" cy=\"41\" r=\"3.5\"/><path d=\"M20.5 20.5 13 13M27.5 20.5 35 13M24 29v8.5\"/></svg>",
+      "tags": [
+        "structural"
+      ],
+      "parents": []
+    }
+  ],
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 0,
+    "elaborationPrompt": "Elaborate — what direction should the next round take?",
+    "allowPerOptionNotes": true,
+    "allowRemix": true,
+    "axes": [
+      {
+        "id": "tone",
+        "label": "Tone",
+        "leftLabel": "Playful",
+        "rightLabel": "Serious",
+        "defaultValue": 40
+      },
+      {
+        "id": "weight",
+        "label": "Density",
+        "leftLabel": "Minimal",
+        "rightLabel": "Detailed",
+        "defaultValue": 50
+      },
+      {
+        "id": "glow",
+        "label": "Neon-ness",
+        "leftLabel": "Flat",
+        "rightLabel": "Full glow",
+        "defaultValue": 50
+      },
+      {
+        "id": "shape",
+        "label": "Geometry",
+        "leftLabel": "Geometric",
+        "rightLabel": "Organic",
+        "defaultValue": 50
+      },
+      {
+        "id": "color",
+        "label": "Color",
+        "leftLabel": "Monochrome",
+        "rightLabel": "Colorful",
+        "defaultValue": 60
+      },
+      {
+        "id": "read",
+        "label": "Reading",
+        "leftLabel": "Literal",
+        "rightLabel": "Abstract",
+        "defaultValue": 40
+      }
+    ]
+  },
+  "createdAt": "2026-07-06T22:53:40.326Z"
+}

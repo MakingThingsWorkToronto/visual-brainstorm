@@ -12,6 +12,7 @@ import {
   type RoundRecord,
   type SessionInfo,
 } from '@visual-brainstorm/protocol';
+import { buildFeedbackDigest } from './feedback.js';
 
 export function slugify(text: string): string {
   return (
@@ -56,6 +57,16 @@ export class SessionStore {
       path.join(dir, 'session.json'),
       JSON.stringify(this.info, null, 2),
     );
+    this.appendMd(`# ${title}\n\nStarted ${this.info.startedAt}. Append-only text memory of every round — the re-synthesis source: what was shown, what the user did, and therefore what the next round must build on.\n`);
+  }
+
+  /** brainstorm.md — the thread's human/model-readable memory. Never rewritten. */
+  private appendMd(text: string): void {
+    try {
+      fs.appendFileSync(path.join(this.info.dir, 'brainstorm.md'), text + '\n');
+    } catch (err) {
+      console.error(`[store] brainstorm.md append failed: ${String(err)}`);
+    }
   }
 
   /** Reopen an existing thread directory — full history reloads from disk. */
@@ -160,6 +171,22 @@ export class SessionStore {
     for (const option of board.options) {
       fs.writeFileSync(path.join(dir, `option-${option.id}.svg`), option.svg);
     }
+    this.appendMd(
+      [
+        `\n## Round ${board.round} — ${board.phase} · ${board.kind}`,
+        '',
+        board.prompt,
+        '',
+        '### Options presented',
+        ...board.options.map(
+          (o) =>
+            `- **${o.label}** (\`${o.id}\`)` +
+            (o.description ? ` — ${o.description}` : '') +
+            (o.parents.length ? ` [parents: ${o.parents.join(', ')}]` : '') +
+            (o.tags.length ? ` {${o.tags.join(', ')}}` : ''),
+        ),
+      ].join('\n'),
+    );
   }
 
   recordResponse(response: BoardResponse): void {
@@ -168,6 +195,13 @@ export class SessionStore {
     round.response = response;
     const dir = this.roundDir(round.board.round);
     fs.writeFileSync(path.join(dir, 'response.json'), JSON.stringify(response, null, 2));
+    this.appendMd(
+      [
+        '',
+        `### User response (${response.respondedAt})`,
+        ...buildFeedbackDigest(round.board, response).map((line) => `- ${line}`),
+      ].join('\n'),
+    );
   }
 
   captureArtifact(

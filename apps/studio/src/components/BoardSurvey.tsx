@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Board, BoardResponse, ResponseAction } from '@visual-brainstorm/protocol';
 import { SvgPane } from './primitives';
 import { PhaseBar } from './phases/PhaseBar';
+import { PHASE_GUIDE } from './phases/guide';
 import { MutationLab } from './phases/MutationLab';
 import { WreckYard } from './phases/WreckYard';
 import { TriageGate } from './phases/TriageGate';
@@ -42,16 +43,24 @@ export function BoardSurvey({
   const [model, setModel] = useState(defaultModel);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // User-steerable phase: clicking a tab switches the mechanic locally and is
+  // sent back as requestedPhase. All mechanics share the same option data.
+  const [localPhase, setLocalPhase] = useState(board.phase);
   // per-phase state
   const [triage, setTriage] = useState<Record<string, 'keep' | 'kill' | 'merge'>>({});
+  const [finalId, setFinalId] = useState<string | null>(null);
   const [mutations, setMutations] = useState<Record<string, string[]>>({});
   const [flaws, setFlaws] = useState<Record<string, string>>({});
   const [positions, setPositions] = useState(() => scatter(board));
+  const [clusterTouched, setClusterTouched] = useState(false);
   const [clusters, setClusters] = useState<string[][]>([]);
   const [gapNotes, setGapNotes] = useState<{ between: [number, number]; note: string }[]>([]);
 
   const { multiSelect, minSelect, maxSelect } = board.survey;
-  const phase = board.phase;
+  const phase = localPhase;
+  const dialsMoved = board.survey.axes.filter(
+    (axis) => (axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue,
+  ).length;
 
   // Gates: the interface physically refuses to move on until the phase's work is done.
   const gate = useMemo((): { ok: boolean; reason: string } => {
@@ -64,8 +73,14 @@ export function BoardSurvey({
       const found = Object.values(flaws).filter((f) => f.trim() !== '').length;
       return { ok: found >= needed, reason: found >= needed ? '' : `find ${needed - found} more flaw${needed - found === 1 ? '' : 's'}` };
     }
+    if (phase === 'expand') {
+      return {
+        ok: selected.size >= 1,
+        reason: selected.size >= 1 ? '' : 'select at least one option to expand from',
+      };
+    }
     return { ok: true, reason: '' };
-  }, [phase, triage, flaws, board.options]);
+  }, [phase, triage, flaws, selected, board.options]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -93,13 +108,20 @@ export function BoardSurvey({
   }, [remixMarks]);
 
   const send = async (action: ResponseAction) => {
-    if (phase === 'diverge' && selected.size < minSelect) {
-      setError(`Select at least ${minSelect} option${minSelect === 1 ? '' : 's'}.`);
-      return;
-    }
-    if (!gate.ok) {
-      setError(gate.reason);
-      return;
+    // Back is an escape hatch — it bypasses every gate by design.
+    if (action !== 'back') {
+      if ((phase === 'diverge' || phase === 'expand') && selected.size < minSelect) {
+        setError(`Select at least ${minSelect} option${minSelect === 1 ? '' : 's'}.`);
+        return;
+      }
+      if (!gate.ok) {
+        setError(gate.reason);
+        return;
+      }
+      if (action === 'finalize' && !finalId) {
+        setError('Crown one option with 🏁 Final first.');
+        return;
+      }
     }
     const selectedIds =
       phase === 'converge'
@@ -121,11 +143,16 @@ export function BoardSurvey({
         model,
         triage,
         mutations,
+        // Feedback is NEVER dropped: every mechanic the user touched ships its
+        // state, regardless of which phase tab is active at send time.
         flaws: Object.fromEntries(Object.entries(flaws).filter(([, v]) => v.trim() !== '')),
-        positions: phase === 'cluster' ? positions : {},
-        clusters: phase === 'cluster' ? clusters : [],
+        positions: clusterTouched ? positions : {},
+        clusters: clusterTouched ? clusters : [],
         gapNotes,
-        commands: [],
+        // Finality triggers the closeout procedure on the orchestrator side.
+        commands: action === 'finalize' ? ['plan-closeout'] : [],
+        requestedPhase: localPhase !== board.phase ? localPhase : undefined,
+        finalOptionId: action === 'finalize' ? (finalId ?? undefined) : undefined,
         respondedAt: new Date().toISOString(),
       });
     } catch (err) {
@@ -139,27 +166,55 @@ export function BoardSurvey({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-center">
-        <PhaseBar phase={phase} />
+      <div className="flex flex-col items-center gap-1">
+        <PhaseBar phase={phase} onSelect={setLocalPhase} />
+        {localPhase !== board.phase && (
+          <div className="text-[11px] text-accent">
+            switched from {board.phase} — next round will be asked for {localPhase}
+          </div>
+        )}
+      </div>
+
+      <div className="mx-auto max-w-3xl rounded-xl border border-line bg-surface-2/70 px-4 py-3">
+        <div className="text-xs font-semibold">{PHASE_GUIDE[phase].title}</div>
+        <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-ink-dim">
+          {PHASE_GUIDE[phase].steps.map((step, i) => (
+            <li key={i}>{step}</li>
+          ))}
+        </ol>
       </div>
 
       {phase === 'mutate' && (
         <MutationLab board={board} mutations={mutations} onMutations={setMutations} />
       )}
       {phase === 'wreck' && <WreckYard board={board} flaws={flaws} onFlaws={setFlaws} />}
-      {phase === 'converge' && <TriageGate board={board} triage={triage} onTriage={setTriage} />}
+      {phase === 'converge' && (
+        <TriageGate
+          board={board}
+          triage={triage}
+          finalId={finalId}
+          onTriage={setTriage}
+          onFinal={setFinalId}
+        />
+      )}
       {phase === 'cluster' && (
         <ProximityField
           board={board}
           positions={positions}
           gapNotes={gapNotes}
-          onPositions={setPositions}
+          onPositions={(p) => {
+            setClusterTouched(true);
+            setPositions(p);
+          }}
           onClusters={setClusters}
-          onGapNotes={setGapNotes}
+          onGapNotes={(n) => {
+            setClusterTouched(true);
+            setGapNotes(n);
+          }}
         />
       )}
 
-      {phase === 'diverge' && (
+      {(phase === 'diverge' || phase === 'expand') && (
         <div className={`grid grid-cols-1 gap-4 ${cols}`}>
           {board.options.map((option) => {
             const isSelected = selected.has(option.id);
@@ -262,7 +317,23 @@ export function BoardSurvey({
             <label key={axis.id} className="block">
               <div className="mb-1 flex justify-between text-xs text-ink-dim">
                 <span>{axis.leftLabel}</span>
-                <span className="font-medium text-ink">{axis.label}</span>
+                <span className="font-medium text-ink">
+                  {axis.label}{' '}
+                  <span
+                    className={`tabular-nums ${
+                      (axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue
+                        ? 'font-semibold text-accent'
+                        : ''
+                    }`}
+                  >
+                    {axisValues[axis.id] ?? axis.defaultValue}
+                  </span>
+                  {(axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue && (
+                    <span className="text-accent" title="Moved — this alone will steer the next round">
+                      {' '}●
+                    </span>
+                  )}
+                </span>
                 <span>{axis.rightLabel}</span>
               </div>
               <input
@@ -293,6 +364,15 @@ export function BoardSurvey({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
+            disabled={sending}
+            onClick={() => send('back')}
+            title="This round's options don't work — go back and re-answer the previous board"
+            className="rounded-xl border border-line px-3 py-2 text-sm text-ink-dim hover:border-accent hover:text-ink disabled:opacity-50"
+          >
+            ↩ Back
+          </button>
+          <button
+            type="button"
             disabled={sending || !gate.ok}
             onClick={() => send('iterate')}
             title={gate.ok ? '' : gate.reason}
@@ -316,6 +396,17 @@ export function BoardSurvey({
           >
             Park
           </button>
+          {phase === 'converge' && finalId && (
+            <button
+              type="button"
+              disabled={sending || !gate.ok}
+              onClick={() => send('finalize')}
+              title="Capture the crowned option and run plan closeout — this ends the brainstorm"
+              className="rounded-xl border-2 border-accent bg-accent/15 px-4 py-2 text-sm font-bold text-accent hover:bg-accent/25 disabled:opacity-50"
+            >
+              🏁 Finalize & close out
+            </button>
+          )}
           {models.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-ink-dim">
               model
@@ -334,6 +425,11 @@ export function BoardSurvey({
             </label>
           )}
           <span className="ml-auto text-xs text-ink-dim">
+            {dialsMoved > 0 && (
+              <span className="mr-2 text-accent">
+                {dialsMoved} dial{dialsMoved > 1 ? 's' : ''} moved — steers next round
+              </span>
+            )}
             {!gate.ok
               ? gate.reason
               : phase === 'diverge'

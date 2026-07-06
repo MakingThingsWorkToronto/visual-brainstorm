@@ -24,4 +24,8 @@
 ## Code
 - ESM everywhere, TypeScript strict, NodeNext resolution (studio uses bundler resolution).
 - Message shapes only in `packages/protocol` (CLAUDE.md rule 5).
-- apps/mcp logs to stderr only.
+- apps/mcp logs to stderr only (plus the FileLog ring/file — System/testing-observability.md).
+- **Features ship with tests** at the lowest layer that catches their regression
+  (unit `tests/` → smoke → ui-smoke); `npm test` green before any completion claim.
+- All orchestration/generation lives in Claude + `.claude/{commands,skills,agents}` —
+  harness code stays dumb (fixtures only). Human-facing docs live in `.docs/user-guide.md`.
