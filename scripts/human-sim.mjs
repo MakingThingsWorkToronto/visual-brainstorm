@@ -38,149 +38,22 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import WebSocket from 'ws';
 import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
 import { BoardSchema, ThemeSchema } from '../packages/protocol/dist/index.js';
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// ---------------------------------------------------------------------------
-// Browser discovery — Edge preferred, Chrome fallback (headless=new capable).
-// ---------------------------------------------------------------------------
-function findBrowsers() {
-  const pf = process.env.ProgramFiles ?? 'C:/Program Files';
-  const pf86 = process.env['ProgramFiles(x86)'] ?? 'C:/Program Files (x86)';
-  const local = process.env.LOCALAPPDATA ?? '';
-  const candidates = [
-    path.join(pf86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(pf, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(pf, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-    path.join(pf86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-    local ? path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe') : '',
-    '/usr/bin/microsoft-edge',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-  ].filter(Boolean);
-  return { found: candidates.filter((p) => fs.existsSync(p)), candidates };
-}
-
-/**
- * Launch one candidate headless and wait for its DevTools endpoint. Edge on
- * Windows can exit 0 immediately WITHOUT printing an endpoint (launcher/startup-
- * boost handoff — observed 2026-07-07), so a launch only counts once the
- * `DevTools listening on ws://…` line appears; otherwise the caller falls back
- * to the next installed browser.
- */
-function launchBrowser(exe, profileDir) {
-  const proc = spawn(
-    exe,
-    [
-      '--headless=new',
-      '--remote-debugging-port=0',
-      `--user-data-dir=${profileDir}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-extensions',
-      '--disable-background-networking',
-      '--disable-gpu',
-      '--window-size=1440,1000',
-      'about:blank',
-    ],
-    { stdio: ['ignore', 'ignore', 'pipe'] },
-  );
-  let stderrBuf = '';
-  const devtoolsPort = new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`no DevTools endpoint within 20s; stderr:\n${stderrBuf || '(empty)'}`)),
-      20_000,
-    );
-    proc.stderr.on('data', (chunk) => {
-      stderrBuf += String(chunk);
-      const m = stderrBuf.match(/DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//);
-      if (m) {
-        clearTimeout(timer);
-        resolve(Number(m[1]));
-      }
-    });
-    proc.once('exit', (code) => {
-      clearTimeout(timer);
-      reject(new Error(`exited early (code ${code}) without a DevTools endpoint; stderr:\n${stderrBuf || '(empty)'}`));
-    });
-  });
-  return { proc, devtoolsPort };
-}
-
-// ---------------------------------------------------------------------------
-// Minimal raw CDP client over the repo's own `ws`.
-// ---------------------------------------------------------------------------
-class Cdp {
-  constructor(socket) {
-    this.socket = socket;
-    this.nextId = 1;
-    this.pending = new Map();
-    this.listeners = new Map();
-    socket.on('message', (data) => {
-      const msg = JSON.parse(String(data));
-      if (msg.id) {
-        const waiter = this.pending.get(msg.id);
-        if (!waiter) return;
-        this.pending.delete(msg.id);
-        if (msg.error) waiter.reject(new Error(`CDP ${waiter.method}: ${msg.error.message}`));
-        else waiter.resolve(msg.result);
-      } else if (msg.method) {
-        for (const fn of this.listeners.get(msg.method) ?? []) fn(msg.params);
-      }
-    });
-  }
-
-  static connect(url) {
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url, { maxPayload: 64 * 1024 * 1024 });
-      socket.once('open', () => resolve(new Cdp(socket)));
-      socket.once('error', reject);
-    });
-  }
-
-  /** Every command has a hard timeout — no infinite hangs, ever. */
-  send(method, params = {}, timeoutMs = 20_000) {
-    return new Promise((resolve, reject) => {
-      const id = this.nextId++;
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`CDP ${method}: no reply within ${timeoutMs}ms`));
-      }, timeoutMs);
-      this.pending.set(id, {
-        method,
-        resolve: (v) => {
-          clearTimeout(timer);
-          resolve(v);
-        },
-        reject: (e) => {
-          clearTimeout(timer);
-          reject(e);
-        },
-      });
-      this.socket.send(JSON.stringify({ id, method, params }));
-    });
-  }
-
-  on(method, fn) {
-    if (!this.listeners.has(method)) this.listeners.set(method, []);
-    this.listeners.get(method).push(fn);
-  }
-
-  close() {
-    try {
-      this.socket.close();
-    } catch {
-      /* already gone */
-    }
-  }
-}
+// Shared CDP plumbing (extracted verbatim to scripts/lib/cdp.mjs for the
+// ui-break-sweep driver — one proven implementation, two harnesses).
+import {
+  Cdp,
+  findBrowsers,
+  findPageTarget,
+  killBrowserTree,
+  killProfileStragglers,
+  launchAnyBrowser,
+  makePageHelpers,
+  sleep,
+} from './lib/cdp.mjs';
 
 // ---------------------------------------------------------------------------
 // The run.
@@ -224,49 +97,16 @@ if (browsers.length === 0) {
     console.log(`human-sim: bridge up at ${base} (thread ${store.info.id})`);
 
     // --- headless browser: try each installed candidate until one serves CDP ---
-    let devtoolsPort = null;
-    const launchFailures = [];
-    for (const [i, exe] of browsers.entries()) {
-      // Per-attempt profile: a handoff-style launcher (Edge) may leave a hidden
-      // process holding its dir, which would wedge the next candidate.
-      const attemptProfile = path.join(profileDir, `attempt-${i}`);
-      fs.mkdirSync(attemptProfile, { recursive: true });
-      const attempt = launchBrowser(exe, attemptProfile);
-      try {
-        devtoolsPort = await attempt.devtoolsPort;
-        browser = attempt.proc;
-        browserName = path.basename(exe);
-        break;
-      } catch (launchErr) {
-        launchFailures.push(`${exe}: ${launchErr.message}`);
-        try {
-          attempt.proc.kill();
-        } catch {
-          /* already gone */
-        }
-      }
+    const launched = await launchAnyBrowser(browsers, profileDir);
+    browser = launched.proc;
+    browserName = launched.name;
+    if (launched.failures.length > 0) {
+      console.log(`human-sim: fell back past ${launched.failures.length} browser(s) that never served CDP`);
     }
-    if (devtoolsPort === null) {
-      throw new Error(
-        `every installed chromium-family browser failed to serve CDP:\n${launchFailures.join('\n')}`,
-      );
-    }
-    if (launchFailures.length > 0) {
-      console.log(`human-sim: fell back past ${launchFailures.length} browser(s) that never served CDP`);
-    }
-    console.log(`human-sim: ${browserName} headless, CDP on ${devtoolsPort}`);
+    console.log(`human-sim: ${browserName} headless, CDP on ${launched.devtoolsPort}`);
 
     // --- find the page target and connect raw CDP ---
-    let pageWsUrl = null;
-    for (let i = 0; i < 50 && !pageWsUrl; i++) {
-      try {
-        const targets = await (await fetch(`http://127.0.0.1:${devtoolsPort}/json/list`)).json();
-        pageWsUrl = targets.find((t) => t.type === 'page')?.webSocketDebuggerUrl ?? null;
-      } catch {
-        /* devtools http not ready yet */
-      }
-      if (!pageWsUrl) await sleep(100);
-    }
+    const pageWsUrl = await findPageTarget(launched.devtoolsPort);
     assert.ok(pageWsUrl, 'DevTools /json/list exposed a page target');
     cdp = await Cdp.connect(pageWsUrl);
     await cdp.send('Runtime.enable');
@@ -280,69 +120,8 @@ if (browsers.length === 0) {
       }
     });
 
-    // --- in-page helpers -----------------------------------------------------
-    const evaluate = async (expression, { awaitPromise = false } = {}) => {
-      const { result, exceptionDetails } = await cdp.send('Runtime.evaluate', {
-        expression,
-        returnByValue: true,
-        awaitPromise,
-      });
-      if (exceptionDetails) {
-        throw new Error(
-          `in-page evaluation threw: ${exceptionDetails.exception?.description ?? exceptionDetails.text}`,
-        );
-      }
-      return result.value;
-    };
-
-    const waitInPage = async (what, expression, timeoutMs = 15_000) => {
-      const start = Date.now();
-      for (;;) {
-        const value = await evaluate(expression);
-        if (value) return value;
-        if (Date.now() - start > timeoutMs) {
-          throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}`);
-        }
-        await sleep(120);
-      }
-    };
-
-    /** Real mouse click at the element's center once its rect stops moving
-     *  (smooth scrolls animate — clicking a moving target misses). */
-    const click = async (what, finderExpr) => {
-      const center = await evaluate(
-        `(async () => {
-          const el = ${finderExpr};
-          if (!el) return null;
-          el.scrollIntoView({ block: 'center', inline: 'center' });
-          const frame = () => new Promise((r) => requestAnimationFrame(r));
-          let prev = el.getBoundingClientRect();
-          for (let i = 0; i < 90; i++) {
-            await frame();
-            const rect = el.getBoundingClientRect();
-            if (Math.abs(rect.x - prev.x) < 0.5 && Math.abs(rect.y - prev.y) < 0.5) {
-              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-            }
-            prev = rect;
-          }
-          return null;
-        })()`,
-        { awaitPromise: true },
-      );
-      if (!center) throw new Error(`could not find (or settle) ${what} to click it`);
-      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: center.x, y: center.y, button: 'none' });
-      await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: center.x, y: center.y, button: 'left', clickCount: 1 });
-      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: center.x, y: center.y, button: 'left', clickCount: 1 });
-    };
-
-    /** Focus a real element, then commit text via Input.insertText (real input events). */
-    const typeInto = async (what, finderExpr, text) => {
-      const focused = await evaluate(
-        `(() => { const el = ${finderExpr}; if (!el) return false; el.focus(); return document.activeElement === el; })()`,
-      );
-      if (!focused) throw new Error(`could not focus ${what}`);
-      await cdp.send('Input.insertText', { text });
-    };
+    // --- in-page helpers (shared, scripts/lib/cdp.mjs) -----------------------
+    const { evaluate, waitInPage, click, typeInto } = makePageHelpers(cdp);
 
     // --- the crash check that runs after EVERY step ---------------------------
     const checkpoint = async (label) => {
@@ -532,11 +311,11 @@ if (browsers.length === 0) {
     console.error(`evidence kept in: ${scratch}`);
   } finally {
     cdp?.close();
-    if (browser && browser.exitCode === null) {
-      const gone = new Promise((r) => browser.once('exit', r));
-      browser.kill();
-      await Promise.race([gone, sleep(5_000)]);
-    }
+    // Whole tree, not just the root: Windows orphans renderer children, and a
+    // leaked headless tree starves the NEXT harness run's launch (observed
+    // 2026-07-07: ~100 leaked chrome/msedge processes across harness runs).
+    killBrowserTree(browser);
+    killProfileStragglers(profileDir);
     await bridge?.stop();
     // Temp profile always goes; the thread scratch dir survives failures as evidence.
     try {
