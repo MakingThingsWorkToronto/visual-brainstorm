@@ -1,5 +1,14 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — askaquestion plan
+
+- **A concurrent /plan-closeout can sweep YOUR in-flight phase into ITS commit.** The
+  token-meter tick's files showed clean at ship time because another session's closeout
+  commit had taken them as riders minutes earlier. Before shipping a tick, `git log
+  --oneline -3`: if your hunks are already in someone else's commit, commit only your
+  remaining delta and record BOTH hashes in the Progress log — never re-stage or revert
+  to "own" the work. (Mirror of the commit-riders learning, seen from the other side.)
+
 ## 2026-07-06 — ui-changes plan (studio restructure, 6 waves)
 
 - **The scroll gutter must live INSIDE the `overflow-y-auto` element.** Padding on the
