@@ -1,5 +1,29 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — concierge-living-gallery (phase 5, real-session routing)
+
+- **"Works in `npm run preview`" is answered by wiring the SKILLS, not the harness.** The
+  intake surfaces (concierge, gallery, mindmap) were fully built + smoke-green for two phases
+  yet would never fire in a real brainstorm, because `run-brainstorm.md` / `brainstorm-orchestrator.md`
+  / `brainstorm-phases/SKILL.md` didn't tell Claude to CALL `ask_concierge`/`present_gallery`/
+  `open_studio(brief)`. Rule 11 is literal: the prompt→method recommendation and the pick→phase
+  routing are HEURISTICS that live in the `.claude` markdown, not in code. Phase 5's whole
+  deliverable was editing those three files (+ reconciling the wiki) — no product code except a
+  preview-harness demo of the route.
+- **Prove a real-session flow with a throwaway scratchpad script against the real bridge, then
+  fold it into a runnable command.** For "brief→mindmap end-to-end" I ran a ~40-line
+  `verify-route.mjs` importing the built `Bridge` (`engine:'claude'`), driving present_gallery→
+  POST gallery-pick→present tree board→POST editedTree, asserting `activeBoard.kind==='mindmap'`
+  and the returned `editedTree`. This is the `/verify` pattern (drive the flow, observe behavior)
+  and is far stronger evidence than a build-check — the preview harness (interactive, opens a
+  browser, loops forever) can't be asserted on directly.
+- **Committing a stalled peer session's FINISHED work on its behalf is OK when: (a) its plan
+  shows all steps done + verified, (b) the diff is coherent (spot-check 2 files), (c) the operator
+  authorizes it, and (d) you attribute it clearly ("committed on behalf of <session>").** The
+  `agentic-model-efficiency` session's `.claude` model-tiering work was complete but uncommitted,
+  blocking phase 5's edits to the same files; the operator said commit it, so it shipped as its
+  own attributed commit — NOT folded into my phase commit. Never do this for half-written work.
+
 ## 2026-07-07 — concierge-living-gallery (phase 4 + operator real-session mandate)
 
 - **A studio surface working in `npm run preview` is NOT proof it works in a real brainstorm.**
