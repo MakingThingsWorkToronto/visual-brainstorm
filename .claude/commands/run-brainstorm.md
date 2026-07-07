@@ -35,7 +35,11 @@ The complete operator procedure. Follow it literally; the skills carry the craft
    **Read it** (vision for images) and fold it in; an entry without `savedPath` failed to
    persist, tell the user. `response.paletteColors` (or a "Discussion theme" digest line):
    generate the round's SVGs using ONLY those named colors and refer to them BY NAME when
-   narrating — the user speaks in those names.
+   narrating — the user speaks in those names. While generating, post REAL progress at
+   meaningful moments (`node scripts/pipe-progress.mjs --note "drawing round N" --source
+   orchestrator`): the studio's Session activity strip shows it live and it persists to
+   the thread's `progress.jsonl` (hooks already post tool/turn events and token deltas
+   automatically — add notes only where they help the waiting human).
 5. **Document the decision, every round** — the server appends the mechanical record
    (options shown, raw response) to the thread's `brainstorm.md`; YOU append the
    interpretation right after it (append-only, never rewrite): a short
@@ -47,7 +51,9 @@ The complete operator procedure. Follow it literally; the skills carry the craft
 6. **Advance the funnel** deliberately (diverge → mutate/wreck/cluster as needed → converge).
    Do not stay in diverge forever; after ~2–3 divergent rounds, force a narrowing phase.
 7. **Honor commands**: if `response.commands` or `orchestration` mentions plan-closeout or
-   discover-skills, stop brainstorming and run that command file immediately.
+   discover-skills, stop brainstorming and run that command file immediately. An
+   `artifact-chat` command is a DETOUR, not a stop: run `.claude/commands/artifact-chat.md`
+   (always a subagent), then resume the funnel where it was.
 8. **Capture** — on `accept`, call `capture_artifact` for every kept option (provenance:
    boardId + optionIds). On `park`, summarize state and stop; the thread resumes later via
    `discussionId`. On **`finalize`** (`finalOptionId` set): capture the final artifact,
@@ -74,3 +80,5 @@ The complete operator procedure. Follow it literally; the skills carry the craft
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)
 - 2026-07-06 — journey-UX build: step 1 reads sketch/photo seeds from .seeds/ (open with
   anything); step 7 adds compose_poster to the finalize sequence
+- 2026-07-07 — step 4: post real progress over the session pipe while generating; step 7:
+  artifact-chat commands are a detour-and-resume, routed to /artifact-chat (from askaquestion)

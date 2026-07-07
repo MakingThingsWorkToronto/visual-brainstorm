@@ -2,6 +2,18 @@
 
 ## 2026-07-07 — askaquestion plan
 
+- **Parallel agent waves work when the contract is written down, not described.** Three
+  waves (progress pipe, token meter, artifact chat) ran core + studio-UI + tests + docs as
+  concurrent subagents building against code that had not landed yet — zero drift, because
+  every prompt carried the EXACT zod schema literals, component props signatures, endpoint
+  bodies/status codes, and the literal renderToString marker strings tests would match.
+  Vague contracts ("add a chat panel") would have needed a reconcile pass; exact ones made
+  the merge mechanical. Corollary: name which agent owns which files — two agents editing
+  ui-smoke.ts would have conflicted.
+- **Windows/libuv: `process.exit(0)` racing WebSocketServer teardown asserts
+  `!(handle->flags & UV_HANDLE_CLOSING)` and clobbers the exit code AFTER your PASS line
+  printed.** In scratch drivers, trust the printed assertions, not the exit code — or skip
+  explicit exit and let the loop drain (smoke.mjs's pattern, which never hits this).
 - **A concurrent /plan-closeout can sweep YOUR in-flight phase into ITS commit.** The
   token-meter tick's files showed clean at ship time because another session's closeout
   commit had taken them as riders minutes earlier. Before shipping a tick, `git log

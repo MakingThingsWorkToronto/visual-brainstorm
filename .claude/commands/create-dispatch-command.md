@@ -71,11 +71,18 @@ trust the file, not memory or a prior tick's claim.
    `/plan-closeout` and STOP the loop.
 2. **Build** — flip the row to `in-progress`, then do the phase through the specialized
    layers (CLAUDE.md rule 11 — delegate to the owning agent/skill/command). Tests ship
-   WITH the work (rule 10). No fake success (rule 6).
+   WITH the work (rule 10). No fake success (rule 6). Parallelize INSIDE the tick: fan
+   out independent subagents (core / UI / tests / docs) concurrently, giving each the
+   EXACT contract — schema literals, props signatures, endpoint bodies, literal test
+   markers — and disjoint file ownership; exact contracts merge mechanically, vague ones
+   need a reconcile pass.
 3. **Verify** — `npm run build` + `npm test`. Failure = the row STAYS `in-progress` with
    the honest reason appended to the Progress log; fix or mark `blocked: <reason>`.
-4. **Ship** — `git commit --only <the exact paths this phase touched>` — never `-A`
-   (Ship discipline, `wiki/Meta/agentic-loop.md`). Subject: `feat(<slug>-<phase-tag>): <one line>`.
+4. **Ship** — first `git log --oneline -3`: a concurrent session's commit may have already
+   swept this phase's files (shared working tree); if so, commit only your remaining delta
+   and record BOTH hashes in the Progress log. Then `git commit --only <the exact paths
+   this phase touched>` — never `-A` (Ship discipline, `wiki/Meta/agentic-loop.md`).
+   Subject: `feat(<slug>-<phase-tag>): <one line>`.
 5. **Persist** — flip the row to `done`, append the Progress log line
    (`what; verify: command → result; commit <hash>`), and commit the plan update:
    `git commit --only <plan.md path> -m "chore(<slug>): tick <phase-tag>"`.
@@ -97,3 +104,6 @@ repo ever runs concurrent dispatchers, steal those pieces back from
 - 2026-07-06 — created: simplified donor `tp` /create-dispatch-command — single plan.md
   carries phases + progress, inline dispatcher template, dispatcher enforces the 5-stage
   loop + Ship discipline per tick (operator request: brainstorm output must be a loopable plan)
+- 2026-07-07 — dispatcher template: Build step gains in-tick parallel-wave guidance (exact
+  contracts + disjoint file ownership); Ship step checks git log for concurrent-session
+  sweeps before committing (from askaquestion)
