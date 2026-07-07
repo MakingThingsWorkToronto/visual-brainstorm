@@ -13,12 +13,43 @@ The complete operator procedure. Follow it literally; the skills carry the craft
 
 ## Procedure
 
-0. **No topic given** (bare `/run-brainstorm` or "start a brainstorm" with no subject)?
-   Call **`open_studio`** — it lands the user on the studio's New Discussion panel (the
-   organized intake: brief + voice, chips, colors palette, scribble, attachments, model,
-   target folder) and blocks until they submit. The submission arrives as a new-brainstorm
-   command whose prompt/seed notes seed step 1; do NOT interrogate them in chat first.
-   A `{status:"waiting"}` timeout is not failure — call `open_studio` again.
+0. **Intake — hand off, clarify, then let them pick a method** (the concierge → Living
+   Gallery flow, `wiki/Product/intake-methodologies.md`). This is the studio's real front
+   door — it MUST run in a real session, never a preview-only demo. Four moves:
+   - **a. Hand off the brief.** Call **`open_studio`** — it lands the user on the New
+     Discussion panel (brief + voice, chips, colors, scribble, attachments, model, target
+     folder) and blocks until they submit. **If the human ALREADY described the purpose in
+     THIS Claude Code session, pass it as `open_studio`'s `brief`** — it pre-fills the panel
+     so they refine instead of retyping (the handoff; no rework). Omit `brief` ONLY when they
+     truly said nothing about what to make. The submission arrives as a new-brainstorm command
+     whose prompt/seed notes carry their brief; do NOT interrogate them in chat first.
+     `{status:"waiting"}` timeout is not failure — call `open_studio` again.
+   - **b. Concierge — clarify adaptively.** Call **`ask_concierge`** with ONE question + a few
+     tappable `suggestions`, tailored to the brief. Ask AS MANY as it takes — not a fixed
+     count; being comprehensive rewards the brainstorm (audience, constraints, what "good"
+     looks like, scope, liveness). Each answer returns to you and is appended to the thread's
+     `brainstorm.md` digest. Stop when you can confidently recommend a method.
+   - **c. Living Gallery — offer the methodologies.** Call **`present_gallery`** with the
+     roster as cards, each carrying a LIVE mini **genuinely seeded from the brief + answers**
+     (delegate the 4 minis to `svg-artisan` — never a generic icon). Mark exactly ONE
+     `recommended:true` with a `reason` that QUOTES the user's answers. The roster — mind map
+     is a methodology BESIDE the others, never the centerpiece or the default:
+       - **mindmap** — one co-edited structure; recommend when the shape is still forming or
+         the user wants to arrange it directly (`tree` board → `response.editedTree`).
+       - **funnel** — the classic diverge→converge option funnel (steps 3+ below); recommend
+         for "show me options to choose among."
+       - **wreck** — saboteur stress-test; recommend when an idea exists and needs pressure.
+       - **cluster** — proximity field; recommend when there are many ideas to group into shape.
+   - **d. Route the pick.** `present_gallery` returns the chosen `method` — start there:
+       - **mindmap** → `present_board` with a `tree` (kind `"mindmap"`, no options) seeded from
+         the brief+answers; the user co-edits, edits return in `response.editedTree`, continue
+         from that tree.
+       - **funnel** → proceed to step 1 (pre-phrase) then the diverge funnel as usual.
+       - **wreck** → `present_board` at `phase:"wreck"` on the seeded option(s).
+       - **cluster** → `present_board` at `phase:"cluster"` on the seeded options.
+     A non-mindmap pick still flows through pre-phrase (step 1) and the funnel (steps 3+) — the
+     gallery only chose the STARTING mechanic. Skipping the concierge/gallery is allowed only
+     when the human explicitly wants to jump straight to boards; the default is to run intake.
 1. **Pre-phrase** with AskUserQuestion (never skip): domain (icons? system? palette? flow?),
    style references/colors, constraints, and how divergent to go. The consensus — not the raw
    request — seeds the first board. If this run was triggered by the studio's ✚ New
@@ -75,6 +106,10 @@ The complete operator procedure. Follow it literally; the skills carry the craft
    `peek_response` later.
 
 ## Changelog
+- 2026-07-07 — step 0 rewritten as the concierge → Living Gallery intake (handoff brief to
+  open_studio, adaptive ask_concierge, present_gallery with live method minis + one
+  recommendation, route the pick — mindmap→tree board, others→their phase). Mind map is a
+  peer methodology, never the default. Real-session flow (operator mandate) — concierge-living-gallery
 - 2026-07-07 — persona header: procedure now owned/executed by agent brainstorm-orchestrator
   (delegation-to-preserve-context + orchestration-learnings surface) — operator mandate,
   discussion/brainstorm-orchestrator-2026-07-07/plan.md

@@ -23,6 +23,11 @@ conversation; subagents do the heavy lifting.
 ## What you keep vs. what you delegate (context preservation)
 
 KEEP — this IS orchestration, never delegate it:
+- The intake front door (run-brainstorm step 0): hand the session's purpose to `open_studio`
+  as `brief` (the Claude Code handoff — no retyping), run `ask_concierge` adaptively (as many
+  turns as it takes), call `present_gallery` (recommending ONE method with a reason that quotes
+  the answers), and ROUTE the returned pick — mindmap → a `tree` board, funnel/wreck/cluster →
+  `present_board` at that phase. Mind map is a peer methodology, never the default.
 - Interpreting every response field; choosing and pacing phases (diverge → narrowing —
   never diverge forever).
 - `present_board` / `capture_artifact` / `compose_poster` / closeout calls, and the
@@ -36,6 +41,7 @@ DELEGATE — always; doing these inline burns the context you need to orchestrat
 | Work | Agent | The brief must carry |
 |---|---|---|
 | A round's 4–8 SVG options | `svg-artisan` (honor `response.model` override) | feedbackDigest verbatim; parents + synthesis-by-MEANING note; palette color names; kills (forbidden territory); dial values |
+| The Living Gallery's 4 method minis (intake step 0c) | `svg-artisan` | brief + concierge answers; the 4 methods (mindmap/funnel/wreck/cluster); each a live mini genuinely seeded from the brief (never a generic icon); viewBox `0 0 100 100`, `currentColor` + one accent, emblematic per method |
 | Artifact-chat question | general subagent | artifact svgPath + thread `brainstorm.md` path (per `.claude/commands/artifact-chat.md`) |
 | Artifact-chat revision | `svg-artisan` | original SVG + the change; deliver via `capture_artifact` with `revises` |
 | Studio/bridge/MCP "seems broken" | `devops-diagnostician` | the symptom + what you observed; never restart things yourself |
@@ -106,6 +112,9 @@ through `wiki-librarian` (rules 1–2).
     when a flag is resolved.
 
 ## Changelog
+- 2026-07-07 — intake front door added to keep/delegate (open_studio brief handoff →
+  ask_concierge → present_gallery → route the pick; gallery minis delegated to svg-artisan);
+  mind map is a peer methodology, never the default (concierge-living-gallery phase 5)
 - 2026-07-07 — learnings: delegated-SVG validity scan, merge→crown two-step, activeBoard
   polling (from mindmap-methodology brainstorm + studio-blank-crash closeouts)
 - 2026-07-07 — created (discussion/brainstorm-orchestrator-2026-07-07/plan.md): primary

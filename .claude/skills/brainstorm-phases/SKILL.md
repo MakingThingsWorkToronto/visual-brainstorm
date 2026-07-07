@@ -10,6 +10,26 @@ The studio physically re-architects per `phase`. You choose the phase per board;
 below is the default arc. Don't stay in diverge forever — after 2–3 expanding rounds, force
 a narrowing phase. Theories: wiki/Product/phase-funnel.md.
 
+## Intake & methodology routing (before the funnel)
+
+Before round 1, the concierge → Living Gallery intake (run-brainstorm step 0,
+wiki/Product/intake-methodologies.md) lets the human PICK the methodology to start with. The
+roster is a set of PEER methodologies — **mind map is one of them, never the default or the
+centerpiece.** `present_gallery` returns the pick; route it to a starting mechanic:
+
+| pick | starting mechanic | recommend it when |
+|---|---|---|
+| `mindmap` | `present_board` with a `tree` (kind `mindmap`, no options); the user co-edits, edits return in `response.editedTree` | the shape is still forming / the user wants to arrange structure directly |
+| `funnel` | the diverge→converge funnel below (start `phase:"diverge"`) | "show me options to choose among" — the classic path |
+| `wreck` | `present_board` at `phase:"wreck"` on the seeded option(s) | an idea exists and needs pressure-testing |
+| `cluster` | `present_board` at `phase:"cluster"` on the seeded options | many ideas already exist; find structure by grouping |
+
+The recommendation heuristics (which method to mark `recommended` + a reason quoting the
+answers) live HERE and in run-brainstorm — never in harness code (rule 11). After a
+non-mindmap pick, the funnel below applies as usual; the pick only chose the STARTING mechanic.
+A **mindmap** thread iterates on the tree: read `response.editedTree` as the user's new
+structure and present the next tree (or route into the funnel once the structure is settled).
+
 ## Phase table
 
 | phase | when to use | studio mechanic | response fields to honor |
@@ -78,6 +98,9 @@ a narrowing phase. Theories: wiki/Product/phase-funnel.md.
   on rounds 1..N; when resuming a thread it is the first thing to read.
 
 ## Changelog
+- 2026-07-07 — intake & methodology-routing section: the concierge→gallery pick routes to a
+  starting mechanic (mindmap→tree board, funnel/wreck/cluster→their phase); mind map is a
+  peer methodology, never the default; recommendation heuristics live here (concierge-living-gallery phase 5)
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)
 - 2026-07-05 — feedbackDigest execution, dial-delta rule, requestedPhase, axis-defaults carry-forward (operator UX-test: dial-only response produced a no-op — never again)
 - 2026-07-06 — living-pool rule: thread-wide kill list, selections narrow/build, merges synthesize, pool changes narrated in the next prompt (operator UX-test: selections/kills had no effect)

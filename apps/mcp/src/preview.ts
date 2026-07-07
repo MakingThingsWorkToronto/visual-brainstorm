@@ -67,9 +67,10 @@ console.error(`  Real brainstorms run through Claude Code — this harness only 
 const phaseArg = PhaseSchema.safeParse(process.argv[2]);
 let i = phaseArg.success ? PHASES.indexOf(phaseArg.data) : 0;
 
-// Intake preamble: show the Living Gallery once (fixture cards) so the new
-// methodology-chooser surface is exercisable in the browser, then fall through
-// to the phase tour. Fixture minis are the canonical gallery — never generated.
+// Intake preamble: show the Living Gallery once (fixture cards), then ROUTE the
+// pick to its starting mechanic — mindmap → a live tree board (brief→mindmap
+// end-to-end), funnel/wreck/cluster → that phase in the tour below. Fixture
+// data only; never generated.
 if (!phaseArg.success) {
   try {
     const galleryFixture = JSON.parse(
@@ -79,7 +80,44 @@ if (!phaseArg.success) {
       { ...galleryFixture, id: `preview-gallery-${Date.now()}` },
       60 * 60 * 1000,
     );
-    if (picked) bridge.think(`fixture gallery pick logged: "${picked}" — presenting the phase tour`);
+    if (picked === 'mindmap') {
+      // Route brief→mindmap end-to-end: present the mind-map methodology as a live tree board.
+      const treeBoard: Board = {
+        id: `preview-mindmap-${Date.now()}`,
+        sessionId: store.info.id,
+        round: store.nextRound(),
+        kind: 'mindmap',
+        phase: 'diverge',
+        title: 'Preview — Mind map methodology',
+        prompt:
+          'You picked Mind map. Co-edit this tree; your edits return as editedTree. (Fixture — nothing generated.)',
+        options: [],
+        tree: {
+          nodeData: {
+            id: 'root',
+            topic: 'Your brief',
+            children: [
+              { id: 'c1', topic: 'Theme A' },
+              { id: 'c2', topic: 'Theme B', children: [{ id: 'c3', topic: 'Detail' }] },
+              { id: 'c4', topic: 'Theme C' },
+            ],
+          },
+          direction: 2,
+        },
+        survey: SurveyConfigSchema.parse({ axes: [] }),
+        createdAt: new Date().toISOString(),
+      };
+      const treeResp = await bridge.presentAndWait(treeBoard, 60 * 60 * 1000);
+      bridge.think(
+        `brief→gallery→mindmap route demonstrated (edits ${treeResp?.editedTree ? 'received' : 'none'}) — now the phase tour`,
+      );
+    } else if (picked) {
+      // funnel → diverge; wreck/cluster → that phase; start the tour there.
+      const routed = picked === 'funnel' ? 'diverge' : picked;
+      const idx = PHASES.indexOf(routed as (typeof PHASES)[number]);
+      if (idx >= 0) i = idx;
+      bridge.think(`gallery pick "${picked}" → starting the ${routed} surface`);
+    }
   } catch (err) {
     logger.log(`preview gallery fixture skipped: ${String(err)}`);
   }
