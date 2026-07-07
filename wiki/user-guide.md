@@ -131,9 +131,20 @@ every duel reach Claude as preference data — top ranks lead the next round's s
 
 **Wayfinder strip** (above the timeline) — one strip is the whole brainstorm: every round as
 a clickable thumbnail (narrowing toward the winner; click = jump back), your **keeps hanging
-beneath — drag one straight into your editor or click to download, no export dialog** — and
-a glowing **next-phase pill** at the right end. Once you've judged, **Enter** sends and
-requests that phase; the composer shows "Enter sends & asks for …" when it's armed.
+beneath — drag one straight into your editor to export it, no export dialog, or click it to
+open the artifact chat** — and a glowing **next-phase pill** at the right end. Once you've
+judged, **Enter** sends and requests that phase; the composer shows "Enter sends & asks
+for …" when it's armed.
+
+**Artifact chat** — click any captured artifact (a keep on the wayfinder strip) to enlarge
+it fullscreen with a chat panel docked on the right. The composer is deliberately simple:
+one box, one **Send** — ask a question about the artifact or ask for a change in plain
+words. Answers come from Claude (subagent-powered, so the main brainstorm keeps moving).
+When Claude makes a change, it is **captured as a NEW version — the original artifact is
+never overwritten** — and the open view switches to the revision (marked with a `revised`
+badge; the strip picks it up too, since every capture lands there). The whole dialog is
+saved with the thread, so reopening the artifact later shows the conversation that shaped
+it. Artifacts in archived threads stay read-only — no chat composer there.
 
 **Session activity strip** (in the live timeline) — while Claude works, real progress
 events from the working session stream into the studio and persist with the thread: the
