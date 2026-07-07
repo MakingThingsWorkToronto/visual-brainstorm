@@ -59,6 +59,31 @@
   against the presented board silently mislabels every option id. Rewind never deletes
   rounds; response.json is rewritten, brainstorm.md appends.
 
+## 2026-07-07 — concierge-living-gallery (phase 3, intake + handoff)
+
+- **A new `ServerToStudio` envelope MUST get a `case` in `useBridge`'s switch — the switch
+  has no `default`, so an unhandled type makes the setState updater return `undefined` and
+  blanks the whole app.** Adding a WS message type is a THREE-file change: the protocol
+  union, `bridge.state()`/broadcast, AND `useBridge`'s reducer + the `EMPTY` default (so a
+  bridge built before the field degrades gracefully via `{...EMPTY, ...msg.state}`). Miss the
+  reducer case and the studio goes blank the moment the envelope arrives.
+- **Adding a field to `StudioState` breaks the canonical `/api/state` + `ws-hello` body
+  assertions** (`tests/api-status-matrix.test.mjs` compares key-for-key against
+  `tests/canonical/api/state-200.json`; `ws-hello.json` references it by sentinel). Append
+  the new key to `state-200.json` in the SAME order `bridge.state()` emits it. Expect this
+  every time StudioState grows — it's not a regression, it's the contract test doing its job.
+- **The Claude Code → studio handoff was a one-liner gap with a real UX cost:** `open_studio`
+  took no brief, so a purpose the human already typed in the terminal was lost and they
+  retyped it in the New Discussion panel. Fix pattern for any async-seeded form field: carry
+  it in `StudioState` (`seedBrief`), pre-fill via `useState(initialProp)` AND a ref-guarded
+  effect (`seededRef`) that fills only when the prop first arrives over WS and the field is
+  still untouched — never clobber what the user has since typed.
+- **A blocking studio channel = present_board's shape reused:** `askConcierge` mirrors
+  `presentAndWait` (broadcast a pending item, store a single resolver, POST answers it,
+  timeout resolves null, clear + re-broadcast null on settle). For an adaptive/multi-turn
+  loop the tool blocks per turn and Claude decides whether to call again — no fixed count in
+  the harness (the count lives in Claude's judgement, rule 11).
+
 ## 2026-07-07 — concierge-living-gallery (phase 2, mind-elixir)
 
 - **A browser engine that imports CSS/`.less` (mind-elixir) must be DYNAMICALLY
