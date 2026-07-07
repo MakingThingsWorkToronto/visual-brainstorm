@@ -316,6 +316,18 @@ export class SessionStore {
     );
   }
 
+  /**
+   * Concierge intake turn (adaptive clarifying Q&A): appended to brainstorm.md
+   * so the question + the user's answer become part of the thread's text memory
+   * — the digest the orchestrator builds the Living Gallery and boards on. A
+   * null answer means the question timed out (recorded honestly, no fake answer).
+   */
+  recordConcierge(question: string, answer: string | null): void {
+    this.appendMd(
+      `\n> Concierge Q: ${question}\n> Concierge A: ${answer ?? '(no answer — timed out)'}`,
+    );
+  }
+
   captureArtifact(
     name: string,
     svg: string,

@@ -635,9 +635,53 @@ assert.equal(mmRound.response.editedTree.nodeData.children.length, 3, 'reloaded 
 const mmMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
 assert.ok(mmMd.includes('Mind-map tree presented'), 'brainstorm.md notes the presented tree');
 
+// --- Claude-Code handoff + adaptive concierge round-trip (concierge-intake phase). ---
+// The WS handler above keys only on 'board-r1-smoke'/'board-r2-smoke' and ignores the
+// rest, so the concierge broadcast rides past it harmlessly; we drive HTTP directly here.
+
+// Handoff: openStudio(brief) seeds the brief (open=false → no browser launched).
+await bridge.openStudio('app icons for a note-taking tool', false);
+let handoffState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.equal(
+  handoffState.seedBrief,
+  'app icons for a note-taking tool',
+  'openStudio(brief) pre-fills seedBrief for the Claude-Code handoff',
+);
+
+// Concierge round-trip: ask (non-blocking), read the pending id, answer, resolve.
+const cWait = bridge.askConcierge('Who is the audience?', ['my team', 'customers'], 15_000);
+await new Promise((r) => setTimeout(r, 100));
+const s1 = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.ok(s1.concierge, '/api/state carries the pending concierge exchange');
+assert.equal(s1.concierge.question, 'Who is the audience?', 'question round-trips to state');
+assert.deepEqual(s1.concierge.suggestions, ['my team', 'customers'], 'suggestion chips round-trip');
+const cid = s1.concierge.id;
+const cPost = await fetch(`http://127.0.0.1:${bridge.port}/api/concierge`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: cid, answer: 'customers · founders' }),
+});
+assert.equal(cPost.status, 200, 'answering the pending concierge question is accepted');
+assert.deepEqual(await cPost.json(), { ok: true }, 'concierge POST body is {ok:true}');
+const cAnswer = await cWait;
+assert.equal(cAnswer, 'customers · founders', 'askConcierge resolves with the posted answer');
+const s2 = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.equal(s2.concierge, null, 'concierge surface clears after the answer');
+const conciergeMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+assert.ok(conciergeMd.includes('Concierge Q: Who is the audience?'), 'brainstorm.md records the question');
+assert.ok(conciergeMd.includes('Concierge A: customers · founders'), 'brainstorm.md records the answer');
+
+// 404 path: answering when nothing is pending is an honest 404.
+const cNone = await fetch(`http://127.0.0.1:${bridge.port}/api/concierge`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: 'concierge-nope', answer: 'x' }),
+});
+assert.equal(cNone.status, 404, 'no pending concierge question → 404');
+
 ws.close();
 await bridge.stop();
 fs.rmSync(scratch, { recursive: true, force: true });
 console.log(
-  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md)',
+  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md), Claude-Code handoff (openStudio seedBrief) + concierge round-trip (ask, pending state, answer, resolve, brainstorm.md, 404)',
 );

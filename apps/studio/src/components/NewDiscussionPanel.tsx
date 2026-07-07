@@ -93,6 +93,7 @@ export function NewDiscussionPanel({
   defaultModel = '',
   targetRepo = null,
   cancellable = true,
+  initialPrompt = '',
   onCancel,
   onStart,
 }: {
@@ -103,10 +104,15 @@ export function NewDiscussionPanel({
   targetRepo?: string | null;
   /** False when the panel IS the landing surface (nothing to go back to). */
   cancellable?: boolean;
+  /**
+   * Handoff from Claude Code: the purpose the human already described, used to
+   * pre-fill the brief so the studio hosts that content (no retyping).
+   */
+  initialPrompt?: string;
   onCancel: () => void;
   onStart: (prompt: string, seed: SeedIntake | undefined, extras: NewDiscussionExtras) => void;
 }) {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [chips, setChips] = useState<string[]>([]);
   const [others, setOthers] = useState<Record<string, string>>({});
   const [otherOpen, setOtherOpen] = useState<Record<string, boolean>>({});
@@ -126,6 +132,16 @@ export function NewDiscussionPanel({
     setPrompt((prev) => (prev.trim() ? `${prev.trim()} ${heard}` : heard)),
   );
   const intake = useAttachments();
+
+  // Handoff seed arrives async over WS (hello.seedBrief). Fill the brief the
+  // first time it lands, but never clobber text the user has already typed.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (initialPrompt && !seededRef.current) {
+      seededRef.current = true;
+      setPrompt((prev) => (prev.trim() ? prev : initialPrompt));
+    }
+  }, [initialPrompt]);
 
   // The brief box grows with its content; the max-h-[30vh] class caps it at
   // 30% of the viewport, after which it scrolls internally.

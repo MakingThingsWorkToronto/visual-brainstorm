@@ -40,6 +40,7 @@ const CENSUS = [
   ['POST /api/artifact-chat', [200, 400, 404]],
   ['POST /api/artifact-notes', [200, 400, 404]],
   ['POST /api/respond', [200, 400]],
+  ['POST /api/concierge', [200, 400, 404]],
   ['GET /* (static studio)', [200, 503]],
   ['WS /ws', ['hello', 'responded', 'artifact', 'malformed-logged', 'unknown-type-ignored']],
 ];
@@ -795,6 +796,56 @@ test('POST /api/respond → 400: zod-invalid shape and non-JSON body', async () 
     assert.equal(garbage.status, 400);
     assertMatches(garbage.body, expectation('respond-400-not-json.json'));
     prove('POST /api/respond', 400);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/concierge — 200 (answers the pending question), 404 (none pending /
+// id mismatch), 400 (zod refuses an invalid body)
+// ---------------------------------------------------------------------------
+test('POST /api/concierge → 200 resolves the pending question (id read from state)', async () => {
+  const { bridge } = await startBridge();
+  try {
+    // Ask WITHOUT awaiting — the surface stays pending until we answer it below.
+    const wait = bridge.askConcierge('Q?', [], 10_000);
+    let state = null;
+    for (let i = 0; i < 50 && !state; i++) {
+      const s = (await getJson(bridge, '/api/state')).body;
+      if (s.concierge !== null) state = s;
+      else await new Promise((r) => setTimeout(r, 15));
+    }
+    assert.ok(state && state.concierge, 'concierge question posted to /api/state');
+    const { status, body } = await postJson(bridge, '/api/concierge', { id: state.concierge.id, answer: 'a' });
+    assert.equal(status, 200);
+    assertMatches(body, expectation('concierge-200.json'));
+    assert.equal(await wait, 'a', 'askConcierge resolves with the posted answer (no leaked timer)');
+    prove('POST /api/concierge', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/concierge → 404 when no question is awaiting this id', async () => {
+  const { bridge } = await startBridge();
+  try {
+    const { status, body } = await postJson(bridge, '/api/concierge', { id: 'concierge-x', answer: 'a' });
+    assert.equal(status, 404);
+    assertMatches(body, expectation('concierge-404.json'));
+    prove('POST /api/concierge', 404);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/concierge → 400 on an invalid body (zod refuses)', async () => {
+  const { bridge } = await startBridge();
+  try {
+    const { status, body } = await postJson(bridge, '/api/concierge', {});
+    assert.equal(status, 400);
+    assertMatches(body, expectation('concierge-400-invalid.json'));
+    prove('POST /api/concierge', 400);
   } finally {
     await bridge.stop();
   }

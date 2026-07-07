@@ -16,6 +16,7 @@ import { BulbIcon, Bubble, Marker, SvgPane } from './components/primitives';
 import { ArtifactChat } from './components/ArtifactChat';
 import { BoardSurvey } from './components/BoardSurvey';
 import { NewDiscussionPanel, type NewDiscussionExtras } from './components/NewDiscussionPanel';
+import { ConciergeIntake } from './components/ConciergeIntake';
 import { PreviewModal } from './components/PreviewModal';
 import { SessionActivity } from './components/SessionActivity';
 import { Sidebar } from './components/Sidebar';
@@ -150,7 +151,7 @@ function RoundHistoryView({
 }
 
 export default function App() {
-  const { state, connected, respond } = useBridge();
+  const { state, connected, respond, answerConcierge } = useBridge();
   const [discussions, setDiscussions] = useState<DiscussionSummary[]>([]);
   const [archived, setArchived] = useState<Thread | null>(null);
   const [preview, setPreview] = useState<Preview>(null);
@@ -340,9 +341,14 @@ export default function App() {
   const rounds = viewingLive ? state.rounds : archived.rounds;
   const history = rounds.filter((r) => r.response !== null);
   // Empty live session → land on the New Discussion panel (the intake surface),
-  // e.g. a bare /run-brainstorm opening the studio via open_studio.
+  // e.g. a bare /run-brainstorm opening the studio via open_studio. A pending
+  // concierge question takes over the surface instead (adaptive intake).
   const landing =
-    viewingLive && history.length === 0 && !state.activeBoard && !state.thinking;
+    viewingLive &&
+    history.length === 0 &&
+    !state.activeBoard &&
+    !state.thinking &&
+    !state.concierge;
 
   // Wayfinder: what the studio would do next (the orchestrator still decides).
   const proposal = useMemo(
@@ -470,6 +476,7 @@ export default function App() {
               defaultModel={state.defaultModel}
               targetRepo={state.targetRepo}
               cancellable={!landing}
+              initialPrompt={state.seedBrief ?? ''}
               onCancel={() => setNewOpen(false)}
               onStart={(prompt, seed, extras) => {
                 invokeCommand('new-brainstorm', prompt || undefined, seed, extras);
@@ -561,6 +568,12 @@ export default function App() {
               </div>
             </div>
           ))}
+
+          {viewingLive && state.concierge && (
+            <div className="mt-3">
+              <ConciergeIntake exchange={state.concierge} onAnswer={answerConcierge} />
+            </div>
+          )}
 
           {viewingLive && state.activeBoard && (
             <div id={`round-${state.activeBoard.id}`}>

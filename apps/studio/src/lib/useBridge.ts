@@ -20,6 +20,8 @@ const EMPTY: StudioState = {
   targetRepo: null,
   progress: [],
   tokens: { input: 0, output: 0 },
+  seedBrief: null,
+  concierge: null,
 };
 
 /** WS in (boards), HTTP POST out (responses), auto-reconnect, hello resync. */
@@ -87,6 +89,8 @@ export function useBridge() {
             }
             case 'artifact-chat':
               return { ...prev, artifactChat: [...prev.artifactChat, msg.message] };
+            case 'concierge':
+              return { ...prev, concierge: msg.exchange };
             case 'progress':
               return {
                 ...prev,
@@ -119,5 +123,15 @@ export function useBridge() {
     if (!res.ok) throw new Error(`respond failed: ${res.status} ${await res.text()}`);
   }, []);
 
-  return { state, connected, respond };
+  /** Answer the pending concierge question (adaptive intake). */
+  const answerConcierge = useCallback(async (id: string, answer: string) => {
+    const res = await fetch('/api/concierge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id, answer }),
+    });
+    if (!res.ok) throw new Error(`concierge answer failed: ${res.status} ${await res.text()}`);
+  }, []);
+
+  return { state, connected, respond, answerConcierge };
 }

@@ -18,6 +18,7 @@ import {
   type ArtifactChatMessage,
   type Board,
   type BoardResponse,
+  type ConciergeExchange,
   type ResponseAttachment,
   type SeedIntake,
   type ServerToStudio,
@@ -112,6 +113,12 @@ export class Bridge {
   private commandWaiters: ((request: CommandRequest) => void)[] = [];
   /** Live theme list — refreshed when the studio saves a palette edit. */
   private themesList: Theme[];
+  /** Claude Code → studio handoff: the purpose the human already described. */
+  private seedBrief: string | null = null;
+  /** Pending concierge question + its answer resolver (adaptive intake). */
+  private concierge: ConciergeExchange | null = null;
+  private conciergeResolve: ((answer: string | null) => void) | null = null;
+  private conciergeSeq = 1;
   port = 0;
 
   /** Invoked when a UI command is queued (no board waiting) — demo orchestrator hook. */
@@ -168,6 +175,8 @@ export class Bridge {
       progress: this.store.progress.slice(-200),
       tokens: this.store.tokenTotals(),
       artifactChat: this.store.artifactChat,
+      seedBrief: this.seedBrief,
+      concierge: this.concierge,
     };
   }
 
@@ -545,6 +554,29 @@ export class Bridge {
         });
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/api/concierge') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { id, answer } = z
+              .object({ id: z.string(), answer: z.string().max(4000) })
+              .parse(JSON.parse(body));
+            if (!this.concierge || this.concierge.id !== id || !this.conciergeResolve) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: 'no concierge question awaiting this id' }));
+              return;
+            }
+            this.conciergeResolve(answer);
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
       // Static studio
       const rel = url.pathname === '/' ? '/index.html' : url.pathname;
       const file = path.join(dist, path.normalize(rel).replace(/^([.][.][\\/])+/, ''));
@@ -770,13 +802,61 @@ export class Bridge {
     return this.responses.get(boardId) ?? null;
   }
 
-  /** Start serving and open the browser with no board — the New Discussion landing. */
-  async openStudio(): Promise<void> {
+  /**
+   * Start serving and open the browser with no board — the New Discussion
+   * landing. `brief` is the handoff from Claude Code: the purpose the human
+   * already described. It pre-fills the New Discussion brief so the studio hosts
+   * that content instead of asking them to retype it (requires no rework).
+   */
+  async openStudio(brief?: string, open = true): Promise<void> {
     await this.start();
-    if (!this.browserOpened) {
+    const trimmed = brief?.trim();
+    if (trimmed) {
+      this.seedBrief = trimmed;
+      this.broadcast({ type: 'hello', state: this.state() });
+    }
+    if (open && !this.browserOpened) {
       this.browserOpened = true;
       openBrowser(this.url);
     }
+  }
+
+  /**
+   * Adaptive concierge intake: present ONE clarifying question in the studio
+   * (with tappable suggestion chips) and BLOCK until the user answers via
+   * POST /api/concierge or the timeout passes. Claude calls this as many times
+   * as it takes; each answered exchange is appended to brainstorm.md so it
+   * lands in the digest the orchestrator builds the Living Gallery + boards on.
+   */
+  async askConcierge(
+    question: string,
+    suggestions: string[],
+    timeoutMs: number,
+  ): Promise<string | null> {
+    await this.start();
+    const exchange: ConciergeExchange = {
+      id: `concierge-${this.store.info.id}-${this.conciergeSeq++}`,
+      question,
+      suggestions,
+      answer: '',
+    };
+    this.concierge = exchange;
+    this.log(`concierge asks: "${question.slice(0, 80)}" (${suggestions.length} chips)`);
+    this.broadcast({ type: 'concierge', exchange });
+    return new Promise<string | null>((resolve) => {
+      const finish = (answer: string | null) => {
+        this.concierge = null;
+        this.conciergeResolve = null;
+        this.broadcast({ type: 'concierge', exchange: null });
+        resolve(answer);
+      };
+      const timer = setTimeout(() => finish(null), timeoutMs);
+      this.conciergeResolve = (answer) => {
+        clearTimeout(timer);
+        this.store.recordConcierge(question, answer);
+        finish(answer);
+      };
+    });
   }
 
   /**

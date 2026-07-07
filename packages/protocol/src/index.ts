@@ -272,6 +272,26 @@ export const ArtifactChatMessageSchema = z.object({
 export type ArtifactChatMessage = z.infer<typeof ArtifactChatMessageSchema>;
 
 /**
+ * One turn of the adaptive concierge intake (wiki/Product/intake-methodologies.md):
+ * after the brief, Claude asks AS MANY clarifying questions as it takes (not a
+ * fixed count). Each question is presented in the studio with tappable
+ * suggestion chips plus a free-text box; the user's answer packages back into
+ * the seed digest the orchestrator builds on. The pending question rides
+ * StudioState.concierge; the answer returns via POST /api/concierge.
+ */
+export const ConciergeExchangeSchema = z.object({
+  /** Stable id for this question — the answer POST names it. */
+  id: z.string(),
+  /** Claude's clarifying question. */
+  question: z.string(),
+  /** Tappable suggested answers — the user may pick any, all, or none. */
+  suggestions: z.array(z.string()).default([]),
+  /** The user's assembled answer (chips + free text). Empty until answered. */
+  answer: z.string().default(''),
+});
+export type ConciergeExchange = z.infer<typeof ConciergeExchangeSchema>;
+
+/**
  * Option chats reuse the artifact-chat channel: a board OPTION (any round,
  * incl. previous ones) is addressed by this synthetic slug in
  * ArtifactChatMessage.artifactSlug, so questions about earlier choices
@@ -403,6 +423,14 @@ export interface StudioState {
   tokens: { input: number; output: number };
   /** Artifact chat dialogs (all slugs mixed — filter by artifactSlug client-side). */
   artifactChat: ArtifactChatMessage[];
+  /**
+   * Handoff from Claude Code: the purpose the human already described when they
+   * launched the brainstorm (open_studio brief). Pre-fills the New Discussion
+   * brief so the studio hosts that content — no retyping (requires no rework).
+   */
+  seedBrief: string | null;
+  /** Pending adaptive-concierge question, null when none is awaiting an answer. */
+  concierge: ConciergeExchange | null;
 }
 
 export type ServerToStudio =
@@ -412,6 +440,7 @@ export type ServerToStudio =
   | { type: 'responded'; boardId: string; response: BoardResponse }
   | { type: 'artifact'; artifact: Artifact }
   | { type: 'progress'; event: ProgressEvent }
-  | { type: 'artifact-chat'; message: ArtifactChatMessage };
+  | { type: 'artifact-chat'; message: ArtifactChatMessage }
+  | { type: 'concierge'; exchange: ConciergeExchange | null };
 
 export type StudioToServer = { type: 'response'; response: BoardResponse };

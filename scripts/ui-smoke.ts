@@ -12,7 +12,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>');
 
 const { createElement } = await import('react');
 const { renderToString } = await import('react-dom/server');
-const { ArtifactChatMessageSchema, ArtifactSchema, BoardResponseSchema, BoardSchema, ProgressEventSchema, DiscussionSummarySchema } =
+const { ArtifactChatMessageSchema, ArtifactSchema, BoardResponseSchema, BoardSchema, ConciergeExchangeSchema, ProgressEventSchema, DiscussionSummarySchema } =
   await import('@visual-brainstorm/protocol');
 const { BoardSurvey } = await import('../apps/studio/src/components/BoardSurvey.js');
 
@@ -270,6 +270,53 @@ for (const marker of [
   assert.ok(open.includes(marker), `[new-discussion] missing marker "${marker}"`);
 }
 console.log('UI new-discussion panel renders ✓ (chips + colors + full composer)');
+
+// --- Claude-Code handoff: openStudio(brief) pre-fills the New Discussion brief textarea ---
+// initialPrompt seeds the composer via useState(initialPrompt), so the brief text
+// appears in the rendered <textarea> value under renderToString (no retype).
+const prefilled = renderToString(
+  createElement(NewDiscussionPanel, {
+    enginePreview: false,
+    themes: [{ name: 'neon-purple', label: 'Neon Purple', light: vars, dark: vars }],
+    models: ['claude-fable-5'],
+    defaultModel: 'claude-fable-5',
+    targetRepo: null,
+    initialPrompt: 'app icons for a note-taking tool',
+    onCancel: () => {},
+    onStart: () => {},
+  }),
+);
+assert.ok(
+  prefilled.includes('app icons for a note-taking tool'),
+  '[new-discussion handoff] initialPrompt must pre-fill the brief textarea',
+);
+console.log('UI new-discussion handoff prefill ✓');
+
+// --- Concierge intake surface (adaptive clarifying question) ---
+// Fixture goes through the schema like every production path (defaults stay in sync).
+const { ConciergeIntake } = await import('../apps/studio/src/components/ConciergeIntake.js');
+const conciergeExchange = ConciergeExchangeSchema.parse({
+  id: 'c1',
+  question: 'Who is the audience?',
+  suggestions: ['my team', 'customers'],
+});
+const conciergeHtml = renderToString(
+  createElement(ConciergeIntake, { exchange: conciergeExchange, onAnswer: async () => {} }),
+);
+// Markers live inside single text/attribute nodes — never spanning adjacent JSX expressions.
+for (const marker of [
+  'data-testid="concierge-intake"',
+  'Concierge',
+  'Who is the audience?',
+  'data-testid="concierge-chips"',
+  'my team',
+  'customers',
+  'Answer in your own words',
+  'Send answer',
+]) {
+  assert.ok(conciergeHtml.includes(marker), `[concierge-intake] missing marker "${marker}"`);
+}
+console.log('UI concierge intake renders ✓');
 
 // --- Triage gate with all keeps: sudden-death bracket offered ---
 const { TriageGate } = await import('../apps/studio/src/components/phases/TriageGate.js');

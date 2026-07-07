@@ -249,17 +249,25 @@ server.tool(
   'open_studio',
   'Open the Visual Brainstorm studio with NO board — the New Discussion landing panel — and BLOCK until the ' +
     'user submits a brief (arrives as a new-brainstorm command with their prompt/seed notes) or the timeout ' +
-    'passes. Use this when the user asks to start a brainstorm WITHOUT saying what about (e.g. a bare ' +
-    '/run-brainstorm): instead of interrogating them in chat, land them on the panel and build the ' +
-    'AskUserQuestion clarifications on what they submit. Timeout returns {status:"waiting"} — the studio ' +
-    'stays open; call open_studio again (or check session_status.pendingUiCommands) to keep waiting.',
+    'passes. HANDOFF: if the human ALREADY described the purpose in this Claude Code session, pass it as `brief` ' +
+    '— it pre-fills the New Discussion brief so the studio hosts that content and the human refines instead of ' +
+    'retyping (requires no rework). Use a bare open_studio (no brief) only when they truly said nothing about what ' +
+    'to make. Timeout returns {status:"waiting"} — the studio stays open; call open_studio again ' +
+    '(or check session_status.pendingUiCommands) to keep waiting.',
   {
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
+    brief: z
+      .string()
+      .max(2000)
+      .optional()
+      .describe('The purpose/initial content from THIS Claude Code session — pre-fills the New Discussion brief'),
   },
-  async ({ timeoutSeconds }) => {
+  async ({ timeoutSeconds, brief }) => {
     const { store, bridge } = ensureSession('New discussion');
-    await bridge.openStudio();
-    console.error('[mcp] studio open on the New Discussion panel — waiting for a brief');
+    await bridge.openStudio(brief);
+    console.error(
+      `[mcp] studio open on the New Discussion panel${brief ? ' (brief handed off)' : ''} — waiting for a brief`,
+    );
     const request = await bridge.waitForCommand(timeoutSeconds * 1000);
     if (!request) {
       return text({
@@ -281,6 +289,37 @@ server.tool(
         (request.prompt ? ` The user's brief: "${request.prompt}".` : '') +
         (request.seedNote ? ` ${request.seedNote}` : ''),
     });
+  },
+);
+
+server.tool(
+  'ask_concierge',
+  'Adaptive concierge intake (wiki/Product/intake-methodologies.md): after the New Discussion brief, ask ONE ' +
+    'clarifying question in the studio and BLOCK for the answer. Ask AS MANY as it takes — not a fixed count; ' +
+    'being comprehensive rewards the brainstorm. Provide tappable `suggestions` (the user picks any/all/none, or ' +
+    'types their own). Each answered exchange is appended to the thread’s brainstorm.md so it lands in the digest ' +
+    'you build the Living Gallery and boards on. Returns {status:"answered", answer} or {status:"pending"} on timeout.',
+  {
+    question: z.string().describe('One clarifying question tailored to the brief and prior answers'),
+    suggestions: z
+      .array(z.string())
+      .default([])
+      .describe('Tappable suggested answers — the user may pick any, all, or none'),
+    timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
+  },
+  async ({ question, suggestions, timeoutSeconds }) => {
+    if (!bridge) {
+      return text({ status: 'no-studio', hint: 'open_studio or present_board first to attach the studio bridge' });
+    }
+    const answer = await bridge.askConcierge(question, suggestions, timeoutSeconds * 1000);
+    if (answer === null) {
+      return text({
+        status: 'pending',
+        studioUrl: bridge.url,
+        hint: 'User has not answered yet. The question is still live in the studio; call ask_concierge again to re-ask, or proceed if you have enough.',
+      });
+    }
+    return text({ status: 'answered', question, answer });
   },
 );
 

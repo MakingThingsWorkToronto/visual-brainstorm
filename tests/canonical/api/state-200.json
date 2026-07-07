@@ -25,5 +25,7 @@
     "input": 0,
     "output": 0
   },
-  "artifactChat": []
+  "artifactChat": [],
+  "seedBrief": null,
+  "concierge": null
 }
