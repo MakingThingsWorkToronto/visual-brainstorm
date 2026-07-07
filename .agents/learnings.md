@@ -1,5 +1,25 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — concierge-living-gallery (phase 4 + operator real-session mandate)
+
+- **A studio surface working in `npm run preview` is NOT proof it works in a real brainstorm.**
+  Preview (`apps/mcp/src/preview.ts`, `engine:'preview'`) is a fixture player with no Claude and
+  no orchestration; real sessions run through the MCP tools (`open_studio`/`ask_concierge`/
+  `present_gallery`/`present_board`) driven by the `.claude` skills+commands. Two separate gates:
+  (a) transport works → prove with `scripts/smoke.mjs`, which builds a REAL `Bridge` with
+  `engine:'claude'` and exercises the actual channels; (b) Claude actually CALLS the tools →
+  lives in `run-brainstorm`/`brainstorm-orchestrator`/`brainstorm-phases`. A feature can be
+  fully built + preview-visible + smoke-green and STILL never fire in a real session because no
+  skill tells Claude to call its tool. Operator's words: "if it only works in preview the app is
+  a brick." Wire the skills (that's the routing phase) and prove the real path with human-sim on
+  a real bridge — never treat the preview demo as the acceptance test.
+- **The blocking-channel pattern now has three instances** (`presentAndWait`, `askConcierge`,
+  `presentGallery`) — all identical shape: set pending state, broadcast envelope, store ONE
+  resolver, POST resolves it, timeout → null, clear + re-broadcast null on settle, record to
+  brainstorm.md. Each new one is +1 `StudioState` field (breaks `state-200.json` canonical body —
+  append the key in `bridge.state()` order), +1 `ServerToStudio` case in `useBridge` (or the app
+  blanks), +1 endpoint (add 200/404/400 to the api-status-matrix — tests ship with features).
+
 ## 2026-07-07 — comprehensive-human-testing closeout (multi-loop working tree)
 
 - **A delegated agent killed mid-task by a model/session limit usually leaves its files
