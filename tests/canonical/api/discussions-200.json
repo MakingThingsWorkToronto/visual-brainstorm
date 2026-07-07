@@ -1,0 +1,12 @@
+[
+  {
+    "id": "<<contains:api-matrix>>",
+    "title": "API matrix",
+    "startedAt": "<<iso-date>>",
+    "dir": "<<abs-path>>",
+    "rounds": 0,
+    "artifacts": 0,
+    "archived": false,
+    "tokens": 0
+  }
+]

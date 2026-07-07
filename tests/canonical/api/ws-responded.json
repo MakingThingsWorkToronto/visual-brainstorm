@@ -1,0 +1,5 @@
+{
+  "type": "responded",
+  "boardId": "board-diverge-1",
+  "response": "<<canonical:responses/iterate.json@BoardResponseSchema>>"
+}

@@ -11,6 +11,7 @@ import {
   BoardSchema,
   DiscussionSummarySchema,
   PHASES,
+  ProgressEventSchema,
   SessionInfoSchema,
   ThemeSchema,
 } from '../packages/protocol/dist/index.js';
@@ -20,6 +21,7 @@ import {
 const CANONICAL_FILES = {
   'threads/session.json': SessionInfoSchema,
   'threads/discussion-summary.json': DiscussionSummarySchema,
+  'threads/progress.json': ProgressEventSchema,
   'boards/diverge.json': BoardSchema,
   'boards/expand.json': BoardSchema,
   'boards/mutate.json': BoardSchema,
@@ -53,7 +55,19 @@ test('no stray canonical JSON escapes the proving map', () => {
     }
   };
   walk(CANONICAL_DIR);
-  assert.deepEqual(found.sort(), Object.keys(CANONICAL_FILES).sort());
+  // api/ holds expected response bodies (endpoint × status code) with sentinel strings,
+  // NOT protocol shapes — its registry is tests/api-status-matrix.test.mjs, whose final
+  // test fails if any api/*.json goes unconsumed. Here: valid JSON, nothing more.
+  const apiFiles = found.filter((p) => p.startsWith('api/'));
+  assert.ok(apiFiles.length > 0, 'api expectation set exists (api-status-matrix)');
+  for (const rel of apiFiles) {
+    assert.doesNotThrow(
+      () => JSON.parse(fs.readFileSync(path.join(CANONICAL_DIR, rel), 'utf8')),
+      `${rel} is valid JSON`,
+    );
+  }
+  const protocolShaped = found.filter((p) => !p.startsWith('api/'));
+  assert.deepEqual(protocolShaped.sort(), Object.keys(CANONICAL_FILES).sort());
 });
 
 test('the six boards cover the six phases, one each, with 2+ rendered options', () => {

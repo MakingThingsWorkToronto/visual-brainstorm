@@ -1,0 +1,4 @@
+{
+  "type": "hello",
+  "state": "<<canonical:api/state-200.json>>"
+}

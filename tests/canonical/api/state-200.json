@@ -1,0 +1,29 @@
+{
+  "session": {
+    "id": "<<contains:api-matrix>>",
+    "slug": "api-matrix",
+    "title": "API matrix",
+    "startedAt": "<<iso-date>>",
+    "dir": "<<abs-path>>"
+  },
+  "rounds": [],
+  "activeBoard": null,
+  "artifacts": [],
+  "thinking": null,
+  "engine": "claude",
+  "themes": [
+    "<<canonical:themes/theme.json>>"
+  ],
+  "theme": "aurora",
+  "models": [
+    "claude-fable-5"
+  ],
+  "defaultModel": "claude-fable-5",
+  "targetRepo": null,
+  "progress": [],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  },
+  "artifactChat": []
+}

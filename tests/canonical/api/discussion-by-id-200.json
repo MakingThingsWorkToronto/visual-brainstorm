@@ -1,0 +1,15 @@
+{
+  "session": {
+    "id": "<<contains:api-matrix>>",
+    "slug": "api-matrix",
+    "title": "API matrix",
+    "startedAt": "<<iso-date>>",
+    "dir": "<<abs-path>>"
+  },
+  "rounds": [],
+  "artifacts": [],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "name": "visual-brainstorm-bridge",
+  "pid": "<<number>>",
+  "port": "<<number>>",
+  "startedAt": "<<iso-date>>",
+  "studioDist": "<<abs-path>>",
+  "studioDistExists": "<<boolean>>",
+  "session": {
+    "id": "<<contains:api-matrix>>",
+    "dir": "<<abs-path>>"
+  },
+  "rounds": 0,
+  "activeBoard": null,
+  "awaitingResponse": false,
+  "connectedClients": 0,
+  "queuedCommands": 0
+}
