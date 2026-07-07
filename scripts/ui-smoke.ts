@@ -487,6 +487,56 @@ const fresh = renderToString(
 assert.ok(fresh.includes('0 selected'), '[revisit] without initial the survey starts from zero');
 console.log('UI board survey revisit ✓ (initial prefills elaboration + selections, absent → zero)');
 
+// --- Mind-map canvas surface: a `mindmap`-kind board with a `tree` renders the live
+// co-edit canvas (mind-elixir is a dynamic import inside an effect, so it never runs
+// under renderToString — only the static wrapper does) and suppresses the option grid. ---
+// Fixture goes through the schema like every production path (defaults stay in sync).
+const mmSurfaceBoard = BoardSchema.parse({
+  id: 'b-mindmap',
+  sessionId: 's',
+  round: 1,
+  kind: 'mindmap',
+  phase: 'diverge',
+  title: 't-mindmap',
+  prompt: 'edit the tree',
+  options: [],
+  tree: {
+    nodeData: {
+      id: 'root',
+      topic: 'Glow mark',
+      children: [
+        { id: 'c1', topic: 'Warmth' },
+        { id: 'c2', topic: 'Motion' },
+      ],
+    },
+    direction: 2,
+  },
+  survey: { axes: [] },
+  createdAt: 'now',
+});
+const mmHtml = renderToString(
+  createElement(BoardSurvey, {
+    board: mmSurfaceBoard,
+    models: ['claude-fable-5'],
+    defaultModel: 'claude-fable-5',
+    onRespond: async () => {},
+    onPreview: () => {},
+  }),
+);
+// Markers live inside single text/attribute nodes — never spanning adjacent JSX expressions.
+for (const marker of [
+  'data-testid="mindmap-canvas"',
+  'Mind map — one living structure',
+  'double-click a node to rename',
+  'data-testid="mindmap-engine"',
+  'Send &amp; iterate', // the composer still renders under the canvas
+]) {
+  assert.ok(mmHtml.includes(marker), `[mindmap-canvas] missing marker "${marker}"`);
+}
+// The option grid + phase mechanics are suppressed for a mindmap board.
+assert.ok(!mmHtml.includes('judge deck'), '[mindmap-canvas] option-grid mechanic must be suppressed');
+console.log('UI mindmap canvas renders ✓ (canvas + engine + composer, option grid suppressed)');
+
 // --- Crash boundary (blank-page skew, 2026-07-07) ---
 // renderToString never invokes error boundaries (client-runtime only), so the
 // fallback branch is exercised directly: a tiny subclass whose constructor seeds

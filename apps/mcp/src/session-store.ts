@@ -17,6 +17,7 @@ import {
   type SessionInfo,
 } from '@visual-brainstorm/protocol';
 import { buildFeedbackDigest } from './feedback.js';
+import { countNodes, treeToSvg } from './tree-svg.js';
 
 export function slugify(text: string): string {
   return (
@@ -221,20 +222,37 @@ export class SessionStore {
     for (const option of board.options) {
       fs.writeFileSync(path.join(dir, `option-${option.id}.svg`), option.svg);
     }
+    // A mindmap board carries a live tree instead of options. Persist the tree
+    // JSON and capture a deterministic SVG snapshot as an artifact (rule 7):
+    // the presented structure is archived even before the user edits it.
+    if (board.tree) {
+      fs.writeFileSync(path.join(dir, 'tree.json'), JSON.stringify(board.tree, null, 2));
+      const nodes = countNodes(board.tree.nodeData);
+      this.captureArtifact(
+        `${board.title} — round ${board.round} tree`,
+        treeToSvg(board.tree),
+        `Presented mind-map tree (${nodes} node${nodes === 1 ? '' : 's'}), archival snapshot.`,
+        { boardId: board.id, optionIds: [] },
+      );
+    }
     this.appendMd(
       [
         `\n## Round ${board.round} — ${board.phase} · ${board.kind}`,
         '',
         board.prompt,
         '',
-        '### Options presented',
-        ...board.options.map(
-          (o) =>
-            `- **${o.label}** (\`${o.id}\`)` +
-            (o.description ? ` — ${o.description}` : '') +
-            (o.parents.length ? ` [parents: ${o.parents.join(', ')}]` : '') +
-            (o.tags.length ? ` {${o.tags.join(', ')}}` : ''),
-        ),
+        board.tree
+          ? `### Mind-map tree presented\nRoot: **${board.tree.nodeData.topic}** — ${countNodes(board.tree.nodeData)} nodes (co-edited live; snapshot captured to artifacts/).`
+          : '### Options presented',
+        ...(board.tree
+          ? []
+          : board.options.map(
+              (o) =>
+                `- **${o.label}** (\`${o.id}\`)` +
+                (o.description ? ` — ${o.description}` : '') +
+                (o.parents.length ? ` [parents: ${o.parents.join(', ')}]` : '') +
+                (o.tags.length ? ` {${o.tags.join(', ')}}` : ''),
+            )),
       ].join('\n'),
     );
   }

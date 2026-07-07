@@ -542,9 +542,102 @@ assert.ok(
   `ws saw: ${seen}`,
 );
 
+// --- Mind-map tree board: present a `tree`, receive an `editedTree`, and prove the
+// snapshot + persistence span the process boundary (rules 7/8). Placed last so it never
+// perturbs the round/artifact counts the discussion-cache section asserts above. Uses a
+// board id the WS handler ignores; the response is driven here with the wait/park pattern. ---
+const mmTree = {
+  nodeData: {
+    id: 'root',
+    topic: 'Glow mark',
+    children: [
+      { id: 'c1', topic: 'Warmth' },
+      { id: 'c2', topic: 'Motion', children: [{ id: 'c3', topic: 'Arc' }] },
+    ],
+  },
+  direction: 2,
+};
+const mmBoard = {
+  id: 'board-mm-smoke',
+  sessionId: store.info.id,
+  round: 3, // unique + past the last presented round so nextRound bookkeeping stays sane
+  kind: 'mindmap',
+  phase: 'diverge',
+  title: 'Mind map smoke',
+  prompt: 'edit the tree',
+  options: [],
+  tree: mmTree,
+  survey: { multiSelect: true, minSelect: 0, elaborationPrompt: 'x', allowPerOptionNotes: true, allowRemix: true, axes: [] },
+  createdAt: new Date().toISOString(),
+};
+const mmWait = bridge.presentAndWait(mmBoard, 15_000, false);
+await new Promise((r) => setTimeout(r, 100));
+const mmRespRes = await fetch(`http://127.0.0.1:${bridge.port}/api/respond`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    boardId: 'board-mm-smoke',
+    action: 'iterate',
+    editedTree: {
+      nodeData: {
+        id: 'root',
+        topic: 'Glow mark',
+        children: [
+          { id: 'c1', topic: 'Warmth — ember' },
+          { id: 'c2', topic: 'Motion', children: [{ id: 'c3', topic: 'Arc' }] },
+          { id: 'c4', topic: 'Halo' },
+        ],
+      },
+      direction: 2,
+    },
+    respondedAt: new Date().toISOString(),
+  }),
+});
+assert.equal(mmRespRes.status, 200, 'mindmap respond accepted');
+const mmResp = await mmWait;
+assert.ok(mmResp.editedTree, 'response carries editedTree');
+assert.equal(mmResp.editedTree.nodeData.children.length, 3, 'edited tree grew to three children');
+const editedC1 = mmResp.editedTree.nodeData.children.find((c) => c.id === 'c1');
+assert.equal(editedC1.topic, 'Warmth — ember', 'renamed child topic round-trips');
+const editedC4 = mmResp.editedTree.nodeData.children.find((c) => c.id === 'c4');
+assert.ok(editedC4 && editedC4.topic === 'Halo', 'added child round-trips');
+
+// tree.json persisted beside the round, byte-for-byte the presented tree.
+const mmTreeFile = path.join(store.info.dir, 'round-03', 'tree.json');
+assert.ok(fs.existsSync(mmTreeFile), 'round-03/tree.json on disk');
+assert.deepEqual(JSON.parse(fs.readFileSync(mmTreeFile, 'utf8')), mmTree, 'tree.json is the presented tree');
+
+// Tree snapshot artifact (rule 7): a .json whose provenance names this board with no
+// options, and its .svg sibling holds a real self-contained SVG on disk.
+const mmArtDir = path.join(store.info.dir, 'artifacts');
+const mmArtJson = fs
+  .readdirSync(mmArtDir)
+  .filter((f) => f.endsWith('.json'))
+  .map((f) => ({ f, meta: JSON.parse(fs.readFileSync(path.join(mmArtDir, f), 'utf8')) }))
+  .find((a) => a.meta.provenance?.boardId === 'board-mm-smoke');
+assert.ok(mmArtJson, 'tree snapshot artifact captured with board provenance');
+assert.equal(mmArtJson.meta.provenance.optionIds.length, 0, 'tree snapshot has no option provenance');
+const mmArtSvg = path.join(mmArtDir, mmArtJson.f.replace(/\.json$/, '.svg'));
+assert.ok(fs.existsSync(mmArtSvg), 'tree snapshot .svg sibling on disk');
+assert.ok(fs.readFileSync(mmArtSvg, 'utf8').includes('<svg'), 'tree snapshot holds an SVG');
+
+// Reload via SessionStore.open: the round reloads with both the presented tree and
+// the edited tree — the whole mindmap round survives a process boundary.
+const mmReopened = SessionStore.open(store.info.dir);
+const mmRound = mmReopened.rounds.find((r) => r.board.id === 'board-mm-smoke');
+assert.ok(mmRound, 'mindmap round reloads');
+assert.ok(mmRound.board.tree, 'reloaded board carries its tree');
+assert.deepEqual(mmRound.board.tree.nodeData, mmTree.nodeData, 'reloaded tree matches the presented nodeData');
+assert.ok(mmRound.response?.editedTree, 'reloaded response carries editedTree');
+assert.equal(mmRound.response.editedTree.nodeData.children.length, 3, 'reloaded editedTree keeps three children');
+
+// brainstorm.md records the tree presentation (append-only text memory).
+const mmMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+assert.ok(mmMd.includes('Mind-map tree presented'), 'brainstorm.md notes the presented tree');
+
 ws.close();
 await bridge.stop();
 fs.rmSync(scratch, { recursive: true, force: true });
 console.log(
-  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook)',
+  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md)',
 );

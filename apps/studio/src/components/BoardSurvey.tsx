@@ -3,6 +3,7 @@ import type {
   Board,
   BoardOption,
   BoardResponse,
+  MindTree,
   PaletteColor,
   Phase,
   ResponseAction,
@@ -27,6 +28,7 @@ import { WreckYard } from './phases/WreckYard';
 import { TriageGate } from './phases/TriageGate';
 import { ProximityField } from './phases/ProximityField';
 import { JudgeDeck } from './phases/JudgeDeck';
+import { MindmapCanvas } from './MindmapCanvas';
 import type { DuelResult } from '../lib/deck';
 import type { PhaseProposal } from '../lib/wayfinder';
 
@@ -127,6 +129,9 @@ export function BoardSurvey({
   );
   const [deckRanking, setDeckRanking] = useState<string[]>(initial?.ranking ?? []);
   const [duelResults, setDuelResults] = useState<DuelResult[]>([]);
+  // Mind-map methodology: a board carries ONE live tree instead of options.
+  const isMindmap = board.kind === 'mindmap' && !!board.tree;
+  const [editedTree, setEditedTree] = useState<MindTree | undefined>(initial?.editedTree);
 
   const { multiSelect, minSelect, maxSelect } = board.survey;
   const phase = localPhase;
@@ -136,6 +141,9 @@ export function BoardSurvey({
 
   // Gates: the interface physically refuses to move on until the phase's work is done.
   const gate = useMemo((): { ok: boolean; reason: string } => {
+    // A mind-map board is always sendable: the tree is presented pre-populated,
+    // and "no edits" is itself a valid answer (the presented structure stands).
+    if (isMindmap) return { ok: true, reason: '' };
     if (phase === 'converge') {
       const left = board.options.length - board.options.filter((o) => triage[o.id]).length;
       return { ok: left === 0, reason: left === 0 ? '' : `triage ${left} more before the gate opens` };
@@ -211,6 +219,7 @@ export function BoardSurvey({
     Object.keys(triage).length > 0 ||
     Object.keys(deckVerdicts).length > 0 ||
     clusterTouched ||
+    !!editedTree ||
     Object.values(flaws).some((f) => f.trim() !== '') ||
     Object.values(mutations).some((l) => l.length > 0);
   useEffect(() => {
@@ -283,6 +292,8 @@ export function BoardSurvey({
         commands: action === 'finalize' ? ['plan-closeout'] : [],
         requestedPhase: steeredPhase !== board.phase ? steeredPhase : undefined,
         finalOptionId: action === 'finalize' ? (finalId ?? undefined) : undefined,
+        // Mind-map: the user's edited tree IS the feedback (absent = untouched).
+        editedTree,
         respondedAt: new Date().toISOString(),
       });
     } catch (err) {
@@ -313,6 +324,12 @@ export function BoardSurvey({
         </div>
       </div>
 
+      {isMindmap && board.tree && (
+        <MindmapCanvas tree={board.tree} onEdit={setEditedTree} />
+      )}
+
+      {!isMindmap && (
+        <>
       {phase === 'mutate' && (
         <MutationLab board={board} mutations={mutations} onMutations={setMutations} onPreview={onPreview} />
       )}
@@ -525,6 +542,8 @@ export function BoardSurvey({
             </label>
           ))}
         </div>
+      )}
+        </>
       )}
 
       <div className="rounded-2xl border border-line bg-surface p-4">

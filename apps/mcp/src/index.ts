@@ -11,6 +11,7 @@ import { z } from 'zod';
 import {
   AxisSchema,
   BoardKindSchema,
+  MindTreeSchema,
   PhaseSchema,
   SurveyConfigSchema,
   parseOptionChatSlug,
@@ -109,6 +110,9 @@ server.tool(
     'between two poles (icons: e.g. playful↔serious, flat↔glowing, geometric↔organic; ' +
     'system design: e.g. low↔high cloud cost, simple↔complex, monolith↔distributed, managed↔self-hosted). ' +
     'If the response carries a `model`, DELEGATE the next round’s generation to that model (subagent with model override). ' +
+    'MIND MAP: to present the mindmap methodology, pass a `tree` (mind-elixir-compatible {nodeData,direction?}) with kind="mindmap" ' +
+    'and NO options — the studio renders it as ONE live co-edited canvas; the user’s edits return in response.editedTree (the artifact IS the feedback). ' +
+    'Every presented tree is snapshotted to the thread’s artifacts/ automatically (rule 7). A tree board needs no axes. ' +
     'Pass discussionId to RESUME a prior thread from list_discussions. ' +
     'On timeout returns {status:"pending"} — the board stays live; recover with peek_response.',
   {
@@ -118,17 +122,38 @@ server.tool(
     phase: PhaseSchema.default('diverge').describe(
       'Funnel phase: diverge | mutate | wreck | cluster | converge — the studio re-architects per phase',
     ),
-    options: z.array(OptionInputSchema).min(1).max(16),
+    options: z
+      .array(OptionInputSchema)
+      .max(16)
+      .default([])
+      .describe('SVG options (1–16). Omit/empty ONLY for a mindmap board carrying a tree.'),
+    tree: MindTreeSchema.optional().describe(
+      'Mind-map methodology: one live co-edited mind-elixir tree instead of options (kind="mindmap")',
+    ),
     axes: z
       .array(AxisSchema)
-      .min(5)
-      .describe('Minimum 5 range dials tailored to the initial prompt/domain'),
+      .default([])
+      .describe('Range dials tailored to the domain — minimum 5 for an OPTION board; a tree board needs none'),
     survey: SurveyConfigSchema.omit({ axes: true }).partial().optional(),
     discussionId: z.string().optional().describe('Resume this prior thread (id from list_discussions)'),
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
     openBrowser: z.boolean().default(true),
   },
   async (args) => {
+    // "Options OR tree", enforced at the tool boundary so cached threads (whose
+    // base BoardSchema stays loose) always reload — schema-evolution rule.
+    if (args.tree) {
+      if (args.options.length > 0) {
+        return text({ status: 'error', error: 'A mindmap board carries a tree OR options, not both.' });
+      }
+    } else {
+      if (args.options.length < 1) {
+        return text({ status: 'error', error: 'An option board needs at least 1 option (or pass a tree).' });
+      }
+      if (args.axes.length < 5) {
+        return text({ status: 'error', error: 'An option board needs at least 5 domain-tailored axes.' });
+      }
+    }
     const { store, bridge } = ensureSession(args.title, args.discussionId);
     // A thread opened via open_studio has a placeholder title; the first real
     // board names it (display title only — the directory keeps its slug).
@@ -151,6 +176,7 @@ server.tool(
       title: args.title,
       prompt: args.prompt,
       options,
+      ...(args.tree ? { tree: args.tree } : {}),
       survey: SurveyConfigSchema.parse({ ...(args.survey ?? {}), axes: args.axes }),
       createdAt: new Date().toISOString(),
     };

@@ -87,6 +87,26 @@ function RoundHistoryView({
         </div>
         {board.prompt}
       </Bubble>
+      {board.tree && (
+        <div className="rounded-xl border border-line bg-surface p-3" data-testid="mindmap-history">
+          <div className="text-xs font-semibold text-ink">
+            Mind map · {board.tree.nodeData.topic}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {(board.tree.nodeData.children ?? []).map((branch) => (
+              <span
+                key={branch.id}
+                className="rounded-md border border-line px-2 py-0.5 text-[11px] text-ink-dim"
+              >
+                {branch.topic}
+              </span>
+            ))}
+          </div>
+          {response?.editedTree && (
+            <div className="mt-1.5 text-[11px] text-accent">edited live — see editedTree</div>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {board.options.map((option) => (
           <button
