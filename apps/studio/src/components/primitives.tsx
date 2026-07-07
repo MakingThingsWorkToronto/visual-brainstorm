@@ -1,5 +1,18 @@
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { sanitizeSvg } from '../lib/sanitize';
+
+/**
+ * Mounts fullscreen overlays on document.body. `main.scroll-fade`'s mask-image
+ * makes it a paint group that clips even position:fixed descendants, so any
+ * `fixed inset-0` dialog rendered inside it paints inset and behind the nav —
+ * portaling out is the fix. Inline fallback keeps renderToString smoke working
+ * (the server renderer has no document and no portal support).
+ */
+export function BodyPortal({ children }: { children: ReactNode }) {
+  if (typeof document === 'undefined') return <>{children}</>;
+  return createPortal(children, document.body);
+}
 
 /** Message surface — after shadcn chat's Bubble. Claude's side spans full width. */
 export function Bubble({
@@ -25,13 +38,23 @@ export function Bubble({
 }
 
 /** Status rows and labeled separators — after shadcn chat's Marker. */
-export function Marker({ children, shimmer = false }: { children: ReactNode; shimmer?: boolean }) {
+export function Marker({
+  children,
+  shimmer = false,
+  action,
+}: {
+  children: ReactNode;
+  shimmer?: boolean;
+  /** Optional control next to the label (e.g. return-to-round) — reveal it on group-hover. */
+  action?: ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-3 py-1">
+    <div className="group flex items-center gap-3 py-1">
       <div className="h-px flex-1 bg-line" />
       <span className={`text-xs font-medium tracking-wide text-ink-dim ${shimmer ? 'shimmer' : ''}`}>
         {children}
       </span>
+      {action}
       <div className="h-px flex-1 bg-line" />
     </div>
   );

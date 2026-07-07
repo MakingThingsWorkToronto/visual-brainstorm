@@ -30,6 +30,7 @@ const CANONICAL_FILES = {
   'boards/converge.json': BoardSchema,
   'boards/mindmap-tree.json': BoardSchema,
   'responses/iterate.json': BoardResponseSchema,
+  'responses/revisit-iterate.json': BoardResponseSchema,
   'responses/steer-attachments.json': BoardResponseSchema,
   'responses/wreck-flaws.json': BoardResponseSchema,
   'responses/cluster-positions.json': BoardResponseSchema,

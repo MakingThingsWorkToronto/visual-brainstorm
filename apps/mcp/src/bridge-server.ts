@@ -13,6 +13,7 @@ import {
   ResponseAttachmentSchema,
   SeedIntakeSchema,
   ThemeSchema,
+  parseOptionChatSlug,
   type Artifact,
   type ArtifactChatMessage,
   type Board,
@@ -383,6 +384,8 @@ export class Bridge {
               rounds: thread.rounds,
               artifacts: thread.artifacts,
               tokens: thread.tokenTotals(),
+              // Persisted dialogs reload with the thread (read-only in the studio).
+              artifactChat: thread.artifactChat,
             }),
           );
         } catch (err) {
@@ -458,10 +461,17 @@ export class Bridge {
             const { artifactSlug, text } = z
               .object({ artifactSlug: z.string(), text: z.string().min(1).max(4000) })
               .parse(JSON.parse(body));
+            // The chat subject is a captured artifact OR a board option from
+            // any round (previous choices), addressed by its option: slug.
             const artifact = this.store.artifacts.find((a) => a.slug === artifactSlug);
-            if (!artifact) {
+            const optionRef = artifact ? null : parseOptionChatSlug(artifactSlug);
+            const optionRound = optionRef
+              ? this.store.rounds.find((r) => r.board.id === optionRef.boardId)
+              : undefined;
+            const option = optionRound?.board.options.find((o) => o.id === optionRef?.optionId);
+            if (!artifact && !option) {
               res.writeHead(404, { 'content-type': 'application/json' });
-              res.end(JSON.stringify({ ok: false, error: `no artifact "${artifactSlug}" in the live thread` }));
+              res.end(JSON.stringify({ ok: false, error: `no artifact or board option "${artifactSlug}" in the live thread` }));
               return;
             }
             this.announceArtifactChat(
@@ -472,16 +482,46 @@ export class Bridge {
                 at: new Date().toISOString(),
               }),
             );
-            const delivered = this.dispatchCommand(
-              'artifact-chat',
-              text,
-              `Artifact chat: the user is asking about artifact "${artifact.name}" (slug ${artifact.slug}, ` +
+            const seedNote = artifact
+              ? `Artifact chat: the user is asking about artifact "${artifact.name}" (slug ${artifact.slug}, ` +
                 `SVG at ${artifact.svgPath}). Run .claude/commands/artifact-chat.md: ALWAYS delegate to a ` +
                 `subagent; answer with the reply_artifact_chat tool; if the artifact is changed, capture the ` +
-                `revision with capture_artifact (revises: "${artifact.slug}") and include revisedSlug in the reply.`,
-            );
+                `revision with capture_artifact (revises: "${artifact.slug}") and include revisedSlug in the reply.`
+              : `Artifact chat about a board option: the user is asking about option "${option!.label}" ` +
+                `(round ${optionRound!.board.round}, id ${option!.id}) — SVG at ` +
+                `${path.join(this.store.info.dir, `round-${String(optionRound!.board.round).padStart(2, '0')}`, `option-${option!.id}.svg`)}. ` +
+                `Run .claude/commands/artifact-chat.md: ALWAYS delegate to a subagent; answer with the ` +
+                `reply_artifact_chat tool using artifactSlug "${artifactSlug}" EXACTLY. If the user asks for a ` +
+                `change, capture the result as a NEW artifact (capture_artifact with boardId/optionIds provenance) ` +
+                `and include its slug as revisedSlug in the reply — round options are never overwritten (rule 7).`;
+            const delivered = this.dispatchCommand('artifact-chat', text, seedNote);
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, delivered }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/artifact-notes') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { artifactSlug, notes } = z
+              .object({ artifactSlug: z.string(), notes: z.string().max(8000) })
+              .parse(JSON.parse(body));
+            const artifact = this.store.updateArtifactNotes(artifactSlug, notes);
+            if (!artifact) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `no artifact "${artifactSlug}" in the live thread` }));
+              return;
+            }
+            this.log(`artifact notes saved (${artifactSlug}): "${notes.slice(0, 80)}"`);
+            this.broadcast({ type: 'artifact', artifact });
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, artifact }));
           } catch (err) {
             res.writeHead(400, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: false, error: String(err) }));
@@ -585,10 +625,42 @@ export class Bridge {
     this.startedAt = new Date().toISOString();
     this.log(`listening on ${this.url} (studio: ${dist}${fs.existsSync(dist) ? '' : ' — MISSING, run npm run build -w apps/studio'})`);
     this.log(`session "${this.store.info.id}" → ${this.store.info.dir}`);
+    // Port discovery for the deterministic progress pipe: a port-conflict
+    // fallback would otherwise silently orphan every posted event (the
+    // lost-token-meter incident, 2026-07-07). Last-started bridge wins.
+    try {
+      const portFile = path.join(this.options.discussionRoot, '.logs', 'bridge-port.json');
+      fs.mkdirSync(path.dirname(portFile), { recursive: true });
+      fs.writeFileSync(
+        portFile,
+        JSON.stringify(
+          { port: this.port, pid: process.pid, startedAt: this.startedAt, session: this.store.info.id },
+          null,
+          2,
+        ),
+      );
+      this.log(`port file written: ${portFile}`);
+    } catch (err) {
+      this.log(`port file write failed (progress pipe will fall back to 5199): ${String(err)}`);
+    }
   }
 
   private acceptResponse(raw: BoardResponse): void {
-    if (this.responses.has(raw.boardId)) return; // first response wins
+    // A response for a board that ALREADY has one is a REVISIT: the user
+    // returned to a previous round and re-answered it (never a double-submit
+    // of the live board — that path resolves and clears `pending` first).
+    const answeredRound = this.store.rounds.find(
+      (r) => r.board.id === raw.boardId && r.response !== null,
+    );
+    if (this.responses.has(raw.boardId) || answeredRound) {
+      const board = answeredRound?.board ?? this.activeBoard;
+      if (!board || board.id !== raw.boardId) {
+        this.log(`repeat response for ${raw.boardId} without a matching round — ignored`);
+        return;
+      }
+      this.acceptRevisit(board, raw);
+      return;
+    }
     // Attachments arrive as data URIs; persist to the thread dir before the
     // response is recorded/broadcast so every consumer sees savedPath.
     const response: BoardResponse =
@@ -614,6 +686,56 @@ export class Bridge {
       this.pending.delete(response.boardId);
       resolve(response);
     }
+  }
+
+  /**
+   * Revisit: a previous round re-answered from the studio (return-to-round).
+   * The new response replaces the recorded one (response.json rewritten;
+   * brainstorm.md appends — history is never erased) and the orchestrator is
+   * told to REWIND: a wait blocked on the current board resolves NOW with the
+   * revisit response (its boardId names the rewound round); with no wait
+   * blocked, a revisit-round command is queued for the next check-in.
+   */
+  private acceptRevisit(board: Board, raw: BoardResponse): void {
+    const response: BoardResponse =
+      raw.attachments.length > 0
+        ? { ...raw, attachments: raw.attachments.map((a) => this.persistAttachment(a)) }
+        : raw;
+    this.responses.set(response.boardId, response);
+    this.store.recordResponse(response);
+    this.log(
+      `REVISIT: round ${board.round} (${board.id}) re-answered — action=${response.action}, ` +
+        `selected=${response.selectedOptionIds.length}; rewinding the funnel to it`,
+    );
+    this.broadcast({ type: 'responded', boardId: response.boardId, response });
+    const active = this.activeBoard;
+    const resolve = active ? this.pending.get(active.id) : undefined;
+    this.thinking = `Claude is rewinding to round ${board.round}…`;
+    if (active && resolve) {
+      this.pending.delete(active.id);
+      this.activeBoard = null;
+      resolve(response);
+    } else {
+      const request: CommandRequest = {
+        command: 'revisit-round',
+        seedNote:
+          `REWIND: the user returned to round ${board.round} (board ${board.id}, "${board.title}") and ` +
+          `re-answered it. The updated response is recorded at ` +
+          `${path.join(this.store.info.dir, `round-${String(board.round).padStart(2, '0')}`, 'response.json')} ` +
+          `(digest appended to brainstorm.md). Regenerate the funnel from THIS round's steering — later ` +
+          `rounds are superseded history (they stay on disk, never deleted).`,
+      };
+      const waiter = this.commandWaiters.shift();
+      if (waiter) {
+        waiter(request);
+      } else {
+        this.commandQueue.push(request);
+      }
+      this.onQueuedCommand?.(request);
+    }
+    // Full resync: the rewound round's response, cleared active board, and
+    // the rewinding shimmer all land in one hello.
+    this.broadcast({ type: 'hello', state: this.state() });
   }
 
   /** Push a board and block until the studio responds (or timeout → null). */

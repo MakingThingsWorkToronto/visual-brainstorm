@@ -12,7 +12,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>');
 
 const { createElement } = await import('react');
 const { renderToString } = await import('react-dom/server');
-const { ArtifactChatMessageSchema, ArtifactSchema, BoardSchema, ProgressEventSchema, DiscussionSummarySchema } =
+const { ArtifactChatMessageSchema, ArtifactSchema, BoardResponseSchema, BoardSchema, ProgressEventSchema, DiscussionSummarySchema } =
   await import('@visual-brainstorm/protocol');
 const { BoardSurvey } = await import('../apps/studio/src/components/BoardSurvey.js');
 
@@ -94,7 +94,7 @@ const preview = renderToString(
     onClose: () => {},
   }),
 );
-for (const marker of ['Alpha', 'organic', 'bold', 'good bones', 'Notes on', '⟲']) {
+for (const marker of ['Alpha', 'organic', 'bold', 'good bones', 'Notes on', '⟲', '>Notes<']) {
   assert.ok(preview.includes(marker), `[preview] missing marker "${marker}"`);
 }
 const previewReadOnly = renderToString(
@@ -105,7 +105,45 @@ const previewReadOnly = renderToString(
   }),
 );
 assert.ok(!previewReadOnly.includes('<textarea'), '[preview] note editor hidden without onNoteChange');
-console.log('UI preview modal renders ✓ (tags + note, read-only variant)');
+assert.ok(!previewReadOnly.includes('>Notes<'), '[preview] notes side panel hidden without onNoteChange/note/chat');
+assert.ok(!previewReadOnly.includes('>Chat<'), '[preview] chat section hidden without the chat prop');
+
+// Read-only note (previous rounds): the dock renders the persisted note text, no editor.
+const previewNoteOnly = renderToString(
+  createElement(PreviewModal, {
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    label: 'Gamma',
+    note: 'liked the strata',
+    onClose: () => {},
+  }),
+);
+assert.ok(previewNoteOnly.includes('>Notes<'), '[preview read-only note] dock renders with a bare note');
+assert.ok(previewNoteOnly.includes('liked the strata'), '[preview read-only note] note text shown');
+assert.ok(!previewNoteOnly.includes('<textarea'), '[preview read-only note] no editor without onNoteChange');
+
+// Chat dock: the chat prop renders a Chat section under Notes with the dialog.
+// Fixtures go through the schema like every production path (defaults stay in sync).
+const previewChatMessages = [
+  ArtifactChatMessageSchema.parse({
+    artifactSlug: 'option:b-preview:a',
+    role: 'user',
+    text: 'why the arc?',
+    at: '2026-07-07T10:00:00.000Z',
+  }),
+];
+const previewWithChat = renderToString(
+  createElement(PreviewModal, {
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    label: 'Alpha',
+    note: 'good bones',
+    chat: { messages: previewChatMessages, onSend: () => {} },
+    onClose: () => {},
+  }),
+);
+for (const marker of ['>Chat<', 'why the arc?', 'ask about this option']) {
+  assert.ok(previewWithChat.includes(marker), `[preview chat] missing marker "${marker}"`);
+}
+console.log('UI preview modal renders ✓ (editable note, read-only note, chat dock, bare variants)');
 
 // --- Pure helpers: judge-deck ranking mechanics ---
 const { applyDuel, adjacentDuels } = await import('../apps/studio/src/lib/deck.js');
@@ -249,7 +287,26 @@ const gate = renderToString(
 );
 assert.ok(gate.includes('Sudden death'), '[triage-gate] sudden-death button missing with 3 keeps');
 assert.ok(gate.includes('The gate'), '[triage-gate] header missing');
-console.log('UI triage gate renders ✓ (sudden-death offer at full keeps)');
+assert.ok(gate.includes('Keep') && gate.includes('Kill') && gate.includes('Merge') && gate.includes('Final'), '[triage-gate] per-card verdict buttons');
+assert.ok(!gate.includes('<textarea'), '[triage-gate] no note textarea without onNote');
+
+// Card grid with per-option notes: onNote adds a textarea per card, prefilled from notes.
+const gateNoted = renderToString(
+  createElement(TriageGate, {
+    board: gateBoard,
+    triage: {},
+    finalId: null,
+    notes: { 'o5-0': 'strongest silhouette' },
+    onNote: () => {},
+    onTriage: () => {},
+    onFinal: () => {},
+    onPreview: () => {},
+  }),
+);
+assert.ok(gateNoted.includes('<textarea'), '[triage-gate] per-card note textarea with onNote');
+assert.ok(gateNoted.includes('strongest silhouette'), '[triage-gate] note value prefilled from notes prop');
+assert.ok(gateNoted.includes('Why this verdict on'), '[triage-gate] note placeholder');
+console.log('UI triage gate renders ✓ (sudden-death offer, per-card notes with onNote only)');
 
 // --- Session activity feed (progress pipe events) — null when empty, feed otherwise ---
 const { SessionActivity } = await import('../apps/studio/src/components/SessionActivity.js');
@@ -369,7 +426,66 @@ const chatBusy = renderToString(
   createElement(ArtifactChat, { artifact: chatArtifact, messages: chatMessages, onSend: () => {}, busy: true }),
 );
 assert.ok(chatBusy.includes('Claude is thinking…'), '[artifact-chat] busy note missing when busy');
-console.log('UI artifact chat renders ✓ (messages + revision marker, busy + idle variants)');
+
+// Notes dock above the chat: read-only text without onSaveNotes, editor + Save with it.
+assert.ok(chatIdle.includes('>Notes<'), '[artifact-chat] notes section header');
+assert.ok(chatIdle.includes('No notes on this artifact.'), '[artifact-chat] read-only fallback without onSaveNotes');
+assert.ok(!chatIdle.includes('Save notes'), '[artifact-chat] no save button without onSaveNotes');
+const chatNotesArtifact = ArtifactSchema.parse({
+  slug: 'winner',
+  name: 'Winner',
+  svgPath: 'threads/x/artifacts/winner.svg',
+  notes: 'ship this one',
+  provenance: { optionIds: ['b'] },
+  capturedAt: '2026-07-07T10:00:00.000Z',
+});
+const chatSavable = renderToString(
+  createElement(ArtifactChat, {
+    artifact: chatNotesArtifact,
+    messages: chatMessages,
+    onSend: () => {},
+    onSaveNotes: () => {},
+  }),
+);
+assert.ok(chatSavable.includes('Save notes'), '[artifact-chat] Save notes button with onSaveNotes');
+assert.ok(chatSavable.includes('<textarea'), '[artifact-chat] notes editor with onSaveNotes');
+assert.ok(chatSavable.includes('ship this one'), '[artifact-chat] persisted notes prefill the editor');
+console.log('UI artifact chat renders ✓ (messages, revision marker, busy/idle, notes dock save/read-only)');
+
+// --- Revisit mode: BoardSurvey prefilled from a recorded response (initial prop) ---
+// Fixtures go through the schema like every production path (defaults stay in sync).
+const revisitBoard = mkRound('diverge', 7, 3).board;
+const revisitInitial = BoardResponseSchema.parse({
+  boardId: revisitBoard.id,
+  selectedOptionIds: ['o7-0', 'o7-1'],
+  elaboration: 'vibr-prefill: chase the warm arc',
+  action: 'iterate',
+  respondedAt: '2026-07-07T10:00:00.000Z',
+});
+const revisit = renderToString(
+  createElement(BoardSurvey, {
+    board: revisitBoard,
+    models: ['claude-fable-5'],
+    defaultModel: 'claude-fable-5',
+    onRespond: async () => {},
+    onPreview: () => {},
+    initial: revisitInitial,
+  }),
+);
+assert.ok(revisit.includes('vibr-prefill: chase the warm arc'), '[revisit] elaboration prefilled from initial');
+// '2 selected' lives in ONE template literal (a single text node) — safe to assert.
+assert.ok(revisit.includes('2 selected'), '[revisit] selection count prefilled from initial');
+const fresh = renderToString(
+  createElement(BoardSurvey, {
+    board: revisitBoard,
+    models: ['claude-fable-5'],
+    defaultModel: 'claude-fable-5',
+    onRespond: async () => {},
+    onPreview: () => {},
+  }),
+);
+assert.ok(fresh.includes('0 selected'), '[revisit] without initial the survey starts from zero');
+console.log('UI board survey revisit ✓ (initial prefills elaboration + selections, absent → zero)');
 
 // --- Crash boundary (blank-page skew, 2026-07-07) ---
 // renderToString never invokes error boundaries (client-runtime only), so the

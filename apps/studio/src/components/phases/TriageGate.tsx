@@ -13,12 +13,15 @@ const VERDICTS: { value: Verdict; label: string; className: string }[] = [
 /**
  * Theory 1 (convergence gate): generation is over. Every option MUST be
  * triaged before the send buttons unlock — the viewport itself becomes the
- * threshold that stops expanding and forces distillation.
+ * threshold that stops expanding and forces distillation. Cards, not rows:
+ * each option carries its verdict buttons AND its note in one surface.
  */
 export function TriageGate({
   board,
   triage,
   finalId,
+  notes = {},
+  onNote,
   onTriage,
   onFinal,
   onDuel,
@@ -27,6 +30,9 @@ export function TriageGate({
   board: Board;
   triage: Record<string, Verdict>;
   finalId: string | null;
+  /** Per-option notes — shipped with the response as perOptionNotes. */
+  notes?: Record<string, string>;
+  onNote?: (id: string, note: string) => void;
   onTriage: (triage: Record<string, Verdict>) => void;
   onFinal: (id: string | null) => void;
   onDuel?: (duel: DuelResult) => void;
@@ -54,8 +60,15 @@ export function TriageGate({
     }
   };
 
+  const cols =
+    board.options.length <= 2
+      ? 'sm:grid-cols-2'
+      : board.options.length <= 6
+        ? 'sm:grid-cols-2 lg:grid-cols-3'
+        : 'sm:grid-cols-2 lg:grid-cols-4';
+
   return (
-    <div className="mx-auto max-w-2xl rounded-2xl border border-line bg-surface p-4">
+    <div className="rounded-2xl border border-line bg-surface p-4">
       <div className="mb-3 text-center">
         <div className="text-sm font-semibold">The gate</div>
         <div className="text-xs text-ink-dim">
@@ -68,34 +81,43 @@ export function TriageGate({
           />
         </div>
       </div>
-      <div className="space-y-2">
+      <div className={`grid grid-cols-1 gap-4 ${cols}`}>
         {board.options.map((option) => {
           const verdict = triage[option.id];
           return (
             <div
               key={option.id}
-              className={`flex items-center gap-3 rounded-xl border p-2 ${
-                verdict === 'kill' ? 'border-line opacity-50' : 'border-line'
+              className={`flex flex-col rounded-2xl border bg-surface-2/50 p-3 ${
+                finalId === option.id
+                  ? 'border-accent shadow-[0_0_0_1px_var(--color-accent)]'
+                  : verdict === 'kill'
+                    ? 'border-line opacity-60'
+                    : 'border-line'
               }`}
             >
-              <div
-                className={`h-14 w-14 shrink-0 cursor-zoom-in rounded-lg bg-surface-2 p-2 text-ink ${
-                  verdict === 'kill' ? 'grayscale' : ''
-                }`}
+              <button
+                type="button"
                 onClick={() => onPreview(option)}
+                className="block w-full cursor-zoom-in rounded-xl"
                 title="Click for full-screen view (zoom, pan, notes)"
               >
-                <SvgPane svg={option.svg} className="h-full w-full" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className={`truncate text-sm font-medium ${verdict === 'kill' ? 'line-through' : ''}`}>
+                <div
+                  className={`aspect-square w-full rounded-xl bg-surface-2 p-5 text-ink ${
+                    verdict === 'kill' ? 'grayscale' : ''
+                  }`}
+                >
+                  <SvgPane svg={option.svg} className="h-full w-full" />
+                </div>
+              </button>
+              <div className="mt-2 min-w-0">
+                <div className={`truncate text-sm font-semibold ${verdict === 'kill' ? 'line-through' : ''}`}>
                   {option.label}
                 </div>
                 {option.description && (
-                  <div className="truncate text-xs text-ink-dim">{option.description}</div>
+                  <div className="mt-0.5 text-xs text-ink-dim">{option.description}</div>
                 )}
               </div>
-              <div className="flex gap-1">
+              <div className="mt-2 flex flex-wrap gap-1">
                 {VERDICTS.map((v) => (
                   <button
                     key={v.value}
@@ -131,6 +153,15 @@ export function TriageGate({
                   Final
                 </button>
               </div>
+              {onNote && (
+                <textarea
+                  value={notes[option.id] ?? ''}
+                  onChange={(e) => onNote(option.id, e.target.value)}
+                  placeholder={`Why this verdict on "${option.label}"?`}
+                  rows={2}
+                  className="mt-2 w-full resize-none rounded-lg border border-line bg-surface-2 p-2 text-xs outline-none placeholder:text-ink-dim focus:border-accent"
+                />
+              )}
             </div>
           );
         })}

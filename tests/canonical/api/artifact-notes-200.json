@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "artifact": {
+    "slug": "glow-mark",
+    "name": "Glow Mark",
+    "svgPath": "<<abs-path>>",
+    "notes": "warm filament — keep for the poster",
+    "provenance": { "boardId": "board-diverge-1", "optionIds": ["a"] },
+    "capturedAt": "<<iso-date>>"
+  }
+}

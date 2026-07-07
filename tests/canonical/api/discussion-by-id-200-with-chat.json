@@ -1,0 +1,32 @@
+{
+  "session": {
+    "id": "<<contains:api-matrix>>",
+    "slug": "api-matrix",
+    "title": "API matrix",
+    "startedAt": "<<iso-date>>",
+    "dir": "<<abs-path>>"
+  },
+  "rounds": [],
+  "artifacts": [
+    {
+      "slug": "glow-mark",
+      "name": "Glow Mark",
+      "svgPath": "<<abs-path>>",
+      "notes": "canonical capture",
+      "provenance": { "boardId": "board-diverge-1", "optionIds": ["a"] },
+      "capturedAt": "<<iso-date>>"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  },
+  "artifactChat": [
+    {
+      "artifactSlug": "glow-mark",
+      "role": "user",
+      "text": "What does the filament symbolize?",
+      "at": "<<iso-date>>"
+    }
+  ]
+}

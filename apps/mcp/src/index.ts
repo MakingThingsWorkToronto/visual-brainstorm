@@ -13,6 +13,7 @@ import {
   BoardKindSchema,
   PhaseSchema,
   SurveyConfigSchema,
+  parseOptionChatSlug,
   type Board,
   type BoardOption,
 } from '@visual-brainstorm/protocol';
@@ -165,7 +166,22 @@ server.tool(
     }
     // Package EVERY UI gesture into labeled, executable instructions — the
     // iterative-cycle contract (wiki/Requirements/interaction-protocol.md).
-    const digest = buildFeedbackDigest(board, response);
+    // A response whose boardId names an EARLIER board is a REWIND (the user
+    // re-answered a previous round via return-to-round): digest against THAT
+    // board so labels resolve, and lead with the rewind instruction.
+    const digestBoard =
+      response.boardId === board.id
+        ? board
+        : (store.rounds.find((r) => r.board.id === response.boardId)?.board ?? board);
+    const digest = buildFeedbackDigest(digestBoard, response);
+    if (digestBoard.id !== board.id) {
+      digest.unshift(
+        `REWIND: the user returned to round ${digestBoard.round} ("${digestBoard.title}") and re-answered ` +
+          `it — this response supersedes every round after it (the superseded rounds stay on disk as ` +
+          `history). Rebuild the funnel from this steering; the next board you present continues from ` +
+          `round ${digestBoard.round}.`,
+      );
+    }
     if (store.info.theme) {
       const theme = loadThemes(config).find((t) => t.name === store.info.theme);
       digest.push(
@@ -195,7 +211,7 @@ server.tool(
     }
     return text({
       status: 'responded',
-      boardId: board.id,
+      boardId: response.boardId,
       feedbackDigest: digest,
       response,
       threadDir: store.info.dir,
@@ -280,10 +296,11 @@ server.tool(
   'Post Claude\'s reply into an artifact\'s chat dialog (fullscreen artifact view in the studio). The reply ' +
     'MUST be authored by a subagent per .claude/commands/artifact-chat.md — the orchestrator only routes. ' +
     'If the request changed the artifact, first capture_artifact the revision with `revises` set, then pass ' +
-    'its slug as revisedSlug here so every display refreshes. The dialog persists append-only to the ' +
-    'thread\'s artifacts/chat.jsonl (rule 7). Keep replies chat-short.',
+    'its slug as revisedSlug here so every display refreshes. Dialogs about a board OPTION from a previous ' +
+    'round use the synthetic slug from the chat request verbatim (option:<boardId>:<optionId>). The dialog ' +
+    'persists append-only to the thread\'s artifacts/chat.jsonl (rule 7). Keep replies chat-short.',
   {
-    artifactSlug: z.string().describe('The artifact whose dialog this reply belongs to (the ORIGINAL slug)'),
+    artifactSlug: z.string().describe('The artifact whose dialog this reply belongs to (the ORIGINAL slug, or the option:<boardId>:<optionId> slug from the request)'),
     text: z.string().min(1).max(4000),
     revisedSlug: z.string().optional().describe('Slug of the newly captured revision, when the artifact was changed'),
   },
@@ -291,8 +308,16 @@ server.tool(
     if (!store || !bridge) {
       return text({ status: 'no-session', hint: 'reply_artifact_chat needs the live thread that owns the artifact' });
     }
-    if (!store.artifacts.some((a) => a.slug === artifactSlug)) {
-      return text({ status: 'unknown-artifact', artifactSlug, hint: 'use the ORIGINAL artifact slug from the chat request' });
+    const optionRef = parseOptionChatSlug(artifactSlug);
+    const known = optionRef
+      ? store.rounds.some(
+          (r) =>
+            r.board.id === optionRef.boardId &&
+            r.board.options.some((o) => o.id === optionRef.optionId),
+        )
+      : store.artifacts.some((a) => a.slug === artifactSlug);
+    if (!known) {
+      return text({ status: 'unknown-artifact', artifactSlug, hint: 'use the ORIGINAL artifact/option slug from the chat request' });
     }
     const message = {
       artifactSlug,

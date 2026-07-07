@@ -328,6 +328,23 @@ export class SessionStore {
   }
 
   /**
+   * User notes on a captured artifact (fullscreen Notes panel). The note is
+   * metadata, not the artwork: the .json sidecar is rewritten in place (the
+   * SVG is untouched — rule 7 protects the artwork, not the annotation).
+   */
+  updateArtifactNotes(slug: string, notes: string): Artifact | null {
+    const artifact = this.artifacts.find((a) => a.slug === slug);
+    if (!artifact) return null;
+    artifact.notes = notes;
+    fs.writeFileSync(
+      path.join(this.info.dir, 'artifacts', `${slug}.json`),
+      JSON.stringify(artifact, null, 2),
+    );
+    this.appendMd(`\n> Artifact notes (\`${slug}\`) updated: ${notes || '(cleared)'}`);
+    return artifact;
+  }
+
+  /**
    * Rename a thread started as a placeholder (open_studio landing) once the
    * real topic arrives with the first board. Display title only — the
    * directory name keeps its original stamp-slug.

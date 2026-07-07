@@ -7,7 +7,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
@@ -471,14 +471,25 @@ fs.writeFileSync(
 );
 // Unique per run — a stale tmpdir cursor from an earlier smoke can never skew the delta.
 const cursorSession = `smoke-cursor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const runTranscriptHook = () =>
-  spawnSync(process.execPath, [pipeScript, '--port', String(bridge.port)], {
-    encoding: 'utf8',
-    input: JSON.stringify({
-      hook_event_name: 'Stop',
-      session_id: cursorSession,
-      transcript_path: transcriptPath,
-    }),
+// ASYNC spawn, not spawnSync: the bridge lives in THIS process, and spawnSync
+// blocks the event loop — the bridge could never answer the child's POST, the
+// child's fetch would abort, and the pipe would (rightly) refuse to commit its
+// token cursor because delivery was never confirmed.
+const runTranscriptHook = (port = bridge.port) =>
+  new Promise((resolve) => {
+    const child = spawn(process.execPath, [pipeScript, '--port', String(port)], {
+      stdio: ['pipe', 'ignore', 'pipe'],
+    });
+    let stderr = '';
+    child.stderr.on('data', (d) => (stderr += d));
+    child.on('close', (status) => resolve({ status, stderr }));
+    child.stdin.end(
+      JSON.stringify({
+        hook_event_name: 'Stop',
+        session_id: cursorSession,
+        transcript_path: transcriptPath,
+      }),
+    );
   });
 const expectTokens = async (expected, label) => {
   let got = null;
@@ -489,7 +500,7 @@ const expectTokens = async (expected, label) => {
   }
   assert.deepEqual(got, expected, label);
 };
-let hookPipe = runTranscriptHook();
+let hookPipe = await runTranscriptHook();
 assert.equal(hookPipe.status, 0, `transcript hook exited ${hookPipe.status}: ${hookPipe.stderr}`);
 await expectTokens(
   { input: 230, output: 75 },
@@ -499,11 +510,29 @@ fs.appendFileSync(
   transcriptPath,
   JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 7, output_tokens: 3 } } }) + '\n',
 );
-hookPipe = runTranscriptHook();
+hookPipe = await runTranscriptHook();
 assert.equal(hookPipe.status, 0, `second transcript hook exited ${hookPipe.status}: ${hookPipe.stderr}`);
 await expectTokens(
   { input: 237, output: 78 },
   'second hook run posted only the delta (7/3) via the cursor, not a re-total',
+);
+// A delta the bridge never confirmed is NOT lost: the cursor only commits on
+// delivery, so a failed post (dead port) rides along on the next event.
+fs.appendFileSync(
+  transcriptPath,
+  JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 11, output_tokens: 4 } } }) + '\n',
+);
+hookPipe = await runTranscriptHook(1); // nobody home — silent no-op, cursor untouched
+assert.equal(hookPipe.status, 0, `dead-port transcript hook exited ${hookPipe.status}: ${hookPipe.stderr}`);
+fs.appendFileSync(
+  transcriptPath,
+  JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 2, output_tokens: 1 } } }) + '\n',
+);
+hookPipe = await runTranscriptHook();
+assert.equal(hookPipe.status, 0, `recovery transcript hook exited ${hookPipe.status}: ${hookPipe.stderr}`);
+await expectTokens(
+  { input: 250, output: 83 },
+  'the undelivered delta (11/4) rode along with the next one (2/1) — nothing lost',
 );
 
 // WS broadcast delivery is async — give it a beat before asserting.

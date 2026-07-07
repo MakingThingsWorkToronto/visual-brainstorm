@@ -33,6 +33,10 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
 ## Ports & endpoints
 
 - Bridge port: `VIBR_PORT` env, default **5199**, loopback only (`127.0.0.1`).
+- `Bridge.start()` writes `<discussionRoot>/.logs/bridge-port.json` (actual port + pid;
+  last-started bridge wins) — port discovery for `scripts/pipe-progress.mjs`, whose posts
+  a port-conflict fallback would otherwise silently orphan (see
+  System/testing-observability §Observability).
 - `GET /` static studio (dist resolved `../../studio/dist` from apps/mcp/dist; override `VIBR_STUDIO_DIST`).
 - `GET /api/health` — self-diagnosis: pid, port, startedAt, session id/dir, active board,
   connected clients, studio-dist existence. First stop when anything "seems broken"
@@ -45,12 +49,15 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
 - `GET /api/state` — full session state (hello payload) incl. themes/models for initial load/reconnect.
 - `GET /api/discussions` — all cached threads (left-nav source), newest first; threads in
   `_completed/` carry `archived: true` and populate the Archive nav section.
-- `GET /api/discussions/<id>` — full thread reload (boards + SVGs + responses + artifacts);
-  resolves live root first, then `_completed/`.
+- `GET /api/discussions/<id>` — full thread reload (boards + SVGs + responses + artifacts
+  + `artifactChat` dialog replay + `tokens` totals); resolves live root first, then
+  `_completed/`.
 - `POST /api/respond` — BoardResponse (zod-validated), incl. the user's `model` choice,
   per-phase fields (triage/mutations/flaws/positions/clusters/gapNotes), and `attachments`
   (data URIs persisted by the bridge to `<thread dir>/attachments/` before the response is
-  recorded/broadcast — see interaction-protocol §Attachments).
+  recorded/broadcast — see interaction-protocol §Attachments). A response whose `boardId`
+  names an already-answered round is a REVISIT: `acceptRevisit` rewrites that round's
+  `response.json` and routes the rewind (interaction-protocol §Return to a previous round).
 - `POST /api/command` — UI-invoked procedures (plan-closeout, discover-skills,
   new-brainstorm). If a board is awaiting a response the wait resolves immediately (action
   `park` + `commands`); if `waitForCommand` is blocked (open_studio landing flow) the waiter
@@ -68,11 +75,18 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
 - `GET /api/artifact-svg/<slug>.svg` — serves live-thread artifact SVGs (used by the
   wayfinder strip's drag-out/download); 404 for an unknown slug.
 - `POST /api/artifact-chat` — `{artifactSlug, text}` from the fullscreen artifact chat
-  panel. Persists the user message (append-only `artifacts/chat.jsonl` + a brainstorm.md
+  panel. The slug is a captured artifact OR a board option from any round via the
+  synthetic `option:<boardId>:<optionId>` slug, resolved against the thread's cached
+  rounds. Persists the user message (append-only `artifacts/chat.jsonl` + a brainstorm.md
   line), broadcasts the `artifact-chat` envelope, and routes to Claude Code as UI command
-  `artifact-chat` via the same plumbing as `POST /api/command`. Unknown slug → honest 404.
-  Contract: interaction-protocol §Artifact chat; procedure:
+  `artifact-chat` via the same plumbing as `POST /api/command`. Unknown slug/option →
+  honest 404. Contract: interaction-protocol §Artifact chat; procedure:
   `.claude/commands/artifact-chat.md`.
+- `POST /api/artifact-notes` — `{artifactSlug, notes}` (zod-validated, 8k cap) from the
+  fullscreen Notes panel. `SessionStore.updateArtifactNotes` rewrites
+  `artifacts/<slug>.json` in place (the SVG is untouched) and broadcasts the updated
+  `artifact` envelope (useBridge upserts by slug). Live thread only; unknown slug →
+  honest 404.
 - `POST /api/target-repo` — `{ path: string|null, scope: 'thread'|'default' }`. Validates the
   folder exists (honest 400; any plain folder qualifies, not necessarily a git repo).
   `thread` → `SessionInfo.targetRepo` in session.json; `default` → rewrites `targetRepo` in
@@ -135,19 +149,23 @@ discussion/<yyyy-mm-dd-hhmm>-<slug>/
                                lineage) + every response digest — the re-synthesis source
   round-01/board.json          full board payload
   round-01/option-<id>.svg     every presented SVG, individually cached
-  round-01/response.json       the user's survey response (incl. chosen model)
+  round-01/response.json       the user's survey response (incl. chosen model); rewritten
+                               in place on a revisit (brainstorm.md appends — never erased)
   attachments/<stamp>-<name>   composer file/photo attachments, decoded from response data
                                URIs by the bridge (savedPath in the recorded response)
   progress.jsonl               append-only session-progress events (SessionActivity strip,
                                token meter) — never rewritten, reloads with the thread
   artifacts/<slug>.svg         accepted/final artifacts
   artifacts/<slug>.json        provenance: boardId, optionIds, notes (+ optional `revises`:
-                               parent slug — a revision is a NEW artifact, rule 7)
+                               parent slug — a revision is a NEW artifact, rule 7);
+                               rewritten in place when notes are saved (/api/artifact-notes)
   artifacts/chat.jsonl         append-only artifact-chat messages (ArtifactChatMessage:
                                user questions + Claude replies, revisedSlug links)
 
 discussion/.seeds/seed-<stamp>.(svg|png|jpeg|…)   non-text seed intake files (root-level,
                                not per-thread — the seed precedes the thread)
+discussion/.logs/bridge-port.json   actual bridge port + pid, written on Bridge.start()
+                               (pipe-progress port discovery — see Ports & endpoints)
 ```
 
 ## Non-negotiables

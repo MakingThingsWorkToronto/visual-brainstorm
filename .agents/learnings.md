@@ -1,5 +1,46 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — ui-break-sweep harness (phase 4)
+
+- **On Windows `proc.kill()` terminates only the browser ROOT — renderer/GPU/network
+  children survive orphaned.** Across repeated CDP harness runs that leaked ~100 headless
+  chrome/msedge processes, enough contention to time out the NEXT launch. Kill the whole
+  tree: `taskkill /pid <pid> /T /F` (POSIX gets plain SIGKILL). Edge's launcher handoff
+  also leaves a hidden process holding the FIRST profile dir that is never a child of the
+  proc you spawned — sweep those by command-line match against the profile path
+  (`killProfileStragglers` in `scripts/lib/cdp.mjs`). Give every launch attempt its own
+  profile dir.
+- **Enumerate break-sweep controls from the LIVE DOM every surface, never from a static
+  census.** Querying `button, input, textarea, select, [role=button]` at gesture time
+  makes control drift impossible to miss — but a transient control (e.g. converge's
+  "sudden death: duel" button) can vanish between enumeration and its gesture. Record that
+  as `vanished (transient control)`, NOT a crash: the sweep proved 404 controls / 486
+  gestures with zero unhandled crashes precisely because it treats disappearance as data,
+  not failure. A disabled control clicked is `inert by design`, also not a finding.
+
+## 2026-07-07 — ui-changes wave (converge cards, option chat, revisit, token pipe)
+
+- **The token meter silently recorded NOTHING since it shipped — no thread on disk had a
+  progress.jsonl.** Two stacked causes, both invisible: (a) `pipe-progress.mjs` posted to
+  port 5199 only, while a port-conflicted bridge falls back to a random port; (b) the
+  transcript token cursor was committed BEFORE the POST, so any failed delivery destroyed
+  that delta forever. Fix pattern for any deterministic pipe: the server writes a
+  discovery file with its REAL port (`<discussionRoot>/.logs/bridge-port.json`), and
+  cursors commit only after confirmed delivery (`res.ok`) so missed deltas ride along on
+  the next event. Absence-of-data bugs need an existence check in tests — an assertion
+  that the artifact file EXISTS after a real flow, not just unit math.
+- **`spawnSync` a child that HTTP-POSTs a server living in the parent process = deadlock
+  by construction.** The parent's event loop is blocked, so the TCP request is accepted
+  and buffered by the OS but never answered until the child dies; the child's `fetch`
+  hangs (AbortError at its timeout) while the event still "arrives" afterwards — which
+  made the old commit-before-post look correct in smoke. Any harness testing
+  delivery-confirmation logic must `spawn` async and await 'close'.
+- **A response for an already-answered board is a REVISIT, not a duplicate.** The bridge
+  resolves the CURRENT pending wait with it (boardId names the rewound round), so
+  `present_board` must digest against the board named by `response.boardId` — digesting
+  against the presented board silently mislabels every option id. Rewind never deletes
+  rounds; response.json is rewritten, brainstorm.md appends.
+
 ## 2026-07-07 — concierge-living-gallery (phase 1)
 
 - **Concurrent dispatch loops share ONE working tree — a red `npm test` may belong to the

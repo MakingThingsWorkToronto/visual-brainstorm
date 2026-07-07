@@ -74,8 +74,17 @@ export function useBridge() {
               };
             case 'thinking':
               return { ...prev, thinking: msg.note };
-            case 'artifact':
-              return { ...prev, artifacts: [...prev.artifacts, msg.artifact] };
+            case 'artifact': {
+              // Upsert: the envelope carries new captures AND updates to an
+              // existing capture's metadata (e.g. saved notes) — same slug.
+              const exists = prev.artifacts.some((a) => a.slug === msg.artifact.slug);
+              return {
+                ...prev,
+                artifacts: exists
+                  ? prev.artifacts.map((a) => (a.slug === msg.artifact.slug ? msg.artifact : a))
+                  : [...prev.artifacts, msg.artifact],
+              };
+            }
             case 'artifact-chat':
               return { ...prev, artifactChat: [...prev.artifactChat, msg.message] };
             case 'progress':

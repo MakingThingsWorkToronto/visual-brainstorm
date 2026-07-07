@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { PaletteColor, Theme } from '@visual-brainstorm/protocol';
+import { BodyPortal } from './primitives';
 
 /**
  * Generation palettes, selectable BY THEME: click a theme's name to make its
@@ -44,6 +45,7 @@ function ColorDialog({
   const [name, setName] = useState(initial.name);
   const [value, setValue] = useState(initial.value);
   return (
+    <BodyPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-xs rounded-2xl border border-line bg-surface p-4 shadow-2xl">
         <h2 className="text-sm font-bold">{title}</h2>
@@ -90,6 +92,7 @@ function ColorDialog({
         </div>
       </div>
     </div>
+    </BodyPortal>
   );
 }
 

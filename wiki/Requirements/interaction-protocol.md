@@ -41,7 +41,7 @@ Every round is persisted before the user ever responds — a closed browser lose
 | `session_status` | no | thread dir, round count, artifact list, effective targetRepo, pendingUiCommands |
 | `open_studio` | yes (timeout → `waiting`) | open the studio with NO board — the New Discussion landing panel — and block until the panel submits a brief (arrives as a new-brainstorm command with prompt/seed notes) or timeout returns `{status:"waiting"}` (the studio stays open; call again or check `session_status.pendingUiCommands`). For a bare `/run-brainstorm` (its step 0): land the user on the panel and build AskUserQuestion clarifications on the submission. The placeholder "New discussion" thread is retitled by the first `present_board` (`SessionStore.retitle` — display title only, directory slug unchanged) |
 | `compose_poster` | no | DETERMINISTIC (no model) decision-poster composition: winner embedded large + lineage tree (parents/grandparents from cached rounds) + the notes that decided it (lineage perOptionNotes + elaborations) as ONE self-contained SVG; captured via the normal artifact path (rule 7 provenance) and copied to the effective targetRepo like any artifact; throws honestly if the optionId is in no cached round |
-| `reply_artifact_chat` | no | Claude's answer channel for the artifact chat: `{artifactSlug, text, revisedSlug?}` — persists a `claude`-role `ArtifactChatMessage` to `<thread dir>/artifacts/chat.jsonl` and broadcasts the `artifact-chat` WS envelope |
+| `reply_artifact_chat` | no | Claude's answer channel for the artifact chat: `{artifactSlug, text, revisedSlug?}` — persists a `claude`-role `ArtifactChatMessage` to `<thread dir>/artifacts/chat.jsonl` and broadcasts the `artifact-chat` WS envelope. `artifactSlug` may be an `option:<boardId>:<optionId>` slug (option chat, below) — used EXACTLY as delivered |
 
 ## Artifact chat
 
@@ -68,8 +68,27 @@ Clicking a captured artifact in the studio opens it fullscreen with a chat panel
    { artifactSlug, role: 'user'|'claude', text, at, revisedSlug? }`; `StudioState.artifactChat`;
    `ServerToStudio` `artifact-chat` envelope; `Artifact.provenance.revises?`.
 
-Chat history persists in `artifacts/chat.jsonl` and reloads with the thread. The chat is a
-detour — after replying, the orchestrator resumes whatever the session was doing.
+**Notes panel.** The fullscreen artifact view docks a **Notes** panel above the chat.
+**Save notes** → `POST /api/artifact-notes` `{artifactSlug, notes}` (live thread only;
+unknown slug → honest 404) → `SessionStore.updateArtifactNotes` rewrites
+`artifacts/<slug>.json` in place — the note is metadata, not artwork; the SVG is untouched
+(rule 7 protects the artwork, not the annotation) — and broadcasts the updated `artifact`
+envelope; `useBridge` UPSERTS artifacts by slug so every display refreshes. Notes stay
+visible while a chat reply is pending.
+
+**Option chats.** A board OPTION from ANY round — the fullscreen preview of previous
+rounds' options — carries the same channel, addressed by the synthetic slug
+`option:<boardId>:<optionId>` (`optionChatSlug`/`parseOptionChatSlug` in
+packages/protocol — rule 5). `POST /api/artifact-chat` resolves the slug against the
+thread's cached rounds (unknown board/option → honest 404); `reply_artifact_chat` accepts
+it. A requested change is captured as a NEW artifact with boardId/optionIds provenance —
+round options are never overwritten (rule 7). The round's persisted `perOptionNotes` entry
+for that option shows read-only in that round's fullscreen preview.
+
+Chat history persists in `artifacts/chat.jsonl` and reloads with the thread —
+`GET /api/discussions/<id>` returns `artifactChat`, so archived threads replay dialogs
+read-only. The chat is a detour — after replying, the orchestrator resumes whatever the
+session was doing.
 
 ## Seed intake — open with anything
 
@@ -190,9 +209,28 @@ treat `pending` as "check back", never as failure.
 ## Board-id uniqueness (response dedup)
 
 The bridge keeps responses keyed by `boardId`, first-response-wins: a second response for a
-known id is IGNORED. Therefore every `present_board` call must mint a fresh board id — even
-when re-presenting "the same" board (Back, resume). Reusing an id silently swallows the
-user's new answer.
+known id is IGNORED — unless the id names a RECORDED round, which is a deliberate revisit
+(§Return to a previous round). Therefore every `present_board` call must mint a fresh board
+id — even when re-presenting "the same" board (Back, resume). Reusing an id silently
+swallows the user's new answer.
+
+## Return to a previous round (rewind)
+
+Each history round's separator reveals a **⟲ return to this round** tag (on hover; always
+visible on touch). It reopens that round's BoardSurvey prefilled from its recorded response
+(`BoardSurvey`'s `initial` prop). Sending re-answers the OLD board:
+
+- **Bridge** (`acceptRevisit`, bridge-server.ts): a response whose `boardId` matches an
+  already-answered round is a revisit — that round's `response.json` is REWRITTEN with the
+  new answer while `brainstorm.md` APPENDS the new digest; history is never erased (rule 7).
+  Rounds after the rewound one stay on disk as superseded history.
+- **Routing**: a wait blocked on the current board resolves NOW with the revisit response
+  (its `boardId` names the rewound round); the `present_board` result digests against the
+  REWOUND board so labels resolve and leads with a `REWIND:` instruction
+  (apps/mcp/src/index.ts). With no wait blocked, a `revisit-round` command is queued for
+  the next check-in.
+- **Orchestrator procedure**: `.claude/commands/revisit-round.md` — rebuild the funnel from
+  the rewound round's steering; never build on the superseded rounds.
 
 ## Authoring guidance for Claude (the intelligence layer)
 

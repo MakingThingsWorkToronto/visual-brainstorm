@@ -122,7 +122,7 @@ In short:
 | Mutate | view one option through distortion lenses; mark what "reveals something" | that distortion is leaned into |
 | Wreck | write ≥3 flaws — brutal beats polite | each flaw returns as a fix candidate |
 | Cluster | drag similar options together; click the pulsing ? gaps and name them | gap notes spawn hybrids; clusters teach Claude your taxonomy |
-| Converge | keep / kill / merge every option; crown ONE with **Final** — or let **Sudden death** duel 2–4 keeps down to an auto-crown | keeps are captured; kills are forever; **Finalize & close out** ends the brainstorm, composes the **decision poster** (winner + lineage + the notes that decided it, shareable as one SVG), and runs plan closeout |
+| Converge | every option is a card: its **Keep / Kill / Merge / Final** verdict buttons and a "why this verdict" note box sit right on it — verdict everything, crown ONE with **Final**, or let **Sudden death** duel 2–4 keeps down to an auto-crown | keeps are captured; kills are forever; **Finalize & close out** ends the brainstorm, composes the **decision poster** (winner + lineage + the notes that decided it, shareable as one SVG), and runs plan closeout |
 
 **Judge deck** (toggle next to the grid in Diverge/Expand) — review the pool one card at
 a time: **→ keeps, ← kills** (arrow keys work). When every card is judged, close calls are
@@ -137,14 +137,17 @@ judged, **Enter** sends and requests that phase; the composer shows "Enter sends
 for …" when it's armed.
 
 **Artifact chat** — click any captured artifact (a keep on the wayfinder strip) to enlarge
-it fullscreen with a chat panel docked on the right. The composer is deliberately simple:
+it fullscreen with a dock on the right: a **Notes** panel on top — jot anything, **Save
+notes** stores it with the artifact, and your notes stay in view even while Claude is
+composing an answer — above the chat. The chat composer is deliberately simple:
 one box, one **Send** — ask a question about the artifact or ask for a change in plain
 words. Answers come from Claude (subagent-powered, so the main brainstorm keeps moving).
 When Claude makes a change, it is **captured as a NEW version — the original artifact is
 never overwritten** — and the open view switches to the revision (marked with a `revised`
 badge; the strip picks it up too, since every capture lands there). The whole dialog is
 saved with the thread, so reopening the artifact later shows the conversation that shaped
-it. Artifacts in archived threads stay read-only — no chat composer there.
+it. Artifacts in archived threads stay read-only — the saved conversation replays, but
+there is no chat composer.
 
 **Session activity strip** (in the live timeline) — while Claude works, real progress
 events from the working session stream into the studio and persist with the thread: the
@@ -154,7 +157,9 @@ timestamped, tagged with its source (orchestrator, agent, or hook), and, when kn
 token cost. Every thread also carries a **token meter**: all tokens reported for that
 discussion — orchestrator and subagents alike, captured deterministically from session
 transcripts — accumulate and persist with the thread. The running total shows as a
-`Σ … tok` badge on the activity strip and as a per-thread `… tok` badge in the sidebar.
+`Σ … tok` badge on the activity strip (there even before the first live event arrives), as
+a per-thread `… tok` badge in the sidebar, and on an archived thread's banner as its `Σ`
+total.
 
 **Every gesture counts** — this is the core contract:
 - **Dials** (min 5 per board, tailored to your topic): moving a dial and sending — with
@@ -163,7 +168,11 @@ transcripts — accumulate and persist with the thread. The running total shows 
 - **Click any option's SVG** — on every phase surface, and on round-history thumbnails (on
   the cluster field, a click without a drag) — to open it full screen with wheel zoom, drag
   pan, and pinch on mobile — built for dense system diagrams. The preview also shows the
-  option's tags and, on the live board, an editable **note** that ships with your response.
+  option's tags and, on the live board, an editable **note** in a panel docked right of the
+  artwork that ships with your response. On a **previous round's** option the note you sent
+  with that round shows read-only, with a **chat** beneath it — ask about an earlier choice
+  or request a change in plain words (answers persist with the thread; a change is captured
+  as a new artifact). In archived threads those conversations replay read-only.
   (On the diverge/expand grid, select cards via the label/checkbox row — the image itself is
   the zoom affordance.)
 - **Mic** (the first button in the composer row, a flat two-color microphone icon): dictate
@@ -186,6 +195,10 @@ transcripts — accumulate and persist with the thread. The running total shows 
 - **model** picker (in the composer's **More Tools** menu): the next round's generation is
   delegated to the model you choose.
 - **Back**: this round didn't work — re-present the previous board (bypasses all gates).
+- **⟲ return to this round** (hover any past round's separator in the timeline; always
+  visible on touch): reopens that round's answers exactly as you sent them — change
+  anything and **Send & iterate** to rewind the brainstorm to that round. Later rounds stay
+  visible as history (nothing is erased); Claude rebuilds the funnel from your new steering.
 - **Send & iterate / Accept**: continue, or capture and wrap up; **Park** (More Tools menu)
   pauses (the thread stays resumable).
 

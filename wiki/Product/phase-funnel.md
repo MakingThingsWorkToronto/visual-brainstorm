@@ -12,7 +12,9 @@ The PhaseBar renders the funnel itself (segments narrow toward converge; tabs ar
 spark notes; selections REPLACE the pool with syntheses (the synthesis vector). `expand` is
 the amplifier: select what resonates (gate: ≥1) and the pool GROWS with multiple new
 syntheses — nothing is removed. `converge` is the threshold mechanic: generation is over,
-the **Triage Gate** demands a keep/kill/merge verdict on EVERY option before send unlocks,
+the **Triage Gate** — a card GRID, not rows: each card holds the option preview, its
+Keep/Kill/Merge/Final verdict buttons, AND a per-option note textarea (ships as
+`perOptionNotes`) — demands a verdict on EVERY option before send unlocks,
 and one keep can be crowned **Final** — the **Finalize & close out** button then captures
 THE answer and automatically
 triggers `/plan-closeout` (the thread archives to the Archive nav). Finality is a first-class

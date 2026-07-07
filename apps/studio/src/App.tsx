@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  Artifact,
-  DiscussionSummary,
-  RoundRecord,
-  SeedIntake,
-  SessionInfo,
+import {
+  optionChatSlug,
+  type Artifact,
+  type ArtifactChatMessage,
+  type DiscussionSummary,
+  type RoundRecord,
+  type SeedIntake,
+  type SessionInfo,
 } from '@visual-brainstorm/protocol';
 import { useBridge } from './lib/useBridge';
+import { compactCount } from './lib/format';
 import { applyTheme, storedThemeName, storeThemeName } from './lib/theme';
 import { proposeNextPhase } from './lib/wayfinder';
 import { BulbIcon, Bubble, Marker, SvgPane } from './components/primitives';
@@ -23,9 +26,21 @@ interface Thread {
   session: SessionInfo;
   rounds: RoundRecord[];
   artifacts: Artifact[];
+  /** Reloaded dialogs — shown read-only when viewing an archived thread. */
+  artifactChat?: ArtifactChatMessage[];
+  /** Cumulative token totals over the thread's progress events. */
+  tokens?: { input: number; output: number };
 }
 
-type Preview = { svg: string; label: string; tags?: string[] } | null;
+type Preview = {
+  svg: string;
+  label: string;
+  tags?: string[];
+  /** Persisted per-option note from that round's response (read-only). */
+  note?: string;
+  /** Chat subject key (option:<boardId>:<optionId>) — docks a chat panel. */
+  chatSlug?: string;
+} | null;
 
 /** Rotating progress strings — visible feedback while Claude works between rounds. */
 const PROGRESS = [
@@ -60,7 +75,7 @@ function RoundHistoryView({
   onPreview,
 }: {
   record: RoundRecord;
-  onPreview: (preview: { svg: string; label: string; tags?: string[] }) => void;
+  onPreview: (preview: NonNullable<Preview>) => void;
 }) {
   const { board, response } = record;
   const selectedSet = new Set(response?.selectedOptionIds ?? []);
@@ -77,8 +92,16 @@ function RoundHistoryView({
           <button
             key={option.id}
             type="button"
-            title={`${option.label}: click for full-screen preview`}
-            onClick={() => onPreview({ svg: option.svg, label: option.label, tags: option.tags })}
+            title={`${option.label}: click for full-screen preview, notes and chat`}
+            onClick={() =>
+              onPreview({
+                svg: option.svg,
+                label: option.label,
+                tags: option.tags,
+                note: response?.perOptionNotes[option.id],
+                chatSlug: optionChatSlug(board.id, option.id),
+              })
+            }
             className={`rounded-xl border p-2 text-left ${
               selectedSet.has(option.id)
                 ? 'border-accent bg-accent/10'
@@ -117,6 +140,8 @@ export default function App() {
   const [newOpen, setNewOpen] = useState(false);
   const [advanceSignal, setAdvanceSignal] = useState(0);
   const [logs, setLogs] = useState<{ file: string | null; lines: string[] } | null>(null);
+  // Revisit: the previous round re-opened for re-answering (its board id).
+  const [revisitId, setRevisitId] = useState<string | null>(null);
   // Artifact chat: `slug` anchors the dialog (messages filter), `displaySlug`
   // follows revisions — a Claude change is captured as a NEW artifact (rule 7)
   // and the open modal switches its image to it while the conversation stays.
@@ -188,31 +213,74 @@ export default function App() {
     );
   }, [chat, state.artifacts]);
 
+  // One sender for every chat subject (captured artifact or option: slug).
+  // Do NOT append locally — the message returns over WS from state, so
+  // persistence stays the single truth. Returns whether the send landed.
+  const postChat = useCallback(async (artifactSlug: string, text: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/artifact-chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ artifactSlug, text }),
+      });
+      const body = await res.json();
+      if (body.ok) return true;
+      throw new Error(body.error);
+    } catch (err) {
+      setCommandStatus(`chat failed: ${err instanceof Error ? err.message : err}`);
+      setTimeout(() => setCommandStatus(null), 5000);
+      return false;
+    }
+  }, []);
+
   const sendArtifactChat = useCallback(
     async (text: string) => {
       if (!chat) return;
-      try {
-        const res = await fetch('/api/artifact-chat', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ artifactSlug: chat.slug, text }),
-        });
-        const body = await res.json();
-        if (body.ok) {
-          // Do NOT append locally — the message returns over WS from state,
-          // so persistence stays the single truth.
-          setChatSentAt(chatClaudeCount);
-        } else {
-          setCommandStatus(`artifact chat failed: ${body.error}`);
-          setTimeout(() => setCommandStatus(null), 5000);
-        }
-      } catch (err) {
-        setCommandStatus(`artifact chat failed: ${err instanceof Error ? err.message : err}`);
-        setTimeout(() => setCommandStatus(null), 5000);
-      }
+      if (await postChat(chat.slug, text)) setChatSentAt(chatClaudeCount);
     },
-    [chat, chatClaudeCount],
+    [chat, chatClaudeCount, postChat],
   );
+
+  // Option-chat state for the fullscreen preview (previous rounds).
+  const [previewChatSentAt, setPreviewChatSentAt] = useState<number | null>(null);
+  const openPreview = useCallback((next: NonNullable<Preview>) => {
+    setPreview(next);
+    setPreviewChatSentAt(null);
+  }, []);
+  const previewChatMessages = useMemo(() => {
+    if (!preview?.chatSlug) return [];
+    const source = archived ? archived.artifactChat ?? [] : state.artifactChat;
+    return source.filter((m) => m.artifactSlug === preview.chatSlug);
+  }, [preview, archived, state.artifactChat]);
+  const previewClaudeCount = useMemo(
+    () => previewChatMessages.filter((m) => m.role === 'claude').length,
+    [previewChatMessages],
+  );
+  const previewChatBusy = previewChatSentAt !== null && previewClaudeCount <= previewChatSentAt;
+  const sendPreviewChat = useCallback(
+    async (text: string) => {
+      if (!preview?.chatSlug) return;
+      if (await postChat(preview.chatSlug, text)) setPreviewChatSentAt(previewClaudeCount);
+    },
+    [preview, previewClaudeCount, postChat],
+  );
+
+  // Persist artifact notes to the thread folder; the updated artifact returns
+  // over WS ('artifact' upsert), so state stays disk-truth.
+  const saveArtifactNotes = useCallback(async (artifactSlug: string, notes: string) => {
+    try {
+      const res = await fetch('/api/artifact-notes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ artifactSlug, notes }),
+      });
+      const body = await res.json();
+      if (!body.ok) throw new Error(body.error);
+    } catch (err) {
+      setCommandStatus(`saving notes failed: ${err instanceof Error ? err.message : err}`);
+      setTimeout(() => setCommandStatus(null), 5000);
+    }
+  }, []);
 
   const refreshDiscussions = useCallback(async () => {
     try {
@@ -392,17 +460,84 @@ export default function App() {
           {!newOpen && !landing && (
             <>
           {!viewingLive && (
-            <div className="rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs">
-              Archived thread. Fully cached, nothing regenerated. Ask Claude to resume it with
-              discussionId <code className="font-mono">{archived.session.id}</code>.
+            <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs">
+              <span>
+                Archived thread. Fully cached, nothing regenerated. Ask Claude to resume it with
+                discussionId <code className="font-mono">{archived.session.id}</code>.
+              </span>
+              {archived.tokens && archived.tokens.input + archived.tokens.output > 0 && (
+                <span
+                  title="Total tokens reported for this thread over its progress events"
+                  className="ml-auto shrink-0 rounded-full border border-line bg-surface px-2 py-0.5 text-[10px] text-ink-dim"
+                >
+                  {`Σ ${compactCount(archived.tokens.input + archived.tokens.output)} tok`}
+                </span>
+              )}
             </div>
           )}
 
           {history.map((record) => (
             <div key={record.board.id} id={`round-${record.board.id}`}>
-              <Marker>Round {record.board.round} · {record.board.kind} · {record.board.phase}</Marker>
+              <Marker
+                action={
+                  viewingLive && revisitId !== record.board.id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRevisitId(record.board.id);
+                        setTimeout(() => jumpToRound(record.board.id), 50);
+                      }}
+                      title={`Re-open round ${record.board.round}'s answers, change them, and Send & iterate — the brainstorm rewinds to this round`}
+                      className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-dim opacity-0 transition-opacity hover:border-accent hover:text-accent focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                    >
+                      ⟲ return to this round
+                    </button>
+                  ) : undefined
+                }
+              >
+                Round {record.board.round} · {record.board.kind} · {record.board.phase}
+                {revisitId === record.board.id && ' · revisiting'}
+              </Marker>
               <div className="mt-3">
-                <RoundHistoryView record={record} onPreview={setPreview} />
+                {revisitId === record.board.id ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs">
+                      <span>
+                        Revisiting round {record.board.round} — your previous answers are
+                        prefilled. Change anything and Send &amp; iterate: the brainstorm rewinds
+                        to this round (later rounds stay in the history).
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setRevisitId(null)}
+                        className="ml-auto shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs hover:border-accent"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <Bubble side="claude">
+                      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-dim">
+                        {record.board.title}
+                      </div>
+                      {record.board.prompt}
+                    </Bubble>
+                    <BoardSurvey
+                      key={`revisit-${record.board.id}`}
+                      board={record.board}
+                      initial={record.response ?? undefined}
+                      models={state.models}
+                      defaultModel={state.defaultModel}
+                      onRespond={async (r) => {
+                        await respond(r);
+                        setRevisitId(null);
+                      }}
+                      targetRepo={state.targetRepo}
+                      themes={state.themes}
+                    />
+                  </div>
+                ) : (
+                  <RoundHistoryView record={record} onPreview={openPreview} />
+                )}
               </div>
             </div>
           ))}
@@ -488,6 +623,17 @@ export default function App() {
           svg={preview.svg}
           label={preview.label}
           tags={preview.tags}
+          note={preview.note}
+          chat={
+            preview.chatSlug
+              ? {
+                  messages: previewChatMessages,
+                  busy: previewChatBusy,
+                  // Archived threads replay their persisted dialogs read-only.
+                  onSend: viewingLive ? sendPreviewChat : undefined,
+                }
+              : undefined
+          }
           onClose={() => setPreview(null)}
         />
       )}
@@ -497,6 +643,9 @@ export default function App() {
           artifact={chatArtifact}
           messages={chatMessages}
           onSend={sendArtifactChat}
+          onSaveNotes={
+            viewingLive ? (notes) => saveArtifactNotes(chatArtifact.slug, notes) : undefined
+          }
           busy={chatBusy}
           onClose={() => setChat(null)}
         />

@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const argv = process.argv.slice(2);
 const arg = (flag) => {
@@ -24,7 +25,32 @@ const arg = (flag) => {
   return i >= 0 && i + 1 < argv.length ? argv[i + 1] : undefined;
 };
 
-const port = Number(arg('--port') ?? process.env.VIBR_PORT ?? 5199);
+/**
+ * The bridge's actual port: on a port conflict it falls back to a random one
+ * and events posted to 5199 vanish into the wrong (or no) instance — so the
+ * bridge writes <discussionRoot>/.logs/bridge-port.json on start and this
+ * pipe reads it. Explicit --port / VIBR_PORT still win; 5199 is the fallback.
+ */
+function discoverPort() {
+  try {
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+    let root = path.join(repoRoot, 'discussion');
+    try {
+      const config = JSON.parse(
+        fs.readFileSync(path.join(repoRoot, 'visual-brainstorm.config.json'), 'utf8'),
+      );
+      if (config.discussionDir) root = path.resolve(repoRoot, config.discussionDir);
+    } catch {
+      /* no config — default root */
+    }
+    const info = JSON.parse(fs.readFileSync(path.join(root, '.logs', 'bridge-port.json'), 'utf8'));
+    return Number.isInteger(info.port) && info.port > 0 ? info.port : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const port = Number(arg('--port') ?? process.env.VIBR_PORT ?? discoverPort() ?? 5199);
 
 /** Mechanical labels for hook payloads — naming, not interpreting. */
 const TOOL_LABELS = {
@@ -68,8 +94,11 @@ function transcriptTotals(file) {
  * Token DELTA for this session since the last run — cursor in the OS temp dir.
  * A shrunk transcript (compaction) would go negative; report zero and re-base
  * rather than fabricate usage (rule 6). Cache reads are deliberately excluded.
+ * The cursor is committed ONLY after the bridge accepted the event — a failed
+ * POST must not swallow the delta (it rides along on the next event instead).
  */
 function tokenDelta(sessionId, transcriptPath) {
+  const none = { delta: undefined, commit: () => {} };
   try {
     const totals = transcriptTotals(transcriptPath);
     const cursorFile = path.join(
@@ -82,14 +111,24 @@ function tokenDelta(sessionId, transcriptPath) {
     } catch {
       /* first run for this session */
     }
-    fs.writeFileSync(cursorFile, JSON.stringify(totals));
+    const commit = () => {
+      try {
+        fs.writeFileSync(cursorFile, JSON.stringify(totals));
+      } catch {
+        /* cursor loss only over-reports later — never blocks the pipe */
+      }
+    };
     const delta = {
       input: Math.max(0, totals.input - (prev.input ?? 0)),
       output: Math.max(0, totals.output - (prev.output ?? 0)),
     };
-    return delta.input || delta.output ? delta : undefined;
+    if (!delta.input && !delta.output) {
+      commit(); // nothing to report — re-base now (covers compaction shrink)
+      return none;
+    }
+    return { delta, commit };
   } catch {
-    return undefined;
+    return none;
   }
 }
 
@@ -102,17 +141,18 @@ function fromHook(payload) {
       : event === 'Stop'
         ? 'Claude finished a turn'
         : TOOL_LABELS[tool] ?? (tool ? `used ${tool}` : event);
-  const tokens =
+  const usage =
     (event === 'Stop' || event === 'SubagentStop') && payload.session_id && payload.transcript_path
       ? tokenDelta(payload.session_id, payload.transcript_path)
-      : undefined;
-  return { note, source: `hook:${event}`, tokens };
+      : { delta: undefined, commit: () => {} };
+  return { note, source: `hook:${event}`, tokens: usage.delta, commitTokens: usage.commit };
 }
 
 try {
   let note = arg('--note');
   let source = arg('--source');
   let tokens;
+  let commitTokens = () => {};
   if (!note) {
     const raw = await readStdin();
     if (raw.trim()) {
@@ -120,6 +160,7 @@ try {
       note = hook.note;
       source ??= hook.source;
       tokens = hook.tokens;
+      commitTokens = hook.commitTokens;
     }
   }
   const tokensIn = Number(arg('--in') ?? 0);
@@ -134,13 +175,16 @@ try {
     };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1500);
-    await fetch(`http://127.0.0.1:${port}/api/progress`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/progress`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
     clearTimeout(timer);
+    // The delta only counts as delivered when the bridge said ok — otherwise
+    // the cursor stays put and the next event carries it.
+    if (res.ok) commitTokens();
   }
 } catch {
   /* no bridge, bad payload, timeout — all silent no-ops (hook safety) */

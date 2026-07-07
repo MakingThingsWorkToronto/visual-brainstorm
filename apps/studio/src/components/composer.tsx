@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ResponseAttachment } from '@visual-brainstorm/protocol';
-import { MicIcon } from './primitives';
+import { BodyPortal, MicIcon } from './primitives';
 import type { useVoice } from '../lib/useVoice';
 
 /**
@@ -153,6 +153,7 @@ export function CameraModal({
   };
 
   return (
+    <BodyPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-4 shadow-2xl">
         <h2 className="text-sm font-bold">Take a photo</h2>
@@ -208,5 +209,6 @@ export function CameraModal({
         </div>
       </div>
     </div>
+    </BodyPortal>
   );
 }

@@ -9,8 +9,11 @@ verdict. Most reports are a port-conflict ghost, not a failure.
    - Answers with JSON → note `pid`, `startedAt`, `session.id`, `activeBoard`,
      `connectedClients`. If `session.id` isn't the thread you expect, the browser tab is
      showing a DIFFERENT instance (the #1 cause of "it failed").
-   - No answer → nothing on 5199; the instance you started is on an ephemeral port — find
-     its URL in step 3.
+   - No answer → nothing on 5199; the instance you started is on an ephemeral port. The
+     bridge records its REAL port on start at `discussion/.logs/bridge-port.json`
+     (`{port, pid, startedAt, session}`, last-started wins) — read it for the actual URL,
+     or find it in the log (step 3). The progress pipe reads this same file, so a stale or
+     missing one is also why "token/progress events never reached the studio".
 2. **How many instances exist?**
    `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'preview\.js|apps/mcp/dist/index.js' } | Select-Object ProcessId, CommandLine`
    - More than one instance → kill the stale ones: `Stop-Process -Id <pid> -Force`. Killing an
@@ -56,6 +59,8 @@ verdict. Most reports are a port-conflict ghost, not a failure.
 | "response submitted" never detected | misread health: `awaitingResponse` is the BLOCKING present_board wait (false after tool timeout) | a user submission is `activeBoard: null`; the board stays answerable via peek_response |
 
 ## Changelog
+- 2026-07-07 — step 1: bridge-port.json is the authoritative real-port source (and the
+  progress pipe's discovery file — stale/missing → lost token/progress events) (from ui-changes)
 - 2026-07-07 — step 3 signals: STUDIO CLIENT ERROR lines + connect/disconnect-≤1s crash-loop
   signature + CDP headless repro; failure table: blank-page client crash, awaitingResponse
   vs activeBoard semantics (from studio-blank-crash-observability-2026-07-07)

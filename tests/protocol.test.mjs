@@ -13,6 +13,8 @@ import {
   SessionInfoSchema,
   SurveyConfigSchema,
   ThemeSchema,
+  optionChatSlug,
+  parseOptionChatSlug,
 } from '../packages/protocol/dist/index.js';
 import { loadCanonical } from './canonical/load.mjs';
 
@@ -246,4 +248,21 @@ test('discussion summary defaults archived=false', () => {
     id: 'x', title: 'T', startedAt: 'now', dir: '/d', rounds: 1, artifacts: 0,
   });
   assert.equal(summary.archived, false);
+});
+
+test('option chat slugs: roundtrip through optionChatSlug/parseOptionChatSlug', () => {
+  const slug = optionChatSlug('board-r3-1719400000', 'r3-o2');
+  assert.equal(slug, 'option:board-r3-1719400000:r3-o2');
+  assert.deepEqual(parseOptionChatSlug(slug), {
+    boardId: 'board-r3-1719400000',
+    optionId: 'r3-o2',
+  });
+});
+
+test('parseOptionChatSlug refuses ordinary artifact slugs and malformed shapes', () => {
+  assert.equal(parseOptionChatSlug('glow-mark'), null, 'ordinary artifact slug');
+  assert.equal(parseOptionChatSlug('option:board-only'), null, 'missing option id');
+  assert.equal(parseOptionChatSlug('option:a:b:c'), null, 'extra colon segment');
+  assert.equal(parseOptionChatSlug('option::'), null, 'empty parts');
+  assert.equal(parseOptionChatSlug('OPTION:a:b'), null, 'prefix is case-sensitive');
 });

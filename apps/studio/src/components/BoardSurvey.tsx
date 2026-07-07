@@ -51,6 +51,7 @@ export function BoardSurvey({
   onCommand,
   targetRepo = null,
   themes = [],
+  initial,
 }: {
   board: Board;
   models: string[];
@@ -66,21 +67,30 @@ export function BoardSurvey({
   targetRepo?: string | null;
   /** Ingested themes — source of the generation color palettes. */
   themes?: Theme[];
+  /**
+   * Revisit mode: prefill every visible mechanic from a previously recorded
+   * response so the user changes settings instead of re-answering from zero.
+   */
+  initial?: BoardResponse;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(initial?.selectedOptionIds ?? []),
+  );
+  const [notes, setNotes] = useState<Record<string, string>>(initial?.perOptionNotes ?? {});
   const [noteOpen, setNoteOpen] = useState<string | null>(null);
   // Full-screen preview — EVERY phase mechanic opens it by clicking an option's SVG
   // (dense system-architecture boards need zoom/pan + notes in context).
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewOption = board.options.find((o) => o.id === previewId) ?? null;
   const onPreview = (option: BoardOption) => setPreviewId(option.id);
-  const [remixMarks, setRemixMarks] = useState<string[]>([]);
+  const [remixMarks, setRemixMarks] = useState<string[]>(() => initial?.remixPairs.flat() ?? []);
   const [axisValues, setAxisValues] = useState<Record<string, number>>(() =>
-    Object.fromEntries(board.survey.axes.map((a) => [a.id, a.defaultValue])),
+    Object.fromEntries(
+      board.survey.axes.map((a) => [a.id, initial?.axisValues[a.id] ?? a.defaultValue]),
+    ),
   );
-  const [elaboration, setElaboration] = useState('');
-  const [model, setModel] = useState(defaultModel);
+  const [elaboration, setElaboration] = useState(initial?.elaboration ?? '');
+  const [model, setModel] = useState(initial?.model ?? defaultModel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [colorsOpen, setColorsOpen] = useState(false);
@@ -96,18 +106,26 @@ export function BoardSurvey({
   // sent back as requestedPhase. All mechanics share the same option data.
   const [localPhase, setLocalPhase] = useState(board.phase);
   // per-phase state
-  const [triage, setTriage] = useState<Record<string, 'keep' | 'kill' | 'merge'>>({});
-  const [finalId, setFinalId] = useState<string | null>(null);
-  const [mutations, setMutations] = useState<Record<string, string[]>>({});
-  const [flaws, setFlaws] = useState<Record<string, string>>({});
-  const [positions, setPositions] = useState(() => scatter(board));
+  const [triage, setTriage] = useState<Record<string, 'keep' | 'kill' | 'merge'>>(
+    initial?.triage ?? {},
+  );
+  const [finalId, setFinalId] = useState<string | null>(initial?.finalOptionId ?? null);
+  const [mutations, setMutations] = useState<Record<string, string[]>>(initial?.mutations ?? {});
+  const [flaws, setFlaws] = useState<Record<string, string>>(initial?.flaws ?? {});
+  const [positions, setPositions] = useState(() =>
+    initial && Object.keys(initial.positions).length > 0 ? initial.positions : scatter(board),
+  );
   const [clusterTouched, setClusterTouched] = useState(false);
-  const [clusters, setClusters] = useState<string[][]>([]);
-  const [gapNotes, setGapNotes] = useState<{ between: [number, number]; note: string }[]>([]);
+  const [clusters, setClusters] = useState<string[][]>(initial?.clusters ?? []);
+  const [gapNotes, setGapNotes] = useState<{ between: [number, number]; note: string }[]>(
+    initial?.gapNotes ?? [],
+  );
   // judge deck (diverge/expand review mode) + sudden-death duels (converge)
   const [reviewMode, setReviewMode] = useState<'grid' | 'deck'>('grid');
-  const [deckVerdicts, setDeckVerdicts] = useState<Record<string, 'keep' | 'kill'>>({});
-  const [deckRanking, setDeckRanking] = useState<string[]>([]);
+  const [deckVerdicts, setDeckVerdicts] = useState<Record<string, 'keep' | 'kill'>>(
+    initial?.deckVerdicts ?? {},
+  );
+  const [deckRanking, setDeckRanking] = useState<string[]>(initial?.ranking ?? []);
   const [duelResults, setDuelResults] = useState<DuelResult[]>([]);
 
   const { multiSelect, minSelect, maxSelect } = board.survey;
@@ -304,6 +322,12 @@ export function BoardSurvey({
           board={board}
           triage={triage}
           finalId={finalId}
+          notes={notes}
+          onNote={
+            board.survey.allowPerOptionNotes
+              ? (id, note) => setNotes((prev) => ({ ...prev, [id]: note }))
+              : undefined
+          }
           onTriage={setTriage}
           onFinal={setFinalId}
           onDuel={(duel) => setDuelResults((prev) => [...prev, duel])}

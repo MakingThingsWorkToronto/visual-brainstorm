@@ -1,0 +1,9 @@
+{
+  "boardId": "board-diverge-1",
+  "selectedOptionIds": ["c"],
+  "elaboration": "Second thoughts after seeing round 2: chase Gamma's layered strata instead of the arc.",
+  "perOptionNotes": { "c": "the strata read as a mind — lean in" },
+  "axisValues": { "tone": 30, "glow": 70 },
+  "action": "iterate",
+  "respondedAt": "2026-07-07T09:30:00.000Z"
+}

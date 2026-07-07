@@ -18,6 +18,7 @@ import {
   DiscussionSummarySchema,
   ProgressEventSchema,
   ThemeSchema,
+  optionChatSlug,
 } from '../packages/protocol/dist/index.js';
 
 // ---------------------------------------------------------------------------
@@ -37,9 +38,10 @@ const CENSUS = [
   ['POST /api/progress', [200, 400]],
   ['POST /api/client-log', [200, 400]],
   ['POST /api/artifact-chat', [200, 400, 404]],
+  ['POST /api/artifact-notes', [200, 400, 404]],
   ['POST /api/respond', [200, 400]],
   ['GET /* (static studio)', [200, 503]],
-  ['WS /ws', ['hello', 'responded', 'malformed-logged', 'unknown-type-ignored']],
+  ['WS /ws', ['hello', 'responded', 'artifact', 'malformed-logged', 'unknown-type-ignored']],
 ];
 
 const PROVEN = new Map();
@@ -473,6 +475,30 @@ test('GET /api/discussions/:id → 200 reloads the live thread from disk', async
   }
 });
 
+test('GET /api/discussions/:id → 200 artifactChat survives the disk reload (chat.jsonl)', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    // Record the chat through the REAL endpoint (persists to artifacts/chat.jsonl)…
+    const posted = await postJson(bridge, '/api/artifact-chat', {
+      artifactSlug: 'glow-mark',
+      text: 'What does the filament symbolize?',
+    });
+    assert.equal(posted.status, 200);
+    // …then reload the thread from disk through the endpoint: the dialog rides along.
+    const { status, body } = await getJson(bridge, `/api/discussions/${store.info.id}`);
+    assert.equal(status, 200);
+    assertMatches(body, expectation('discussion-by-id-200-with-chat.json'));
+    prove('GET /api/discussions/:id', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
 test('GET /api/discussions/:id → 404 for an unknown thread id', async () => {
   const { bridge } = await startBridge();
   try {
@@ -603,6 +629,134 @@ test('POST /api/artifact-chat → 404 for an unknown artifact slug', async () =>
     assertMatches(body, expectation('artifact-chat-404.json'));
     assert.deepEqual(store.artifactChat, [], 'no message recorded for a missing artifact');
     prove('POST /api/artifact-chat', 404);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/artifact-chat → 200 for an option chat slug (previous-round option)', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.recordBoard(board); // round-01 on disk, incl. option-a.svg
+    const slug = optionChatSlug(board.id, 'a');
+    const { status, body } = await postJson(bridge, '/api/artifact-chat', {
+      artifactSlug: slug,
+      text: 'Could the filament read as a spark instead?',
+    });
+    assert.equal(status, 200);
+    assertMatches(body, expectation('artifact-chat-200-queued.json'));
+    assert.equal(store.artifactChat.length, 1, 'user message recorded');
+    assert.equal(store.artifactChat[0].artifactSlug, slug, 'recorded under the option slug');
+    const command = bridge.peekCommands()[0];
+    assert.equal(command.command, 'artifact-chat');
+    assert.ok(
+      command.seedNote.includes(path.join(store.info.dir, 'round-01', 'option-a.svg')),
+      `seedNote names the round option SVG path, got: ${command.seedNote}`,
+    );
+    assert.ok(
+      command.seedNote.includes(`artifactSlug "${slug}"`),
+      'seedNote pins the reply to the option slug exactly',
+    );
+    prove('POST /api/artifact-chat', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/artifact-chat → 404 for option slugs with a bad board or bad option id', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.recordBoard(board);
+    const badBoard = await postJson(bridge, '/api/artifact-chat', {
+      artifactSlug: optionChatSlug('board-nope', 'a'),
+      text: 'hello?',
+    });
+    assert.equal(badBoard.status, 404);
+    assertMatches(badBoard.body, expectation('artifact-chat-404-option.json'));
+    assert.ok(badBoard.body.error.includes('option:board-nope:a'), 'error names the slug');
+
+    const badOption = await postJson(bridge, '/api/artifact-chat', {
+      artifactSlug: optionChatSlug(board.id, 'zzz'),
+      text: 'hello?',
+    });
+    assert.equal(badOption.status, 404);
+    assertMatches(badOption.body, expectation('artifact-chat-404-option.json'));
+
+    assert.deepEqual(store.artifactChat, [], 'no message recorded for unknown options');
+    prove('POST /api/artifact-chat', 404);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/artifact-notes — 200 (+ WS artifact envelope), 400, 404
+// ---------------------------------------------------------------------------
+test('POST /api/artifact-notes → 200 rewrites the .json sidecar and broadcasts artifact', async () => {
+  const { bridge, store } = await startBridge();
+  const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    const messages = [];
+    ws.addEventListener('message', (event) => messages.push(JSON.parse(String(event.data))));
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve);
+      ws.addEventListener('error', reject);
+    });
+    await waitFor(() => messages.some((m) => m.type === 'hello'), 'ws hello');
+
+    const notes = 'warm filament — keep for the poster';
+    const { status, body } = await postJson(bridge, '/api/artifact-notes', {
+      artifactSlug: 'glow-mark',
+      notes,
+    });
+    assert.equal(status, 200);
+    assertMatches(body, expectation('artifact-notes-200.json'));
+    prove('POST /api/artifact-notes', 200);
+
+    // Sidecar rewritten in place on disk (the SVG artwork untouched — rule 7).
+    const sidecar = JSON.parse(
+      fs.readFileSync(path.join(store.info.dir, 'artifacts', 'glow-mark.json'), 'utf8'),
+    );
+    assert.equal(sidecar.notes, notes, 'artifacts/glow-mark.json carries the new notes');
+
+    await waitFor(() => messages.some((m) => m.type === 'artifact'), 'artifact broadcast');
+    assertMatches(messages.find((m) => m.type === 'artifact'), expectation('ws-artifact.json'));
+    prove('WS /ws', 'artifact');
+  } finally {
+    ws.close();
+    await bridge.stop();
+  }
+});
+
+test('POST /api/artifact-notes → 404 unknown slug, 400 missing notes (zod refuses)', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    const missing = await postJson(bridge, '/api/artifact-notes', {
+      artifactSlug: 'missing',
+      notes: 'orphan',
+    });
+    assert.equal(missing.status, 404);
+    assertMatches(missing.body, expectation('artifact-notes-404.json'));
+    prove('POST /api/artifact-notes', 404);
+
+    const invalid = await postJson(bridge, '/api/artifact-notes', { artifactSlug: 'glow-mark' });
+    assert.equal(invalid.status, 400);
+    assertMatches(invalid.body, expectation('artifact-notes-400.json'));
+    prove('POST /api/artifact-notes', 400);
+
+    assert.equal(store.artifacts[0].notes, 'canonical capture', 'rejected posts change nothing');
   } finally {
     await bridge.stop();
   }

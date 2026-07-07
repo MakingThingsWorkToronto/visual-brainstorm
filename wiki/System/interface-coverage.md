@@ -15,8 +15,8 @@ replies; generation, diagnosis, tests, and wiki work are always delegated (CLAUD
 | 1 | Start/resume a brainstorm; New Discussion panel; bare `/run-brainstorm` | panel submit → `new-brainstorm` command; `open_studio` landing | agent **`brainstorm-orchestrator`** via `.claude/commands/run-brainstorm.md` | YES — orchestration is never delegated |
 | 2 | Board-response mechanic bundle: selection, per-option notes, remix pairs, axis dials, elaboration, triage, mutations, flaws, positions/clusters/gapNotes, deckVerdicts, duelResults, ranking, requestedPhase, Back | all board surfaces + composer; delivered as `feedbackDigest` in the `present_board` result | agent **`brainstorm-orchestrator`** via `/run-brainstorm` steps 4–6 + `.claude/skills/brainstorm-phases` | Interpretation YES (that IS orchestration); the generation it triggers → row 3 |
 | 3 | Option/round SVG generation + model routing (`BoardResponse.model`, new-brainstorm `model`) | More Tools (+) model picker; every next-round build | agent **`svg-artisan`** (model override applies) — always delegated | NO |
-| 4 | Artifact chat — question | fullscreen artifact panel → `POST /api/artifact-chat` | general subagent via `.claude/commands/artifact-chat.md` | NO — orchestrator only routes + `reply_artifact_chat` |
-| 5 | Artifact chat — change request | same | agent **`svg-artisan`** via `/artifact-chat`; delivered as `capture_artifact` with `revises` + `reply_artifact_chat` | NO |
+| 4 | Artifact chat — question | fullscreen artifact panel, OR a previous round's option preview (synthetic `option:<boardId>:<optionId>` slug) → `POST /api/artifact-chat` | general subagent via `.claude/commands/artifact-chat.md` | NO — orchestrator only routes + `reply_artifact_chat` |
+| 5 | Artifact chat — change request | same | agent **`svg-artisan`** via `/artifact-chat`; delivered as `capture_artifact` with `revises` (option chats: NEW artifact with boardId/optionIds provenance) + `reply_artifact_chat` | NO |
 | 6 | Plan closeout | More Tools → Plan closeout; Finalize & close out; `finalize` response | `.claude/commands/plan-closeout.md` | Runs the procedure; step 5 (wiki) → **`wiki-librarian`** |
 | 7 | Skill discovery/ingestion | More Tools → Discover skills | `.claude/commands/discover-skills.md` | Runs the interactive procedure |
 | 8 | Decision poster on finalize | `finalOptionId` set → after `capture_artifact` | `compose_poster` MCP tool — DETERMINISTIC, no model | n/a (tool call only) |
@@ -25,7 +25,7 @@ replies; generation, diagnosis, tests, and wiki work are always delegated (CLAUD
 | 11 | Palette pick (Colors, by theme) | More Tools (+) Colors / panel Colors card | deterministic ONLY-these-colors digest line; honored during generation by row 3 | NO generation inline |
 | 12 | Theme picking / palette editing / new theme | nav theme picker, swatch edit dialog | `POST /api/session-theme`, `POST /api/themes` → `saveThemeFile` (deterministic); authored themes via `.claude/commands/add-theme.md` | n/a |
 | 13 | Target repo/folder | Target Folder picker | `POST /api/target-repo` (deterministic); consumed by `capture_artifact` copy + `/plan-closeout` step 6 | n/a |
-| 14 | Session progress pipe | automatic on PostToolUse / SubagentStop / Stop | `scripts/pipe-progress.mjs` wired in `.claude/settings.json` hooks (+ CLI mode) → `POST /api/progress` — deterministic, NO model in the pipe | n/a |
+| 14 | Session progress pipe | automatic on PostToolUse / SubagentStop / Stop | `scripts/pipe-progress.mjs` wired in `.claude/settings.json` hooks (+ CLI mode) → `POST /api/progress` — deterministic, NO model in the pipe; port discovered from `.logs/bridge-port.json`, token cursor committed only on confirmed delivery | n/a |
 | 15 | Token meter | automatic | pipe-progress transcript-delta cursor → `tokens` on progress events; `SessionStore.tokenTotals` / `sumTokensFile` — deterministic | n/a |
 | 16 | Studio/bridge/MCP diagnosis | "seems broken", hangs, port suspicion | agent **`devops-diagnostician`** / `.claude/commands/diagnose-studio.md` | NO |
 | 17 | Writing/extending tests | features land/change, failures | agent **`test-engineer`** | NO |
@@ -33,6 +33,8 @@ replies; generation, diagnosis, tests, and wiki work are always delegated (CLAUD
 | 19 | Agentic-learnings capture | non-obvious discovery, any time | rule 4 (`.agents/learnings.md` immediately) + dispatcher **Learn** step (`/create-dispatch-command` template, step 6 of `/dispatch-askaquestion-next-phase`) + `/plan-closeout` steps 3–4 (harvest → improve commands); changelog footers → **`wiki-librarian`** | Writing the learning line is inline; improving commands happens at closeout |
 | 20 | Recurring task with no procedure | asked twice = failure | `.claude/commands/new-command.md` | n/a |
 | 21 | Verification before any completion claim | rule 10 | `.claude/commands/build-check.md` (`npm run build` + `npm test`) | Runs the command; test authoring → row 17 |
+| 22 | Artifact notes (fullscreen Notes panel, Save notes) | `POST /api/artifact-notes` | `SessionStore.updateArtifactNotes` (deterministic — sidecar rewrite + `artifact` broadcast) | n/a |
+| 23 | Return to a previous round (⟲ tag on a round separator → re-answer + rewind) | prefilled BoardSurvey → `POST /api/respond` with the old round's boardId | bridge `acceptRevisit` (deterministic rewrite/routing); rebuild by agent **`brainstorm-orchestrator`** via `.claude/commands/revisit-round.md` | Interpretation YES (orchestration); generation → row 3 |
 
 Zero unowned tasks. A new interface mechanic MUST land with a row here (rule 12).
 
@@ -45,12 +47,13 @@ All paths are under the thread dir `discussion/<stamp>-<slug>/` unless noted. Wr
 | # | Message / gesture | Persisted at | Recall path |
 |---|---|---|---|
 | 1 | Boards + every per-option SVG | `round-NN/board.json` + `round-NN/option-<id>.svg` (`recordBoard`) | thread reload; `load_discussion` returns svgPaths |
-| 2 | Board responses (every gesture incl. `commands`, `model`, `paletteColors`) | `round-NN/response.json` (`recordResponse`) | thread reload |
+| 2 | Board responses (every gesture incl. `commands`, `model`, `paletteColors`) | `round-NN/response.json` (`recordResponse`; REWRITTEN in place on a revisit via `acceptRevisit` — `brainstorm.md` appends, history never erased) | thread reload |
 | 3 | Text memory: rounds, digested responses, retitles, theme/target changes, artifact-chat traces, orchestrator per-round decision blocks | `brainstorm.md` (append-only) | Read the file; the re-synthesis source |
 | 4 | Progress events (hook + CLI posts) | `progress.jsonl` (`recordProgress`, append-only) | thread reload; last 200 in `StudioState.progress` |
 | 5 | Token totals | DERIVED, no separate file — sum of `tokens` over `progress.jsonl` (`tokenTotals` / `sumTokensFile`) | recomputed on every list/state |
-| 6 | Artifact chat dialog (both roles, `revisedSlug`) | `artifacts/chat.jsonl` (append-only) + one-line `brainstorm.md` trace | thread reload → `StudioState.artifactChat` |
+| 6 | Artifact chat dialog (both roles, `revisedSlug`; incl. option chats keyed `option:<boardId>:<optionId>`) | `artifacts/chat.jsonl` (append-only) + one-line `brainstorm.md` trace | thread reload → `StudioState.artifactChat`; archived replay via `GET /api/discussions/<id>` `artifactChat` |
 | 7 | Artifacts + provenance (incl. `revises`) | `artifacts/<slug>.svg` + `<slug>.json`; copy to `<targetRepo>/brainstorm-artifacts/` when set | thread reload; studio shelf |
+| 7b | Artifact notes (Save notes) | `artifacts/<slug>.json` rewritten in place (`updateArtifactNotes` — SVG untouched) | thread reload; live `artifact` broadcast (useBridge upserts by slug) |
 | 8 | Response/panel attachments | `attachments/<stamp>-<name>` (`persistAttachment`; `savedPath` recorded in the response) | `savedPath` in `response.json`; honest FAILED digest line when persistence failed (rule 6) |
 | 9 | Non-text seeds (sketch/image) | `<discussionRoot>/.seeds/seed-<stamp>.<ext>` (`persistSeed`) | digest/seed-note line points at the file; text/voice seeds ride the digest itself |
 | 10 | Thread settings: title, theme, targetRepo | `session.json` (+ a `brainstorm.md` note per change) | thread reload |

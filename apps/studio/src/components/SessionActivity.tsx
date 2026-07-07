@@ -23,9 +23,11 @@ export function SessionActivity({
   tokens?: { input: number; output: number };
 }) {
   const [open, setOpen] = useState(false);
-  if (events.length === 0) return null;
-  const latest = events[events.length - 1];
   const totalTokens = tokens ? tokens.input + tokens.output : 0;
+  // Tokens can be known even before any live event arrives (reloaded thread):
+  // the meter must not hide behind an empty activity tail.
+  if (events.length === 0 && totalTokens === 0) return null;
+  const latest = events.length > 0 ? events[events.length - 1] : null;
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2 text-xs">
       <button
@@ -37,7 +39,9 @@ export function SessionActivity({
         <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-ink-dim">
           Session activity
         </span>
-        {!open && <span className="min-w-0 flex-1 truncate text-ink-dim">{latest.note}</span>}
+        {!open && latest && (
+          <span className="min-w-0 flex-1 truncate text-ink-dim">{latest.note}</span>
+        )}
         <span className="ml-auto shrink-0 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] text-ink-dim">
           {events.length}
         </span>
