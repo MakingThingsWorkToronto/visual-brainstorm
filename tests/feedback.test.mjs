@@ -2,40 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { buildFeedbackDigest } from '../apps/mcp/dist/feedback.js';
 import { BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
+import { loadCanonical } from './canonical/load.mjs';
 
-const board = BoardSchema.parse({
-  id: 'b1',
-  sessionId: 's',
-  round: 2,
-  kind: 'icon-grid',
-  phase: 'diverge',
-  title: 'T',
-  prompt: 'P',
-  options: [
-    { id: 'a', label: 'Alpha', svg: '<svg/>' },
-    { id: 'b', label: 'Beta', svg: '<svg/>' },
-    { id: 'c', label: 'Gamma', svg: '<svg/>' },
-  ],
-  survey: {
-    axes: [
-      { id: 'tone', label: 'Tone', leftLabel: 'Playful', rightLabel: 'Serious', defaultValue: 40 },
-      { id: 'glow', label: 'Glow', leftLabel: 'Flat', rightLabel: 'Neon', defaultValue: 50 },
-    ],
-  },
-  createdAt: 'now',
-});
+// The canonical diverge board (Alpha/Beta/Gamma; tone 40, glow 50 axes) anchors
+// every digest here. Per-test responses stay inline where they probe ONE mechanic.
+const board = loadCanonical('boards/diverge.json', BoardSchema);
+const iterateResponse = loadCanonical('responses/iterate.json', BoardResponseSchema);
 
 const respond = (extra) =>
-  BoardResponseSchema.parse({ boardId: 'b1', respondedAt: 'now', ...extra });
+  BoardResponseSchema.parse({ boardId: board.id, respondedAt: 'now', ...extra });
 
 const digestText = (extra) => buildFeedbackDigest(board, respond(extra)).join('\n');
 
 test('the digest speaks in labels, never bare ids', () => {
-  const text = digestText({
-    selectedOptionIds: ['a', 'b'],
-    perOptionNotes: { b: 'rounder' },
-    remixPairs: [['a', 'c']],
-  });
+  const text = buildFeedbackDigest(board, iterateResponse).join('\n');
   assert.ok(text.includes('Alpha, Beta'));
   assert.ok(text.includes('Note on "Beta": rounder'));
   assert.ok(text.includes('mash up "Alpha" × "Gamma"'));
@@ -66,7 +46,8 @@ test('attachments surface as Read instructions; failures are honest', () => {
 });
 
 test('dial deltas carry direction and are declared a complete instruction', () => {
-  const text = digestText({ axisValues: { tone: 80, glow: 50 } });
+  // Canonical iterate.json moves tone 40→80 and leaves glow at its 50 default.
+  const text = buildFeedbackDigest(board, iterateResponse).join('\n');
   assert.ok(text.includes('Tone: 40→80 (toward "Serious")'));
   assert.ok(!text.includes('Glow: 50'), 'unmoved dials are not noise');
   assert.ok(text.includes('complete instruction'));

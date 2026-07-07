@@ -1,0 +1,13 @@
+{
+  "boardId": "board-converge-6",
+  "selectedOptionIds": ["fusion"],
+  "elaboration": "Fusion keeps the story; Halo merges its line weight in; the prism dies for good.",
+  "perOptionNotes": { "fusion": "thicken the flame stroke to match the orbit" },
+  "triage": {
+    "fusion": "keep",
+    "halo-final": "merge",
+    "prism-final": "kill"
+  },
+  "action": "accept",
+  "respondedAt": "2026-07-07T10:10:00.000Z"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "board-expand-2",
+  "sessionId": "glow-mark-2026-07-07",
+  "round": 2,
+  "kind": "moodboard",
+  "phase": "expand",
+  "title": "Widening the pull — halo, prism, ember",
+  "prompt": "Round 2: expanding the directions you selected. Alpha's warmth and Beta's arc each get room; the Alpha × Gamma remix lands as Ember.",
+  "options": [
+    {
+      "id": "halo",
+      "label": "Halo Bloom",
+      "description": "Alpha's warmth abstracted into concentric rings of light.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"12\" fill=\"#f59e0b\"/><circle cx=\"50\" cy=\"50\" r=\"24\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"4\" opacity=\"0.8\"/><circle cx=\"50\" cy=\"50\" r=\"36\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"2\" opacity=\"0.4\"/></svg>",
+      "tags": ["radial", "warm"],
+      "parents": ["a"]
+    },
+    {
+      "id": "prism",
+      "label": "Prism Break",
+      "description": "Beta's breakout arc refracted through a triangular prism.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><path d=\"M50 18L82 74H18z\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"5\"/><path d=\"M14 50h22M64 40l24-10M64 60l24 10\" stroke=\"#2dd4bf\" stroke-width=\"4\" stroke-linecap=\"round\"/></svg>",
+      "tags": ["refraction", "kinetic"],
+      "parents": ["b"]
+    },
+    {
+      "id": "ember",
+      "label": "Ember Strata",
+      "description": "Remix: Gamma's layers heated by Alpha's filament glow.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><path d=\"M22 62l28 12 28-12\" fill=\"none\" stroke=\"#7c3aed\" stroke-width=\"5\"/><path d=\"M22 46l28 12 28-12\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"5\"/><circle cx=\"50\" cy=\"32\" r=\"10\" fill=\"#f59e0b\"/></svg>",
+      "tags": ["remix", "layered", "warm"],
+      "parents": ["a", "c"]
+    }
+  ],
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 0,
+    "elaborationPrompt": "Which expansion earns a deeper cut?",
+    "allowPerOptionNotes": true,
+    "allowRemix": true,
+    "axes": []
+  },
+  "createdAt": "2026-07-07T09:14:00.000Z"
+}

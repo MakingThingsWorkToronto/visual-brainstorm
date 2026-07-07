@@ -1,0 +1,36 @@
+{
+  "id": "board-wreck-4",
+  "sessionId": "glow-mark-2026-07-07",
+  "round": 4,
+  "kind": "freeform",
+  "phase": "wreck",
+  "title": "Sabotage pass — break the survivors",
+  "prompt": "Round 4: wreck them. For each option say what breaks, what's ugly, what lies. Nothing survives on charm.",
+  "options": [
+    {
+      "id": "halo-3",
+      "label": "Halo Orbit",
+      "description": "The x-ray orbits, tightened for favicon scale.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><ellipse cx=\"50\" cy=\"50\" rx=\"34\" ry=\"16\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"5\"/><circle cx=\"50\" cy=\"50\" r=\"9\" fill=\"#f59e0b\"/><circle cx=\"82\" cy=\"46\" r=\"5\" fill=\"#2dd4bf\"/></svg>",
+      "tags": ["orbital", "compact"],
+      "parents": ["halo-2"]
+    },
+    {
+      "id": "ember-3",
+      "label": "Ember Sink",
+      "description": "The flipped strata with the glow fully submerged.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><path d=\"M20 34l30-12 30 12\" fill=\"none\" stroke=\"#7c3aed\" stroke-width=\"5\"/><path d=\"M20 50l30-12 30 12\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"5\"/><path d=\"M38 72a12 12 0 0 0 24 0c0-8-12-18-12-18s-12 10-12 18z\" fill=\"#f59e0b\"/></svg>",
+      "tags": ["flip", "flame"],
+      "parents": ["ember-2"]
+    }
+  ],
+  "survey": {
+    "multiSelect": false,
+    "minSelect": 0,
+    "elaborationPrompt": "What did the wrecking reveal about the whole direction?",
+    "allowPerOptionNotes": true,
+    "allowRemix": false,
+    "axes": []
+  },
+  "createdAt": "2026-07-07T09:38:00.000Z"
+}

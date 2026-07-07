@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { CONFIG_FILENAME, loadConfig } from '../apps/mcp/dist/config.js';
 import { BUILTIN_THEMES, loadThemes } from '../apps/mcp/dist/themes.js';
+import { CANONICAL_DIR } from './canonical/load.mjs';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'));
 
@@ -66,12 +67,16 @@ test('style ingestion: drop-in JSON adds a theme and shadows built-ins by name',
   const styles = path.join(dir, 'styles');
   fs.mkdirSync(styles);
   const vars = { canvas: '#fff', surface: '#fff', surface2: '#eee', line: '#ddd', ink: '#000', inkDim: '#666', accent: '#123456' };
-  fs.writeFileSync(path.join(styles, 'custom.json'), JSON.stringify({ name: 'custom', label: 'Custom', light: vars, dark: vars }));
+  // The canonical theme, ingested through the REAL drop-in path.
+  fs.copyFileSync(path.join(CANONICAL_DIR, 'themes', 'theme.json'), path.join(styles, 'aurora.json'));
   fs.writeFileSync(path.join(styles, 'mono.json'), JSON.stringify({ name: 'mono', label: 'Shadowed Mono', light: vars, dark: vars }));
   fs.writeFileSync(path.join(styles, 'bad.json'), '{"name":"broken"}');
 
   const themes = loadThemes(loadConfig(dir), dir);
-  assert.ok(themes.find((t) => t.name === 'custom'));
+  const aurora = themes.find((t) => t.name === 'aurora');
+  assert.ok(aurora, 'canonical theme ingested as a drop-in');
+  assert.equal(aurora.label, 'Aurora');
+  assert.equal(aurora.palette.length, 5, 'curated palette survives ingestion');
   assert.equal(themes.find((t) => t.name === 'mono').label, 'Shadowed Mono');
   assert.ok(!themes.find((t) => t.name === 'broken'), 'invalid theme skipped');
 });

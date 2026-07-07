@@ -1,0 +1,10 @@
+{
+  "boardId": "board-diverge-1",
+  "selectedOptionIds": ["a", "b"],
+  "elaboration": "Chase the warmth of Alpha carried on Beta's escaping arc.",
+  "perOptionNotes": { "b": "rounder" },
+  "axisValues": { "tone": 80, "glow": 50 },
+  "remixPairs": [["a", "c"]],
+  "action": "iterate",
+  "respondedAt": "2026-07-07T09:10:00.000Z"
+}

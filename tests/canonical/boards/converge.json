@@ -1,0 +1,45 @@
+{
+  "id": "board-converge-6",
+  "sessionId": "glow-mark-2026-07-07",
+  "round": 6,
+  "kind": "icon-grid",
+  "phase": "converge",
+  "title": "The gate — keep, kill, or merge every last one",
+  "prompt": "Round 6: convergence. Every option gets a verdict before the gate opens; the keeps go to the judge deck.",
+  "options": [
+    {
+      "id": "fusion",
+      "label": "Fusion Bloom",
+      "description": "Halo's orbit wrapping Ember's flame — the synthesis candidate.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><ellipse cx=\"50\" cy=\"52\" rx=\"32\" ry=\"18\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"6\"/><path d=\"M41 58a9 9 0 0 0 18 0c0-6-9-15-9-15s-9 9-9 15z\" fill=\"#f59e0b\"/></svg>",
+      "tags": ["synthesis"],
+      "parents": ["halo-4", "ember-4"]
+    },
+    {
+      "id": "halo-final",
+      "label": "Halo Solo",
+      "description": "The orbit alone — cleanest at 16px, coldest at any size.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><ellipse cx=\"50\" cy=\"50\" rx=\"34\" ry=\"20\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"8\"/><circle cx=\"50\" cy=\"50\" r=\"8\" fill=\"#a855f7\"/></svg>",
+      "tags": ["orbital", "minimal"],
+      "parents": ["halo-4"]
+    },
+    {
+      "id": "prism-final",
+      "label": "Prism Coda",
+      "description": "The prism's last stand, teal arc and all.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><path d=\"M50 22L78 70H22z\" fill=\"none\" stroke=\"#2dd4bf\" stroke-width=\"6\"/><circle cx=\"50\" cy=\"54\" r=\"7\" fill=\"#a855f7\"/></svg>",
+      "tags": ["refraction"],
+      "parents": ["prism-2"]
+    }
+  ],
+  "survey": {
+    "multiSelect": false,
+    "minSelect": 0,
+    "maxSelect": 1,
+    "elaborationPrompt": "Why does the winner win?",
+    "allowPerOptionNotes": true,
+    "allowRemix": false,
+    "axes": []
+  },
+  "createdAt": "2026-07-07T10:02:00.000Z"
+}

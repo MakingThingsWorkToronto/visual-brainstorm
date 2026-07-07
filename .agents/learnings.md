@@ -1,5 +1,14 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — canonical test data (phase 1)
+
+- **A recursive directory walk on Windows yields backslash separators that never match
+  forward-slash map keys.** `tests/canonical-data.test.mjs` guards against unproven stray
+  canonical files by `deepEqual`-ing walked JSON paths against its explicit file→schema
+  map; that only works with `path.relative(...).replaceAll('\\', '/')`. Any test that
+  compares relative paths from `readdirSync` recursion to literal keys needs the same
+  normalization.
+
 ## 2026-07-07 — studio blank-page crash (version skew)
 
 - **A long-running bridge process serves the NEW studio bundle but sends OLD state

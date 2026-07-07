@@ -1,0 +1,22 @@
+{
+  "boardId": "board-expand-2",
+  "selectedOptionIds": ["halo"],
+  "elaboration": "Match the attached brand sheet's warmth; stay inside the picked colors.",
+  "action": "iterate",
+  "model": "claude-opus-4-8",
+  "requestedPhase": "mutate",
+  "attachments": [
+    { "name": "moodboard-ref.png", "dataUri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==" },
+    {
+      "name": "brand-notes.pdf",
+      "dataUri": "",
+      "savedPath": "discussion/glow-mark-2026-07-07/attachments/brand-notes.pdf"
+    }
+  ],
+  "paletteColors": [
+    { "name": "Aurora violet", "value": "#7c3aed" },
+    { "name": "Ion teal", "value": "#2dd4bf" },
+    { "name": "Solar amber", "value": "#f59e0b" }
+  ],
+  "respondedAt": "2026-07-07T09:20:00.000Z"
+}

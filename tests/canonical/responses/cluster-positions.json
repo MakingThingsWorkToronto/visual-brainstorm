@@ -1,0 +1,18 @@
+{
+  "boardId": "board-cluster-5",
+  "elaboration": "The left cluster is 'light held in structure'; the prism floats alone as pure geometry.",
+  "positions": {
+    "halo-4": { "x": 22, "y": 30 },
+    "ember-4": { "x": 30, "y": 38 },
+    "prism-2": { "x": 78, "y": 68 }
+  },
+  "clusters": [["halo-4", "ember-4"], ["prism-2"]],
+  "gapNotes": [
+    {
+      "between": [0, 1],
+      "note": "A mark where structured light gets refracted — nobody drew warmth passing THROUGH geometry."
+    }
+  ],
+  "action": "iterate",
+  "respondedAt": "2026-07-07T09:56:00.000Z"
+}

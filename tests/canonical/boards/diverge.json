@@ -1,0 +1,48 @@
+{
+  "id": "board-diverge-1",
+  "sessionId": "glow-mark-2026-07-07",
+  "round": 1,
+  "kind": "icon-grid",
+  "phase": "diverge",
+  "title": "First sparks — three ways a glow mark could feel",
+  "prompt": "Round 1: three divergent takes on a glowing mark. Pick what pulls, note what to keep, remix what should collide.",
+  "options": [
+    {
+      "id": "a",
+      "label": "Alpha",
+      "description": "A filament bulb — warm, literal glow.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"42\" r=\"22\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"4\"/><path d=\"M42 66h16v8a8 8 0 0 1-16 0z\" fill=\"#a855f7\"/><path d=\"M50 32v14M42 38l16 8M58 38l-16 8\" stroke=\"#f59e0b\" stroke-width=\"3\" fill=\"none\"/></svg>",
+      "tags": ["literal", "warm"],
+      "parents": []
+    },
+    {
+      "id": "b",
+      "label": "Beta",
+      "description": "A neon ring with a breakout arc — energy escaping the frame.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"28\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"6\" stroke-dasharray=\"132 44\"/><path d=\"M72 28l14-14\" stroke=\"#f59e0b\" stroke-width=\"6\" stroke-linecap=\"round\"/></svg>",
+      "tags": ["neon", "kinetic"],
+      "parents": []
+    },
+    {
+      "id": "c",
+      "label": "Gamma",
+      "description": "Stacked brainstorm strata — a mind sectioned into glowing layers.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><path d=\"M20 34l30-14 30 14-30 14z\" fill=\"#a855f7\"/><path d=\"M20 52l30 14 30-14\" fill=\"none\" stroke=\"#7c3aed\" stroke-width=\"5\"/><path d=\"M20 68l30 14 30-14\" fill=\"none\" stroke=\"#2dd4bf\" stroke-width=\"5\"/></svg>",
+      "tags": ["abstract", "layered"],
+      "parents": []
+    }
+  ],
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 1,
+    "maxSelect": 3,
+    "elaborationPrompt": "What should round 2 chase?",
+    "allowPerOptionNotes": true,
+    "allowRemix": true,
+    "axes": [
+      { "id": "tone", "label": "Tone", "leftLabel": "Playful", "rightLabel": "Serious", "defaultValue": 40 },
+      { "id": "glow", "label": "Glow", "leftLabel": "Flat", "rightLabel": "Neon", "defaultValue": 50 }
+    ]
+  },
+  "createdAt": "2026-07-07T09:02:00.000Z"
+}

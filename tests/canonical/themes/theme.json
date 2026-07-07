@@ -1,0 +1,29 @@
+{
+  "name": "aurora",
+  "label": "Aurora",
+  "light": {
+    "canvas": "#f7f5ff",
+    "surface": "#ffffff",
+    "surface2": "#efeaff",
+    "line": "#d9d2f2",
+    "ink": "#1c1533",
+    "inkDim": "#6c6490",
+    "accent": "#7c3aed"
+  },
+  "dark": {
+    "canvas": "#120d22",
+    "surface": "#1a1430",
+    "surface2": "#241b42",
+    "line": "#372b5e",
+    "ink": "#efeaff",
+    "inkDim": "#9c92c4",
+    "accent": "#a78bfa"
+  },
+  "palette": [
+    { "name": "Aurora violet", "value": "#7c3aed" },
+    { "name": "Ion teal", "value": "#2dd4bf" },
+    { "name": "Solar amber", "value": "#f59e0b" },
+    { "name": "Deep space ink", "value": "#1c1533" },
+    { "name": "Moon haze", "value": "#efeaff" }
+  ]
+}

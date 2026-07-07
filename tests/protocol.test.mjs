@@ -12,7 +12,11 @@ import {
   SurveyConfigSchema,
   ThemeSchema,
 } from '../packages/protocol/dist/index.js';
+import { loadCanonical } from './canonical/load.mjs';
 
+// Deliberately minimal literals below (OPTION, BOARD_BASE, rejection payloads) probe
+// default application and schema refusal — they stay inline by design (canonical
+// README rule 2 note: omit fields where testing default application matters).
 const OPTION = { id: 'a', label: 'A', svg: '<svg viewBox="0 0 1 1"/>' };
 const BOARD_BASE = {
   id: 'b1',
@@ -152,26 +156,21 @@ test('response rejects invalid triage verdicts and phases', () => {
 });
 
 test('theme requires full light+dark variable sets', () => {
-  const vars = { canvas: '#fff', surface: '#fff', surface2: '#eee', line: '#ddd', ink: '#000', inkDim: '#666', accent: '#a855f7' };
-  assert.equal(ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: vars }).name, 't');
-  assert.throws(() => ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: { ...vars, accent: undefined } }));
+  const theme = loadCanonical('themes/theme.json', ThemeSchema);
+  assert.equal(theme.name, 'aurora');
+  assert.throws(() => ThemeSchema.parse({ ...theme, dark: { ...theme.dark, accent: undefined } }));
 });
 
 test('theme palette is optional; when present its colors are named', () => {
-  const vars = { canvas: '#fff', surface: '#fff', surface2: '#eee', line: '#ddd', ink: '#000', inkDim: '#666', accent: '#a855f7' };
-  const bare = ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: vars });
+  const theme = loadCanonical('themes/theme.json', ThemeSchema);
+  const { palette, ...withoutPalette } = theme;
+  const bare = ThemeSchema.parse(withoutPalette);
   assert.equal(bare.palette, undefined);
-  const curated = ThemeSchema.parse({
-    name: 't',
-    label: 'T',
-    light: vars,
-    dark: vars,
-    palette: [{ name: 'Ultraviolet', value: '#a855f7' }],
-  });
-  assert.deepEqual(curated.palette, [{ name: 'Ultraviolet', value: '#a855f7' }]);
-  assert.throws(() =>
-    ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: vars, palette: [{ value: '#fff' }] }),
-  );
+  assert.ok(theme.palette.length > 0, 'canonical theme carries a curated palette');
+  for (const color of theme.palette) {
+    assert.ok(color.name.length > 0, 'every palette color is named');
+  }
+  assert.throws(() => ThemeSchema.parse({ ...withoutPalette, palette: [{ value: '#fff' }] }));
 });
 
 test('session info: theme and targetRepo overrides are optional', () => {

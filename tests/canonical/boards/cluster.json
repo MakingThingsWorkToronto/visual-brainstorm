@@ -1,0 +1,44 @@
+{
+  "id": "board-cluster-5",
+  "sessionId": "glow-mark-2026-07-07",
+  "round": 5,
+  "kind": "mindmap",
+  "phase": "cluster",
+  "title": "The field — drag what belongs together, together",
+  "prompt": "Round 5: everything still alive, on one field. Distance is data — park kin close, strangers far, and name what lives in the gaps.",
+  "options": [
+    {
+      "id": "halo-4",
+      "label": "Halo Orbit II",
+      "description": "Orbit mark, sabotage-hardened: thicker ring, single moon.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><ellipse cx=\"50\" cy=\"50\" rx=\"32\" ry=\"18\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"7\"/><circle cx=\"50\" cy=\"50\" r=\"10\" fill=\"#f59e0b\"/></svg>",
+      "tags": ["orbital"],
+      "parents": ["halo-3"]
+    },
+    {
+      "id": "ember-4",
+      "label": "Ember Sink II",
+      "description": "Flame-under-strata, simplified to two strokes and one flame.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><path d=\"M22 40l28-12 28 12\" fill=\"none\" stroke=\"#a855f7\" stroke-width=\"6\"/><path d=\"M40 70a10 10 0 0 0 20 0c0-7-10-16-10-16s-10 9-10 16z\" fill=\"#f59e0b\"/></svg>",
+      "tags": ["flame", "layered"],
+      "parents": ["ember-3"]
+    },
+    {
+      "id": "prism-2",
+      "label": "Prism Revenant",
+      "description": "The killed prism, back once more as a control sample.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><path d=\"M50 20L80 72H20z\" fill=\"none\" stroke=\"#2dd4bf\" stroke-width=\"5\"/><path d=\"M62 44l22-8\" stroke=\"#a855f7\" stroke-width=\"4\" stroke-linecap=\"round\"/></svg>",
+      "tags": ["refraction", "control"],
+      "parents": ["prism"]
+    }
+  ],
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 0,
+    "elaborationPrompt": "What do the clusters have in common that the gaps lack?",
+    "allowPerOptionNotes": false,
+    "allowRemix": false,
+    "axes": []
+  },
+  "createdAt": "2026-07-07T09:50:00.000Z"
+}

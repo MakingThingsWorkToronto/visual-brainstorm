@@ -1,0 +1,15 @@
+{
+  "boardId": "board-converge-6",
+  "selectedOptionIds": ["fusion"],
+  "elaboration": "It carries the whole thread: orbit from Halo, flame from Ember, nothing decorative.",
+  "deckVerdicts": {
+    "fusion": "keep",
+    "halo-final": "keep",
+    "prism-final": "kill"
+  },
+  "duelResults": [{ "pair": ["fusion", "halo-final"], "winner": "fusion" }],
+  "ranking": ["fusion", "halo-final"],
+  "action": "finalize",
+  "finalOptionId": "fusion",
+  "respondedAt": "2026-07-07T10:18:00.000Z"
+}

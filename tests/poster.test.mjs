@@ -3,6 +3,8 @@ import assert from 'node:assert';
 import { composePoster } from '../apps/mcp/dist/poster.js';
 import { BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
 
+// Deliberately inline, NOT canonical: these fixtures carry raw `<` in labels and notes
+// to prove XML escaping — hostile edge-case data has no place in tests/canonical.
 const svg = (shape) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">${shape}</svg>`;
 

@@ -1,0 +1,10 @@
+{
+  "boardId": "board-wreck-4",
+  "elaboration": "Both survive small sizes; only the flame survives being described aloud.",
+  "flaws": {
+    "halo-3": "The moon reads as a fleck of dirt below 24px, and the ellipse lies about depth.",
+    "ember-3": "The flame is a generic hot-sauce logo; the strata above it do nothing at a glance."
+  },
+  "action": "iterate",
+  "respondedAt": "2026-07-07T09:44:00.000Z"
+}
