@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { z } from 'zod';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
+  ArtifactChatMessageSchema,
   BoardResponseSchema,
   PaletteColorSchema,
   ProgressEventSchema,
@@ -13,6 +14,7 @@ import {
   SeedIntakeSchema,
   ThemeSchema,
   type Artifact,
+  type ArtifactChatMessage,
   type Board,
   type BoardResponse,
   type ResponseAttachment,
@@ -164,6 +166,7 @@ export class Bridge {
       targetRepo: this.store.info.targetRepo ?? this.options.defaultTargetRepo?.() ?? null,
       progress: this.store.progress.slice(-200),
       tokens: this.store.tokenTotals(),
+      artifactChat: this.store.artifactChat,
     };
   }
 
@@ -411,6 +414,45 @@ export class Bridge {
             this.broadcast({ type: 'progress', event });
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/artifact-chat') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { artifactSlug, text } = z
+              .object({ artifactSlug: z.string(), text: z.string().min(1).max(4000) })
+              .parse(JSON.parse(body));
+            const artifact = this.store.artifacts.find((a) => a.slug === artifactSlug);
+            if (!artifact) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `no artifact "${artifactSlug}" in the live thread` }));
+              return;
+            }
+            this.announceArtifactChat(
+              ArtifactChatMessageSchema.parse({
+                artifactSlug,
+                role: 'user',
+                text,
+                at: new Date().toISOString(),
+              }),
+            );
+            const delivered = this.dispatchCommand(
+              'artifact-chat',
+              text,
+              `Artifact chat: the user is asking about artifact "${artifact.name}" (slug ${artifact.slug}, ` +
+                `SVG at ${artifact.svgPath}). Run .claude/commands/artifact-chat.md: ALWAYS delegate to a ` +
+                `subagent; answer with the reply_artifact_chat tool; if the artifact is changed, capture the ` +
+                `revision with capture_artifact (revises: "${artifact.slug}") and include revisedSlug in the reply.`,
+            );
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, delivered }));
           } catch (err) {
             res.writeHead(400, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: false, error: String(err) }));
@@ -726,6 +768,16 @@ export class Bridge {
 
   announceArtifact(artifact: Artifact): void {
     this.broadcast({ type: 'artifact', artifact });
+  }
+
+  /** Persist + broadcast one artifact-chat message (HTTP user messages and MCP replies both land here). */
+  announceArtifactChat(message: ArtifactChatMessage): void {
+    this.store.recordArtifactChat(message);
+    this.log(
+      `artifact-chat (${message.artifactSlug}) ${message.role}: "${message.text.slice(0, 80)}"` +
+        (message.revisedSlug ? ` → revised as ${message.revisedSlug}` : ''),
+    );
+    this.broadcast({ type: 'artifact-chat', message });
   }
 
   async stop(): Promise<void> {

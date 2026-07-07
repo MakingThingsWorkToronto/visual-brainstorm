@@ -18,7 +18,7 @@ a narrowing phase. Theories: wiki/Product/phase-funnel.md.
 | `mutate` | user is circling one direction but it isn't landing; creative block | one option at a time + distortion lenses | `mutations`: for each optionId, the lenses (flip/invert/stretch/compress/tilt/xray) that "revealed something" — next round REGENERATES those options leaning into what the distortion exposed (e.g. `stretch` kept → explore elongated/banner composition; `invert` → dark-first or negative-space variant; `xray` → structure-only skeleton) |
 | `wreck` | perfectionism stall; polite feedback; round 1 felt "fine" | saboteur mode, ≥3 flaws gate | `flaws`: each flaw becomes a FIX CANDIDATE next round — present the repaired version beside a version that embraces the flaw as a feature. Thank the sabotage; never defend the work |
 | `cluster` | option pool ≥ 8 across rounds; before converging | drag field; distance IS data | `positions`/`clusters`: the user's implicit taxonomy — name the clusters back to them; `gapNotes`: HIGHEST-VALUE SIGNAL — generate the hybrid living between those clusters next round |
-| `converge` | pool is rich enough; time to distill | triage gate (keep/kill/merge + 🏁 Final crown, send locked until complete) | `triage`: `keep` → capture_artifact candidates; `kill` → never regenerate this direction; `merge` → produce ONE synthesis of all merge-marked options next round. **`action:"finalize"` + `finalOptionId`: THE answer — capture_artifact it, then run `.claude/commands/plan-closeout.md` immediately (finality triggers closeout)** |
+| `converge` | pool is rich enough; time to distill | triage gate (keep/kill/merge + 🏁 Final crown, send locked until complete) | `triage`: `keep` → capture_artifact candidates; `kill` → never regenerate this direction; `merge` → produce ONE synthesis of all merge-marked options next round. **`action:"finalize"` + `finalOptionId`: THE answer — capture_artifact it, then `compose_poster` (the shareable decision poster: winner + lineage + notes, composed deterministically from the cached thread), then run `.claude/commands/plan-closeout.md` immediately (finality triggers closeout)**. The studio's ⚔ sudden-death bracket may have crowned it — its duels arrive in `duelResults` |
 
 ## Transition heuristics
 
@@ -49,6 +49,11 @@ a narrowing phase. Theories: wiki/Product/phase-funnel.md.
   again in that thread. Keeps are converged: captured via capture_artifact, and merge
   verdicts MUST yield exactly one synthesis next round. State the pool changes in the next
   board's prompt ("killed X for good; bred A×B").
+- **Judge-deck fields refine the synthesis vector.** `ranking` (when present) orders the
+  keeps strongest-pull first — weight the top ranks hardest when breeding the next round.
+  `deckVerdicts` kills join the thread kill list exactly like triage kills. Each
+  `duelResults` entry is a direct pairwise preference ("winner beat loser head-to-head") —
+  treat it as taste calibration between two directions.
 - **Selections define the SYNTHESIS VECTOR — the iteration law.** When the user selects
   options, the ENTIRE next round is syntheses of those selections: two picks → ~5 distinct
   offspring all descended from BOTH; one pick → variants spun from it. Unselected directions
@@ -62,7 +67,9 @@ a narrowing phase. Theories: wiki/Product/phase-funnel.md.
   components, reconciled topology, duplicates collapsed), drawn as one clean new diagram.
 - **`action:"back"` is the escape hatch.** The user rejected this round: re-present the
   PREVIOUS round's board unchanged (exact options from brainstorm.md / round-N-1
-  board.json) and await a fresh answer. Do not advance the funnel; ignore the rest of that
+  board.json) and await a fresh answer — **but mint a FRESH board id**: the bridge dedups
+  responses first-response-wins per boardId, so re-presenting under the old id silently
+  swallows the new answer. Do not advance the funnel; ignore the rest of that
   response as steering.
 - **`brainstorm.md` in the thread dir is the append-only text memory** — every round's
   options (labels, descriptions, lineage) and every response digest, auto-written by the
@@ -76,3 +83,5 @@ a narrowing phase. Theories: wiki/Product/phase-funnel.md.
 - 2026-07-06 — SYNTHESIS VECTOR law + brainstorm.md text memory (operator: "disconnect between user action and previous results — select bulb + chat → next 5 options synthesize bulb×bubble; this is how the brainstorm moves forward")
 - 2026-07-06 — expand phase (pool grows with syntheses of selections) + finalize contract (🏁 Final crown → capture + plan-closeout) + new-brainstorm seed prompt (operator directives)
 - 2026-07-06 — synthesis-by-MEANING law (never overlay parent SVGs; system-map = merge architectures) + back action contract (operator: "expand overlays both images — expand from the meaning in each image")
+- 2026-07-06 — back re-present mints a fresh board id (bridge first-response-wins dedup) (from phase-funnel-ux-2026-07-05)
+- 2026-07-06 — journey-UX build (studio-journey-ux plan): judge-deck fields (ranking/deckVerdicts/duelResults) interpretation rule; finalize contract now includes compose_poster; sudden-death bracket duels arrive in duelResults

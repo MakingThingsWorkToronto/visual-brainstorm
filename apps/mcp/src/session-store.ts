@@ -1,12 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  ArtifactChatMessageSchema,
   ArtifactSchema,
   BoardResponseSchema,
   BoardSchema,
   ProgressEventSchema,
   SessionInfoSchema,
   type Artifact,
+  type ArtifactChatMessage,
   type Board,
   type BoardResponse,
   type DiscussionSummary,
@@ -60,6 +62,8 @@ export class SessionStore {
   readonly artifacts: Artifact[] = [];
   /** Session-progress events (progress.jsonl) — deterministic UI feedback, reloadable. */
   readonly progress: ProgressEvent[] = [];
+  /** Artifact chat dialogs (artifacts/chat.jsonl) — append-only, reloadable (rule 7). */
+  readonly artifactChat: ArtifactChatMessage[] = [];
 
   /** Create a NEW thread under the discussion root. */
   constructor(title: string, root: string) {
@@ -101,7 +105,19 @@ export class SessionStore {
       rounds: [],
       artifacts: [],
       progress: [],
+      artifactChat: [],
     });
+    const chatFile = path.join(dir, 'artifacts', 'chat.jsonl');
+    if (fs.existsSync(chatFile)) {
+      for (const line of fs.readFileSync(chatFile, 'utf8').split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          store.artifactChat.push(ArtifactChatMessageSchema.parse(JSON.parse(line)));
+        } catch (err) {
+          console.error(`[store] skipping artifact-chat line: ${String(err)}`);
+        }
+      }
+    }
     const progressFile = path.join(dir, 'progress.jsonl');
     if (fs.existsSync(progressFile)) {
       for (const line of fs.readFileSync(progressFile, 'utf8').split('\n')) {
@@ -262,11 +278,31 @@ export class SessionStore {
     }
   }
 
+  /**
+   * Artifact-chat message (rule 7 recall): kept in memory for the studio and
+   * appended to artifacts/chat.jsonl — never rewritten, reloads with the
+   * thread. Also leaves a one-line trace in brainstorm.md (the text memory).
+   */
+  recordArtifactChat(message: ArtifactChatMessage): void {
+    this.artifactChat.push(message);
+    try {
+      const dir = path.join(this.info.dir, 'artifacts');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, 'chat.jsonl'), JSON.stringify(message) + '\n');
+    } catch (err) {
+      console.error(`[store] artifacts/chat.jsonl append failed: ${String(err)}`);
+    }
+    this.appendMd(
+      `\n> Artifact chat (\`${message.artifactSlug}\`) ${message.role}: ${message.text}` +
+        (message.revisedSlug ? ` → revised as \`${message.revisedSlug}\`` : ''),
+    );
+  }
+
   captureArtifact(
     name: string,
     svg: string,
     notes: string,
-    provenance: { boardId?: string; optionIds: string[] },
+    provenance: { boardId?: string; optionIds: string[]; revises?: string },
   ): Artifact {
     const base = slugify(name);
     let slug = base;

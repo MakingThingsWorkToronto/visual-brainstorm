@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { BUILTIN_THEMES } from '../apps/mcp/dist/themes.js';
+import { ArtifactChatMessageSchema } from '../packages/protocol/dist/index.js';
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-smoke-'));
 const store = new SessionStore('Smoke test session', scratch);
@@ -284,6 +285,70 @@ assert.equal(landed?.command, 'new-brainstorm');
 assert.equal(landed?.prompt, 'from the landing panel');
 assert.deepEqual(bridge.peekCommands(), [], 'waiter consumed the command, not the queue');
 
+// Artifact chat: an unknown slug is an honest 404…
+const badChat = await fetch(`http://127.0.0.1:${bridge.port}/api/artifact-chat`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ artifactSlug: 'no-such', text: 'hi' }),
+});
+assert.equal(badChat.status, 404, 'unknown artifact slug rejected honestly');
+
+// …a real slug persists a user message, broadcasts it, and rides the command plumbing
+// (no board is waiting here — the landing waiter above consumed the last command).
+const chatRes = await fetch(`http://127.0.0.1:${bridge.port}/api/artifact-chat`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ artifactSlug: artifact.slug, text: 'why this glow?' }),
+});
+assert.equal(chatRes.status, 200);
+const chatBody = await chatRes.json();
+assert.equal(chatBody.ok, true);
+assert.equal(chatBody.delivered, 'queued', 'no board waiting → chat request queued');
+const [chatReq] = bridge.drainCommands();
+assert.equal(chatReq.command, 'artifact-chat', 'chat rides the UI-command plumbing');
+assert.ok(chatReq.prompt.includes('why this glow?'), 'prompt carries the chat text');
+assert.ok(chatReq.seedNote.includes(artifact.slug), 'seed note names the artifact');
+const chatFile = path.join(store.info.dir, 'artifacts', 'chat.jsonl');
+assert.ok(fs.existsSync(chatFile), 'artifacts/chat.jsonl on disk');
+assert.ok(fs.readFileSync(chatFile, 'utf8').includes('why this glow?'), 'user line persisted');
+let chatState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.ok((chatState.artifactChat ?? []).length >= 1, '/api/state carries artifactChat');
+assert.equal(chatState.artifactChat[0].role, 'user');
+// WS broadcast delivery is async — give it a beat before asserting.
+for (let i = 0; i < 20 && !seen.includes('artifact-chat'); i++) await new Promise((r) => setTimeout(r, 50));
+assert.ok(seen.includes('artifact-chat'), `ws saw artifact-chat envelope, saw: ${seen}`);
+
+// Claude reply path: a revision artifact (provenance.revises) + announceArtifactChat —
+// the reply lands in state, chat.jsonl, and reloads via SessionStore.open.
+const revised = store.captureArtifact('winner revised', board.options[0].svg, 'tightened glow', {
+  boardId: board.id,
+  optionIds: ['a'],
+  revises: artifact.slug,
+});
+assert.equal(revised.provenance.revises, artifact.slug, 'capture carries provenance.revises');
+bridge.announceArtifactChat(
+  ArtifactChatMessageSchema.parse({
+    artifactSlug: artifact.slug,
+    role: 'claude',
+    text: 'tightened the glow — see the revision',
+    at: new Date().toISOString(),
+    revisedSlug: revised.slug,
+  }),
+);
+chatState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.deepEqual(
+  chatState.artifactChat.map((m) => m.role),
+  ['user', 'claude'],
+  'both roles in state after announce',
+);
+assert.equal(chatState.artifactChat[1].revisedSlug, revised.slug, 'claude reply names the revision');
+assert.equal(
+  fs.readFileSync(chatFile, 'utf8').split('\n').filter((l) => l.trim()).length,
+  2,
+  'chat.jsonl has one line per message',
+);
+assert.equal(SessionStore.open(store.info.dir).artifactChat.length, 2, 'chat reloads via SessionStore.open');
+
 // Palette editing: an edited theme persists as a drop-in JSON and refreshes state.
 const neon = BUILTIN_THEMES.find((t) => t.name === 'neon-purple');
 const edited = {
@@ -452,5 +517,5 @@ ws.close();
 await bridge.stop();
 fs.rmSync(scratch, { recursive: true, force: true });
 console.log(
-  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook)',
+  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook)',
 );

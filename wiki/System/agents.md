@@ -12,4 +12,9 @@ Subagents with scoped tools and embedded procedure. Use them instead of ad-hoc w
 Model delegation flow: user picks a model in the composer → `BoardResponse.model` →
 orchestrator spawns `svg-artisan` with that model override → artisan returns options JSON →
 orchestrator presents the board. The orchestrator never stops orchestrating; only
-generation is delegated.
+generation is delegated. Artifact chat (`.claude/commands/artifact-chat.md`) ALWAYS
+delegates (operator mandate): questions → a general subagent reading the SVG +
+`brainstorm.md`; revision requests → `svg-artisan` (thread model override applies). The
+orchestrator only routes the message and delivers the reply
+(`reply_artifact_chat` / `capture_artifact` with `revises`) — it never answers or
+regenerates inline.

@@ -10,6 +10,7 @@ const EMPTY: StudioState = {
   rounds: [],
   activeBoard: null,
   artifacts: [],
+  artifactChat: [],
   thinking: null,
   engine: 'claude',
   themes: [],
@@ -72,6 +73,8 @@ export function useBridge() {
               return { ...prev, thinking: msg.note };
             case 'artifact':
               return { ...prev, artifacts: [...prev.artifacts, msg.artifact] };
+            case 'artifact-chat':
+              return { ...prev, artifactChat: [...prev.artifactChat, msg.message] };
             case 'progress':
               return {
                 ...prev,

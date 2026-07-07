@@ -8,7 +8,7 @@ round and every artifact is captured to your repo.
 ```
 Claude Code ──stdio MCP──▶ visual-brainstorm ──WebSocket──▶ studio (your browser)
 Claude Code ◀─tool result─          ▲          ◀─── you click "Send & iterate" ───┘
-                                    └── every SVG + response persisted to .visual-brainstorm/
+                                    └── every SVG + response persisted to discussion/&lt;thread&gt;/
 ```
 
 Mashup-culture architecture: three small pieces loosely joined — Claude Code (intelligence),
@@ -24,7 +24,7 @@ an MCP server (glue), a local React app (surface). No accounts, no cloud, MIT.
 5. Claude gets your response as the tool result — including the **model** you picked for the
    next round, which the orchestrator delegates to — and presents round 2. Repeat until **✓ Accept**.
 6. Winners are captured via **`capture_artifact`** — SVGs with full provenance land in the
-   thread cache at `.docs/discussion/…` (and in your `targetRepo`, if configured), ready to commit.
+   thread cache at `discussion/…` (and in your `targetRepo`, if configured), ready to commit.
 7. Every thread is fully cached: reopen it from the studio's **left nav**, or have Claude
    resume it with `discussionId`. Nothing is ever regenerated. Any option opens **full-screen**
    with zoom/pan (pinch on mobile) — system diagrams stay readable.
@@ -41,7 +41,7 @@ npm test          # unit + integration smoke + UI render smoke
 npm run preview   # fixtures-only UI tour (no generator) → http://127.0.0.1:5199
 ```
 
-Full walkthrough of every control: **[.docs/user-guide.md](.docs/user-guide.md)**.
+Full walkthrough of every control: **[wiki/user-guide.md](wiki/user-guide.md)**.
 
 Register with Claude Code (from your own project directory):
 
@@ -68,7 +68,7 @@ visual. Tip: raise the MCP tool timeout so boards can wait for slow humans —
 `visual-brainstorm.config.json` in your project root (all optional): `targetRepo` (also
 receive artifacts there), `stylesDir` (theme JSON drop-ins, default `styles/`), `theme`
 (default `neon-purple`), `models` + `defaultModel` (composer picker), `discussionDir`
-(thread cache, default `.docs/discussion`). Themes are pickable visually in the studio
+(thread cache, default `discussion`). Themes are pickable visually in the studio
 header or by editing the config — see `styles/sunset.json` for the drop-in format.
 
 ## Repo map
@@ -77,8 +77,9 @@ header or by editing the config — see `styles/sunset.json` for the drop-in for
 packages/protocol   zod schemas — the single source of truth for message shapes
 apps/mcp            stdio MCP server + local bridge (http/WS) + session persistence
 apps/studio         Vite + React + Tailwind v4 survey UI (shadcn-chat-inspired)
-wiki/               authoritative facts & guardrails (start: Requirements/system-architecture.md)
-.docs/discussion/   plans; .agents/ learnings & skills — the agentic architecture is load-bearing
+wiki/               authoritative facts & guardrails + user-guide.md (start: README.md there)
+discussion/         plans + the brainstorm thread cache (_completed/ = archive; .logs/ = runtime logs)
+.claude/            commands (procedures) · skills (craft) · agents (specialized roles)
 ```
 
-Contributors: read `CLAUDE.md` first — 10 rules, all enforced.
+Contributors: read `CLAUDE.md` first — 12 rules + the session bootstrap, all enforced.

@@ -256,19 +256,53 @@ server.tool(
   'capture_artifact',
   'Persist an accepted/final SVG artifact with provenance to the thread directory (every artifact is captured — rule 7). ' +
     'Also copies to <targetRepo>/brainstorm-artifacts/ when a target repo/folder is set (per-thread via the studio 📁 ' +
-    'button, or the default in visual-brainstorm.config.json). Shows on the studio artifact shelf.',
+    'button, or the default in visual-brainstorm.config.json). Shows on the studio artifact shelf. ' +
+    'A CHANGE to an existing artifact (e.g. from the artifact chat) is a NEW capture with `revises` set to the ' +
+    'original slug — the original is never overwritten (rule 7); the studio refreshes every display of it.',
   {
     name: z.string(),
     svg: z.string(),
     notes: z.string().default(''),
     boardId: z.string().optional(),
     optionIds: z.array(z.string()).default([]),
+    revises: z.string().optional().describe('Slug of the artifact this capture revises (artifact-chat changes)'),
   },
-  async ({ name, svg, notes, boardId, optionIds }) => {
+  async ({ name, svg, notes, boardId, optionIds, revises }) => {
     const { store, bridge } = ensureSession(name);
-    const artifact = store.captureArtifact(name, svg, notes, { boardId, optionIds });
+    const artifact = store.captureArtifact(name, svg, notes, { boardId, optionIds, revises });
     bridge.announceArtifact(artifact);
     return text({ status: 'captured', artifact, copiedTo: copyToTargetRepo(artifact) });
+  },
+);
+
+server.tool(
+  'reply_artifact_chat',
+  'Post Claude\'s reply into an artifact\'s chat dialog (fullscreen artifact view in the studio). The reply ' +
+    'MUST be authored by a subagent per .claude/commands/artifact-chat.md — the orchestrator only routes. ' +
+    'If the request changed the artifact, first capture_artifact the revision with `revises` set, then pass ' +
+    'its slug as revisedSlug here so every display refreshes. The dialog persists append-only to the ' +
+    'thread\'s artifacts/chat.jsonl (rule 7). Keep replies chat-short.',
+  {
+    artifactSlug: z.string().describe('The artifact whose dialog this reply belongs to (the ORIGINAL slug)'),
+    text: z.string().min(1).max(4000),
+    revisedSlug: z.string().optional().describe('Slug of the newly captured revision, when the artifact was changed'),
+  },
+  async ({ artifactSlug, text: replyText, revisedSlug }) => {
+    if (!store || !bridge) {
+      return text({ status: 'no-session', hint: 'reply_artifact_chat needs the live thread that owns the artifact' });
+    }
+    if (!store.artifacts.some((a) => a.slug === artifactSlug)) {
+      return text({ status: 'unknown-artifact', artifactSlug, hint: 'use the ORIGINAL artifact slug from the chat request' });
+    }
+    const message = {
+      artifactSlug,
+      role: 'claude' as const,
+      text: replyText,
+      at: new Date().toISOString(),
+      ...(revisedSlug ? { revisedSlug } : {}),
+    };
+    bridge.announceArtifactChat(message);
+    return text({ status: 'replied', message });
   },
 );
 

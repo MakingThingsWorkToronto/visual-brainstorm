@@ -21,4 +21,4 @@ pole from "pick among static SVG options" to **co-editing one living structure**
 second engine into the bundle; export fidelity to be verified.
 
 **Verdict:** adopt as a phase-2 mechanic behind a new board kind payload — plan it as its
-own `.docs/discussion/` session (protocol change → rule: update packages/protocol first).
+own `discussion/` session (protocol change → rule: update packages/protocol first).

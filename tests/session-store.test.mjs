@@ -4,7 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { SessionStore, slugify } from '../apps/mcp/dist/session-store.js';
-import { BoardResponseSchema, ProgressEventSchema } from '../packages/protocol/dist/index.js';
+import {
+  ArtifactChatMessageSchema,
+  ArtifactSchema,
+  BoardResponseSchema,
+  ProgressEventSchema,
+} from '../packages/protocol/dist/index.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'));
 
@@ -38,6 +43,16 @@ const response = (boardId) =>
 // Through the schema, like every production path — defaults stay in sync (rule 5).
 const progressEvent = (note, overrides = {}) =>
   ProgressEventSchema.parse({ at: '2026-07-06T10:00:00.000Z', note, ...overrides });
+
+// Through the schema, like every production path — defaults stay in sync (rule 5).
+const chatMessage = (overrides = {}) =>
+  ArtifactChatMessageSchema.parse({
+    artifactSlug: 'glow-mark',
+    role: 'user',
+    text: 'why this glow?',
+    at: '2026-07-07T10:00:00.000Z',
+    ...overrides,
+  });
 
 test('slugify produces safe kebab slugs', () => {
   assert.equal(slugify('Visualize 5 OPTIONS!! for search'), 'visualize-5-options-for-search');
@@ -139,6 +154,78 @@ test('list() summaries carry per-thread token totals; 0 without a progress file'
   const list = SessionStore.list(root);
   assert.equal(list.find((d) => d.title === 'Counting thread').tokens, 165, 'input+output combined');
   assert.equal(list.find((d) => d.title === 'Quiet thread').tokens, 0, 'no progress file → 0');
+});
+
+test('recordArtifactChat persists to artifacts/chat.jsonl and reloads in order', () => {
+  const root = tmp();
+  const store = new SessionStore('Artifact chat test', root);
+  const userMsg = chatMessage();
+  const claudeMsg = chatMessage({
+    role: 'claude',
+    text: 'tightened the glow — see the revision',
+    at: '2026-07-07T10:01:00.000Z',
+    revisedSlug: 'glow-mark-2',
+  });
+  store.recordArtifactChat(userMsg);
+  store.recordArtifactChat(claudeMsg);
+
+  const file = path.join(store.info.dir, 'artifacts', 'chat.jsonl');
+  assert.ok(fs.existsSync(file), 'artifacts/chat.jsonl written');
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter((l) => l.trim());
+  assert.equal(lines.length, 2, 'one JSON line per message');
+  assert.equal(JSON.parse(lines[0]).role, 'user');
+  assert.equal(JSON.parse(lines[1]).revisedSlug, 'glow-mark-2');
+  assert.deepEqual(store.artifactChat, [userMsg, claudeMsg], 'in-memory chat tracks records');
+
+  const md = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+  assert.ok(
+    md.includes('glow-mark') || md.includes('why this glow?'),
+    'brainstorm.md gets a line referencing the chat',
+  );
+
+  const reopened = SessionStore.open(store.info.dir);
+  assert.deepEqual(reopened.artifactChat, [userMsg, claudeMsg], 'chat reloads in order with all fields');
+});
+
+test('a corrupted chat.jsonl line is skipped on reload', () => {
+  const root = tmp();
+  const store = new SessionStore('Corrupt chat test', root);
+  store.recordArtifactChat(chatMessage({ text: 'before the corruption' }));
+  const file = path.join(store.info.dir, 'artifacts', 'chat.jsonl');
+  fs.appendFileSync(file, 'this is { not json\n');
+  store.recordArtifactChat(chatMessage({ text: 'after the corruption' }));
+
+  let reopened;
+  assert.doesNotThrow(() => {
+    reopened = SessionStore.open(store.info.dir);
+  }, 'malformed line never throws');
+  assert.equal(reopened.artifactChat.length, 2, 'corrupt line skipped, valid messages kept');
+  assert.deepEqual(
+    reopened.artifactChat.map((m) => m.text),
+    ['before the corruption', 'after the corruption'],
+    'order preserved around the skipped line',
+  );
+});
+
+test('captureArtifact records provenance.revises', () => {
+  const root = tmp();
+  const store = new SessionStore('Revises test', root);
+  const first = store.captureArtifact('Winner', '<svg/>', 'n', { optionIds: ['a'] });
+  const second = store.captureArtifact('Winner revised', '<svg/>', 'n', {
+    boardId: 'b1',
+    optionIds: ['b'],
+    revises: first.slug,
+  });
+  assert.equal(second.provenance.revises, first.slug, 'returned artifact carries revises');
+  // The sidecar on disk must round-trip through the schema (rule 5), revises intact.
+  const sidecar = ArtifactSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'artifacts', `${second.slug}.json`), 'utf8')),
+  );
+  assert.equal(sidecar.provenance.revises, first.slug, 'sidecar parses with provenance.revises');
+  const firstSidecar = ArtifactSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'artifacts', `${first.slug}.json`), 'utf8')),
+  );
+  assert.equal(firstSidecar.provenance.revises, undefined, 'revises stays absent when not passed');
 });
 
 test('artifacts capture with provenance and slug dedupe', () => {

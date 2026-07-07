@@ -14,7 +14,7 @@ them with the same survey machinery; Claude varies the SVG content and option co
 | `palette` | color systems with swatches + sample applications | select + axis dials (warm↔cool etc.) |
 | `freeform` | anything | whatever Claude configures |
 
-## Roadmap (visionary backlog — implement via `.docs/discussion/` plans)
+## Roadmap (visionary backlog — implement via `discussion/` plans)
 
 - **Sketch-back annotations.** Draw on an option in the studio; strokes return to Claude as an
   SVG overlay — pointing beats describing.

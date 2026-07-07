@@ -194,10 +194,31 @@ export const ArtifactSchema = z.object({
   provenance: z.object({
     boardId: z.string().optional(),
     optionIds: z.array(z.string()).default([]),
+    /** Artifact-chat revision lineage: the slug of the artifact this one revised. */
+    revises: z.string().optional(),
   }),
   capturedAt: z.string(),
 });
 export type Artifact = z.infer<typeof ArtifactSchema>;
+
+/**
+ * One message in an artifact's chat dialog (fullscreen artifact view). The
+ * dialog persists append-only to the thread's artifacts/chat.jsonl (rule 7);
+ * user messages arrive via POST /api/artifact-chat, Claude's replies via the
+ * reply_artifact_chat MCP tool — always authored by a subagent. A reply that
+ * changed the artifact names the NEW captured version in revisedSlug (the
+ * original is never overwritten).
+ */
+export const ArtifactChatMessageSchema = z.object({
+  /** Which artifact this dialog belongs to (Artifact.slug in its thread). */
+  artifactSlug: z.string(),
+  role: z.enum(['user', 'claude']),
+  text: z.string(),
+  at: z.string(),
+  /** On a claude reply that revised the artifact: the new version's slug. */
+  revisedSlug: z.string().optional(),
+});
+export type ArtifactChatMessage = z.infer<typeof ArtifactChatMessageSchema>;
 
 export const SessionInfoSchema = z.object({
   id: z.string(),
@@ -310,6 +331,8 @@ export interface StudioState {
   progress: ProgressEvent[];
   /** Token meter: the live thread's cumulative totals over ALL its progress events. */
   tokens: { input: number; output: number };
+  /** Artifact chat dialogs (all slugs mixed — filter by artifactSlug client-side). */
+  artifactChat: ArtifactChatMessage[];
 }
 
 export type ServerToStudio =
@@ -318,6 +341,7 @@ export type ServerToStudio =
   | { type: 'thinking'; note: string | null }
   | { type: 'responded'; boardId: string; response: BoardResponse }
   | { type: 'artifact'; artifact: Artifact }
-  | { type: 'progress'; event: ProgressEvent };
+  | { type: 'progress'; event: ProgressEvent }
+  | { type: 'artifact-chat'; message: ArtifactChatMessage };
 
 export type StudioToServer = { type: 'response'; response: BoardResponse };

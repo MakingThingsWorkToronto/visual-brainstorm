@@ -5,6 +5,7 @@ the wiki wins until explicitly amended (and every amendment is logged in `log.md
 
 ## Index
 
+- **[user-guide.md](user-guide.md)** — how humans use the tool, step by step, with diagrams (start here if you're new)
 - **Requirements/**
   - [system-architecture.md](Requirements/system-architecture.md) — **architecture lock**: monorepo shape, data flow, ports, persistence layout
   - [interaction-protocol.md](Requirements/interaction-protocol.md) — the brainstorm loop, MCP tools, response actions, timeout strategy

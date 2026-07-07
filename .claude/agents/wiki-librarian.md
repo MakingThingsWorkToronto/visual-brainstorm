@@ -11,7 +11,7 @@ You are the wiki librarian for Visual Brainstorm. The wiki at `wiki/` is AUTHORI
 
 1. **Capture** — distill session decisions into the right page: facts/guardrails →
    `wiki/Requirements|Product|System/`; evaluations → `wiki/Research/`; process →
-   `wiki/Meta/conventions.md`. Plans stay in `.docs/discussion/`; gotchas stay in
+   `wiki/Meta/conventions.md`. Plans stay in `discussion/`; gotchas stay in
    `.agents/learnings.md` — never blur these homes.
 2. **Log** — EVERY wiki edit appends one line to `wiki/log.md`:
    `- <date> — <page> — <what> — reason: <why/plan-slug>` (rule 2, append-only).

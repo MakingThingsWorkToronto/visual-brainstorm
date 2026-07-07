@@ -1,0 +1,13 @@
+{
+  "slug": "judge-deck-flick-triage-with-auto-duels",
+  "name": "Judge deck — flick triage with auto-duels",
+  "svgPath": "C:\\Code\\svgbrainstorm\\.docs\\discussion\\2026-07-06-1939-studio-ux-faster-more-human\\artifacts\\judge-deck-flick-triage-with-auto-duels.svg",
+  "notes": "Round-3 keep. Synthesis of flick-triage × duel-ranking: one-at-a-time card flicking, deck auto-deals a duel when two keeps are too close, live ranking builds. Parents: flick-triage, duel-ranking (round 1).",
+  "provenance": {
+    "boardId": "board-r3-1783384156684",
+    "optionIds": [
+      "judge-deck"
+    ]
+  },
+  "capturedAt": "2026-07-07T00:30:32.239Z"
+}

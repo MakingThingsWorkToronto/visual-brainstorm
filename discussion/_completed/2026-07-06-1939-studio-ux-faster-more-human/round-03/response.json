@@ -1,0 +1,37 @@
+{
+  "boardId": "board-r3-1783384156684",
+  "selectedOptionIds": [
+    "judge-deck",
+    "wayfinder-strip",
+    "sudden-death",
+    "open-with-anything",
+    "one-sitting-journey"
+  ],
+  "elaboration": "all of these ship. generate a plan to build all of these now.",
+  "perOptionNotes": {},
+  "axisValues": {
+    "pace": 50,
+    "steering": 50,
+    "focus": 50,
+    "gesture": 50,
+    "artifact": 50,
+    "novelty": 60
+  },
+  "remixPairs": [],
+  "action": "accept",
+  "model": "claude-fable-5",
+  "triage": {
+    "judge-deck": "keep",
+    "wayfinder-strip": "keep",
+    "sudden-death": "keep",
+    "open-with-anything": "keep",
+    "one-sitting-journey": "keep"
+  },
+  "mutations": {},
+  "flaws": {},
+  "positions": {},
+  "clusters": [],
+  "gapNotes": [],
+  "commands": [],
+  "respondedAt": "2026-07-07T00:30:00.949Z"
+}

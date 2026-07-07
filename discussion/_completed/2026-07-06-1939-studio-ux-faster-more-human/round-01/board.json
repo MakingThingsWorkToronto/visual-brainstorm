@@ -1,0 +1,159 @@
+{
+  "id": "board-r1-1783381177247",
+  "sessionId": "2026-07-06-1939-studio-ux-faster-more-human",
+  "round": 1,
+  "kind": "storyboard",
+  "phase": "diverge",
+  "title": "Studio UX — faster, more human",
+  "prompt": "Round 1 · DIVERGE — eight storyboard concepts for making the studio simpler and faster for humans, two per territory: judging boards, moving through phases, taking outputs away, and starting sessions. Each tells a 3-beat story of a person actually using it. Judge the STORY: which of these would make you reach for the tool more often? Select the ones with energy, note what specifically clicks, remix pairs that belong together. Wildcards (sketch-a-seed, voice chips) are deliberately out there — kill them loudly if they miss.",
+  "options": [
+    {
+      "id": "flick-triage",
+      "label": "Flick to judge",
+      "description": "Options come one at a time, phone-card sized — flick right keeps, left kills; the whole pool is triaged in seconds from the couch.",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='43' y='58' width='50' height='96' rx='8'/><rect x='51' y='72' width='34' height='46' rx='4'/><circle cx='68' cy='90' r='8'/><path d='M56 108 h24'/></g><text x='68' y='176' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>1 / 8</text><circle cx='68' cy='196' r='7' stroke='currentColor' fill='none' stroke-width='1.5'/><path d='M68 189 v-6' stroke='currentColor' stroke-width='1.5'/><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='175' y='58' width='50' height='96' rx='8'/></g><g transform='rotate(18 218 96)' stroke='#A855F7' fill='none' stroke-width='1.5'><rect x='201' y='73' width='34' height='46' rx='4'/></g><path d='M228 96 h20 m0 0 l-6 -5 m6 5 l-6 5' stroke='#A855F7' fill='none' stroke-width='2' stroke-linecap='round'/><path d='M172 96 h-14 m0 0 l5 -4 m-5 4 l5 4' stroke='currentColor' fill='none' stroke-width='1.2' stroke-linecap='round' opacity='0.5'/><text x='158' y='86' fill='currentColor' font-size='9' font-family='system-ui,sans-serif' opacity='0.6'>kill</text><text x='246' y='86' fill='#A855F7' font-size='9' font-family='system-ui,sans-serif'>keep</text><circle cx='332' cy='96' r='22' stroke='#A855F7' fill='none' stroke-width='2.5'/><path d='M322 96 l7 7 l14 -15' stroke='#A855F7' fill='none' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='312' y='140' width='30' height='40' rx='3'/><rect x='318' y='146' width='30' height='40' rx='3'/><rect x='324' y='152' width='30' height='40' rx='3'/></g><text x='332' y='210' fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'>8/8 · 30 sec</text><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>One option at a time,</text><text x='68' y='261'>a card under a thumb</text><text x='200' y='248'>Flick right keeps,</text><text x='200' y='261'>left kills, up remixes</text><text x='332' y='248'>Pool triaged in</text><text x='332' y='261'>seconds, from a couch</text></g></svg>",
+      "tags": [
+        "board-review",
+        "speed",
+        "gesture"
+      ],
+      "parents": []
+    },
+    {
+      "id": "duel-ranking",
+      "label": "Duel bracket",
+      "description": "Judging becomes pairwise duels — click the better of two, winners advance through a bracket, and a full ranking emerges from seven clicks with no dials.",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='20' y='78' width='40' height='54' rx='4'/><circle cx='40' cy='98' r='9'/></g><g stroke='#A855F7' fill='none' stroke-width='2'><rect x='76' y='78' width='40' height='54' rx='4'/><rect x='84' y='90' width='24' height='18' rx='2'/></g><text x='40' y='150' fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'>A</text><text x='96' y='150' fill='#A855F7' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'>B</text><text x='68' y='108' fill='currentColor' font-family='system-ui,sans-serif' font-size='11' text-anchor='middle'>vs</text><path d='M100 160 l6 14 l4 -5 l6 6' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><g stroke='currentColor' fill='none' stroke-width='1.5'><path d='M156 62 h16 M156 92 h16 M172 62 v30 M172 77 h18'/><path d='M156 122 h16 M156 152 h16 M172 122 v30 M172 137 h18'/><path d='M190 77 v60 M190 107 h18'/></g><path d='M156 62 h16 M172 62 v15 M172 77 h18 M190 77 v30 M190 107 h18' stroke='#A855F7' fill='none' stroke-width='2.5' stroke-linecap='round'/><circle cx='214' cy='107' r='9' stroke='#A855F7' fill='none' stroke-width='2'/><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='304' y='120' width='22' height='60'/><rect x='282' y='140' width='22' height='40'/><rect x='326' y='152' width='22' height='28'/></g><path d='M308 108 l3 -8 l4 5 l4 -5 l3 8 z' stroke='#A855F7' fill='none' stroke-width='2' stroke-linejoin='round'/><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='315' y='196'>1</text><text x='293' y='196'>2</text><text x='337' y='196'>3</text></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>Two options face off —</text><text x='68' y='261'>click the better one</text><text x='200' y='248'>Winners advance</text><text x='200' y='261'>through a bracket</text><text x='332' y='248'>Seven clicks yield</text><text x='332' y='261'>a full ranking</text></g></svg>",
+      "tags": [
+        "board-review",
+        "ranking",
+        "game"
+      ],
+      "parents": []
+    },
+    {
+      "id": "filmstrip-funnel",
+      "label": "Filmstrip funnel",
+      "description": "A persistent thumbnail strip of every round sits above the board — click any round to jump back, and the strip itself narrows visually toward the crowned winner.",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='20' y='52' width='96' height='120' rx='4'/><rect x='26' y='58' width='14' height='14' rx='2'/><rect x='44' y='58' width='14' height='14' rx='2'/><rect x='62' y='58' width='14' height='14' rx='2'/></g><rect x='80' y='58' width='14' height='14' rx='2' stroke='#A855F7' fill='none' stroke-width='2'/><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='28' y='84' width='36' height='30' rx='3'/><rect x='72' y='84' width='36' height='30' rx='3'/><rect x='28' y='122' width='36' height='30' rx='3'/><rect x='72' y='122' width='36' height='30' rx='3'/></g><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='152' y='52' width='96' height='120' rx='4'/><rect x='158' y='58' width='14' height='14' rx='2'/><rect x='194' y='58' width='14' height='14' rx='2'/><rect x='212' y='58' width='14' height='14' rx='2'/></g><rect x='176' y='58' width='14' height='14' rx='2' stroke='#A855F7' fill='none' stroke-width='2'/><path d='M214 74 q-20 22 -29 -4' stroke='#A855F7' fill='none' stroke-width='1.8' stroke-linecap='round'/><path d='M185 70 l0 6 l6 -1' stroke='#A855F7' fill='none' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/><path d='M196 108 l6 14 l4 -5 l6 6' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><text x='200' y='150' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>back to round 2</text><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='284' y='90' width='26' height='26' rx='3'/><rect x='316' y='95' width='20' height='20' rx='3'/><rect x='342' y='99' width='15' height='15' rx='3'/></g><rect x='363' y='102' width='11' height='11' rx='2' stroke='#A855F7' fill='none' stroke-width='2'/><path d='M364 96 l2 -5 l2.5 3 l2.5 -3 l2 5 z' stroke='#A855F7' fill='none' stroke-width='1.5' stroke-linejoin='round'/><path d='M284 130 q45 20 88 -14' stroke='currentColor' fill='none' stroke-width='1.2' stroke-dasharray='3 3'/><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>Every round is a</text><text x='68' y='261'>thumbnail up top</text><text x='200' y='248'>Lost? Click any round</text><text x='200' y='261'>to jump back in time</text><text x='332' y='248'>The strip narrows to</text><text x='332' y='261'>the crowned winner</text></g></svg>",
+      "tags": [
+        "flow",
+        "orientation",
+        "history"
+      ],
+      "parents": []
+    },
+    {
+      "id": "phase-autopilot",
+      "label": "Phase autopilot",
+      "description": "The studio watches your judging and proposes the next phase as one big glowing button — pressing Enter advances the funnel; you never think about phase names.",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='24' y='60' width='38' height='34' rx='3'/><rect x='72' y='60' width='38' height='34' rx='3'/><rect x='24' y='104' width='38' height='34' rx='3'/><rect x='72' y='104' width='38' height='34' rx='3'/></g><path d='M30 66 l5 5 l9 -9' stroke='#A855F7' fill='none' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/><path d='M78 110 l5 5 l9 -9' stroke='#A855F7' fill='none' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/><g stroke='currentColor' fill='none' stroke-width='1.5'><ellipse cx='68' cy='176' rx='16' ry='9'/><circle cx='68' cy='176' r='3.5'/></g><g stroke='#A855F7' fill='none' stroke-width='2'><rect x='154' y='96' width='92' height='34' rx='17'/></g><text x='200' y='117' fill='#A855F7' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'>pool full → cluster</text><g stroke='#A855F7' fill='none' stroke-width='1.2' opacity='0.6'><path d='M154 88 l-6 -6 M200 84 v-8 M246 88 l6 -6'/></g><text x='200' y='160' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>it noticed 9 options</text><text x='200' y='173' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>across 2 rounds</text><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='296' y='70' width='44' height='30' rx='5'/><path d='M330 78 v8 h-20 m0 0 l5 -4 m-5 4 l5 4'/></g><text x='318' y='118' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>Enter</text><path d='M318 128 v18 m0 0 l-5 -6 m5 6 l5 -6' stroke='#A855F7' fill='none' stroke-width='2' stroke-linecap='round'/><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='288' y='158' width='60' height='48' rx='4'/><circle cx='305' cy='175' r='7'/><circle cx='331' cy='175' r='7'/><circle cx='305' cy='194' r='7'/><circle cx='331' cy='194' r='7'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>You judge; the studio</text><text x='68' y='261'>counts and watches</text><text x='200' y='248'>It proposes the next</text><text x='200' y='261'>phase — one button</text><text x='332' y='248'>Enter advances</text><text x='332' y='261'>the funnel itself</text></g></svg>",
+      "tags": [
+        "flow",
+        "guidance",
+        "one-key"
+      ],
+      "parents": []
+    },
+    {
+      "id": "contact-sheet",
+      "label": "Contact-sheet poster",
+      "description": "Crowning a final auto-composes a shareable poster — the winner large, its lineage tree beneath, the decisive notes alongside — so one artifact tells the whole journey in chat.",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='44' y='84' width='48' height='60' rx='4'/><circle cx='68' cy='108' r='12'/></g><path d='M58 72 l3 -10 l7 6 l7 -6 l3 10 z' stroke='#A855F7' fill='none' stroke-width='2' stroke-linejoin='round'/><path d='M84 152 l6 14 l4 -5 l6 6' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='152' y='48' width='72' height='132' rx='4'/><rect x='162' y='56' width='52' height='44' rx='3'/><circle cx='188' cy='78' r='13'/></g><path d='M181 52 l2 -6 l5 4 l5 -4 l2 6' stroke='#A855F7' fill='none' stroke-width='1.5' stroke-linejoin='round'/><g stroke='currentColor' fill='none' stroke-width='1.2'><path d='M188 100 v10 M170 124 h36 M170 124 v-8 M206 124 v-8 M188 110 v6'/><rect x='160' y='124' width='20' height='16' rx='2'/><rect x='196' y='124' width='20' height='16' rx='2'/><rect x='178' y='148' width='20' height='16' rx='2'/></g><g stroke='#A855F7' fill='none' stroke-width='1.5'><path d='M230 60 h22 M230 70 h22 M230 80 h14'/></g><text x='241' y='52' fill='#A855F7' font-family='system-ui,sans-serif' font-size='8' text-anchor='middle'>notes</text><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='284' y='56' width='96' height='110' rx='6'/><path d='M284 80 h96'/><circle cx='296' cy='68' r='5'/><path d='M310 66 h40'/></g><g stroke='currentColor' fill='none' stroke-width='1.2'><path d='M296 96 h60 M296 110 h44'/></g><g stroke='#A855F7' fill='none' stroke-width='1.5'><rect x='296' y='122' width='34' height='34' rx='3'/><circle cx='313' cy='136' r='8'/></g><path d='M336 130 q10 8 0 18' stroke='#A855F7' fill='none' stroke-width='1.2' opacity='0.6'/><path d='M342 126 q16 12 0 26' stroke='#A855F7' fill='none' stroke-width='1.2' opacity='0.35'/><path d='M300 186 c0 -8 12 -8 12 0 c0 6 -6 6 -6 12' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><circle cx='306' cy='206' r='1.4' fill='currentColor'/><text x='344' y='200' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>“ohh nice”</text><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>Crown the final</text><text x='68' y='261'>option with one click</text><text x='200' y='248'>A poster composes:</text><text x='200' y='261'>winner + tree + notes</text><text x='332' y='248'>Drop it in chat —</text><text x='332' y='261'>the journey travels</text></g></svg>",
+      "tags": [
+        "outputs",
+        "story",
+        "share"
+      ],
+      "parents": []
+    },
+    {
+      "id": "artifact-shelf",
+      "label": "Living shelf",
+      "description": "Every kept option pins itself to a live shelf at the studio's edge; drag a card straight out into your editor or design tool — no export dialog exists.",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='18' y='52' width='100' height='128' rx='4'/><rect x='26' y='62' width='28' height='24' rx='3'/><rect x='26' y='94' width='28' height='24' rx='3'/><rect x='26' y='126' width='28' height='24' rx='3'/><rect x='60' y='62' width='28' height='24' rx='3'/><path d='M94 52 v128'/></g><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='98' y='64' width='16' height='20' rx='2'/><rect x='98' y='92' width='16' height='20' rx='2'/></g><rect x='98' y='120' width='16' height='20' rx='2' stroke='#A855F7' fill='none' stroke-width='2'/><text x='106' y='196' fill='currentColor' font-family='system-ui,sans-serif' font-size='8' text-anchor='middle'>shelf</text><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='150' y='52' width='60' height='128' rx='4'/><path d='M196 52 v128'/><rect x='200' y='64' width='14' height='18' rx='2'/><rect x='200' y='90' width='14' height='18' rx='2'/></g><g stroke='#A855F7' fill='none' stroke-width='2'><rect x='222' y='108' width='20' height='24' rx='2'/></g><path d='M212 100 q14 4 8 16' stroke='#A855F7' fill='none' stroke-width='1.2' stroke-dasharray='3 3'/><path d='M236 138 l6 14 l4 -5 l6 6' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='284' y='52' width='96' height='128' rx='4'/><path d='M308 52 v128'/><path d='M290 66 h12 M290 78 h12 M290 90 h12 M290 102 h12'/><path d='M316 68 h48 M316 80 h36 M316 92 h44 M316 116 h40 M316 128 h30'/></g><g stroke='#A855F7' fill='none' stroke-width='2'><rect x='330' y='140' width='22' height='26' rx='2'/></g><g stroke='#A855F7' fill='none' stroke-width='1.2' opacity='0.7'><path d='M326 136 l-5 -5 M356 136 l5 -5 M341 132 v-7'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>Every keep pins itself</text><text x='68' y='261'>to a live shelf</text><text x='200' y='248'>Drag a card straight</text><text x='200' y='261'>out of the studio</text><text x='332' y='248'>It lands in your editor</text><text x='332' y='261'>— no export dialog</text></g></svg>",
+      "tags": [
+        "outputs",
+        "drag",
+        "frictionless"
+      ],
+      "parents": []
+    },
+    {
+      "id": "sketch-seed",
+      "label": "Sketch-a-seed",
+      "description": "Start a brainstorm by scribbling a blob instead of typing a brief — round 1 riffs on your sketch's shapes; zero keystrokes from doodle to board. (wildcard)",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='20' y='56' width='96' height='110' rx='4'/></g><path d='M42 120 q6 -30 30 -26 q26 4 18 26 q-8 20 -30 12 q-18 -6 -18 -12 z' stroke='#A855F7' fill='none' stroke-width='2' stroke-linecap='round'/><path d='M92 104 l16 -18 l6 5 l-16 18 z M108 86 l4 -5 l6 5 l-4 5 z' stroke='currentColor' fill='none' stroke-width='1.2'/><text x='68' y='192' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>no brief, no typing</text><path d='M186 62 q4 -12 14 -8 q10 4 6 12 q-4 8 -14 4 q-8 -3 -6 -8 z' stroke='#A855F7' fill='none' stroke-width='1.5'/><g stroke='currentColor' fill='none' stroke-width='1.2'><path d='M182 84 l-14 18 M200 88 v16 M218 84 l14 18'/><rect x='150' y='108' width='30' height='36' rx='3'/><rect x='186' y='108' width='30' height='36' rx='3'/><rect x='222' y='108' width='30' height='36' rx='3'/></g><circle cx='165' cy='122' r='8' stroke='currentColor' fill='none' stroke-width='1.2'/><path d='M194 130 q7 -12 14 0 q-7 10 -14 0 z' stroke='currentColor' fill='none' stroke-width='1.2'/><rect x='230' y='116' width='14' height='14' rx='4' stroke='currentColor' fill='none' stroke-width='1.2' transform='rotate(12 237 123)'/><text x='200' y='170' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>round 1 riffs on</text><text x='200' y='182' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>your blob's gesture</text><g stroke='#A855F7' fill='none' stroke-width='2'><rect x='306' y='70' width='40' height='48' rx='4'/></g><path d='M316 88 q8 -14 20 -2' stroke='#A855F7' fill='none' stroke-width='1.5'/><circle cx='326' cy='150' r='7' stroke='currentColor' fill='none' stroke-width='1.5'/><path d='M326 157 v20 M326 163 l-10 8 M326 163 l10 -4 l4 -8 M326 177 l-8 14 M326 177 l8 14' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><path d='M338 148 l4 -4 M340 154 h6' stroke='#A855F7' stroke-width='1.5' stroke-linecap='round'/><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>Scribble anything —</text><text x='68' y='261'>a blob is a brief</text><text x='200' y='248'>Round 1 riffs on</text><text x='200' y='261'>the sketch's shapes</text><text x='332' y='248'>Zero typing from</text><text x='332' y='261'>doodle to board</text></g></svg>",
+      "tags": [
+        "onboarding",
+        "drawing",
+        "wildcard"
+      ],
+      "parents": []
+    },
+    {
+      "id": "voice-chips",
+      "label": "Voice + chips kickoff",
+      "description": "Hold space and ramble for fifteen seconds; clarifying questions come back as tappable chips, not text fields — the session is seeded before your coffee cools. (wildcard)",
+      "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='8' y='34' width='120' height='196' rx='6'/><rect x='140' y='34' width='120' height='196' rx='6'/><rect x='272' y='34' width='120' height='196' rx='6'/></g><g fill='currentColor' font-family='system-ui,sans-serif' font-size='11'><text x='14' y='26'>1</text><text x='146' y='26'>2</text><text x='278' y='26'>3</text></g><circle cx='44' cy='90' r='9' stroke='currentColor' fill='none' stroke-width='1.5'/><path d='M44 99 v26 M44 106 l-12 10 M44 106 l14 6 M44 125 l-9 18 M44 125 l9 18' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><path d='M58 84 q6 6 0 12 M66 78 q10 12 0 24 M74 72 q14 18 0 36' stroke='#A855F7' fill='none' stroke-width='1.5' stroke-linecap='round'/><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='92' y='84' width='12' height='20' rx='6'/><path d='M88 98 a10 10 0 0 0 20 0 M98 108 v8'/></g><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='30' y='176' width='76' height='16' rx='4'/></g><text x='68' y='188' fill='currentColor' font-family='system-ui,sans-serif' font-size='8' text-anchor='middle'>space (held)</text><g stroke='currentColor' fill='none' stroke-width='1.5'><rect x='152' y='70' width='52' height='20' rx='10'/><rect x='214' y='70' width='36' height='20' rx='10'/><rect x='166' y='102' width='44' height='20' rx='10'/></g><rect x='152' y='134' width='58' height='20' rx='10' stroke='#A855F7' fill='none' stroke-width='2'/><g fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'><text x='178' y='83'>icons?</text><text x='232' y='83'>flows?</text><text x='188' y='115'>calm?</text></g><text x='181' y='147' fill='#A855F7' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>go wild ✓</text><path d='M216 152 l6 14 l4 -5 l6 6' stroke='currentColor' fill='none' stroke-width='1.5' stroke-linecap='round'/><text x='200' y='192' fill='currentColor' font-family='system-ui,sans-serif' font-size='9' text-anchor='middle'>tap, don't type</text><g stroke='currentColor' fill='none' stroke-width='1.2'><rect x='284' y='56' width='72' height='92' rx='4'/><rect x='292' y='66' width='24' height='20' rx='2'/><rect x='324' y='66' width='24' height='20' rx='2'/><rect x='292' y='94' width='24' height='20' rx='2'/><rect x='324' y='94' width='24' height='20' rx='2'/></g><rect x='292' y='122' width='24' height='20' rx='2' stroke='#A855F7' fill='none' stroke-width='1.5'/><g stroke='currentColor' fill='none' stroke-width='1.5'><path d='M338 172 h20 v18 a10 10 0 0 1 -20 0 z'/><path d='M358 176 q10 2 0 10'/></g><path d='M342 166 q2 -5 0 -9 M348 166 q2 -5 0 -9' stroke='#A855F7' fill='none' stroke-width='1.2' stroke-linecap='round' opacity='0.7'/><g fill='currentColor' font-family='system-ui,sans-serif' font-size='10' text-anchor='middle'><text x='68' y='248'>Hold space, ramble</text><text x='68' y='261'>for fifteen seconds</text><text x='200' y='248'>Clarifiers arrive as</text><text x='200' y='261'>chips — tap, done</text><text x='332' y='248'>Board 1 lands before</text><text x='332' y='261'>the coffee cools</text></g></svg>",
+      "tags": [
+        "onboarding",
+        "voice",
+        "wildcard"
+      ],
+      "parents": []
+    }
+  ],
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 0,
+    "elaborationPrompt": "Which of these stories feels like the tool you'd actually reach for daily — and what's missing from all eight?",
+    "allowPerOptionNotes": true,
+    "allowRemix": true,
+    "axes": [
+      {
+        "id": "pace",
+        "label": "Judging pace",
+        "leftLabel": "contemplative",
+        "rightLabel": "snap-judgment",
+        "defaultValue": 50
+      },
+      {
+        "id": "steering",
+        "label": "Who steers the funnel",
+        "leftLabel": "I steer",
+        "rightLabel": "studio steers",
+        "defaultValue": 50
+      },
+      {
+        "id": "focus",
+        "label": "Attention model",
+        "leftLabel": "one thing at a time",
+        "rightLabel": "whole pool at once",
+        "defaultValue": 50
+      },
+      {
+        "id": "gesture",
+        "label": "Input feel",
+        "leftLabel": "precise clicks",
+        "rightLabel": "casual gestures",
+        "defaultValue": 50
+      },
+      {
+        "id": "artifact",
+        "label": "Output form",
+        "leftLabel": "raw SVG files",
+        "rightLabel": "composed stories",
+        "defaultValue": 50
+      },
+      {
+        "id": "novelty",
+        "label": "Interaction risk",
+        "leftLabel": "familiar patterns",
+        "rightLabel": "novel interactions",
+        "defaultValue": 60
+      }
+    ]
+  },
+  "createdAt": "2026-07-06T23:39:37.247Z"
+}

@@ -12,7 +12,8 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>');
 
 const { createElement } = await import('react');
 const { renderToString } = await import('react-dom/server');
-const { BoardSchema, ProgressEventSchema, DiscussionSummarySchema } = await import('@visual-brainstorm/protocol');
+const { ArtifactChatMessageSchema, ArtifactSchema, BoardSchema, ProgressEventSchema, DiscussionSummarySchema } =
+  await import('@visual-brainstorm/protocol');
 const { BoardSurvey } = await import('../apps/studio/src/components/BoardSurvey.js');
 
 const EXPECT: Record<string, string[]> = {
@@ -320,5 +321,54 @@ const sidebarQuiet = renderToString(
 );
 assert.ok(!sidebarQuiet.includes('tok'), '[sidebar] zero-token row must not show a token count');
 console.log('UI sidebar renders ✓ (token count at >0, hidden at 0)');
+
+// --- Artifact chat panel (per-artifact conversation + revision marker) ---
+// Fixtures go through the schema like every production path (defaults stay in sync).
+const { ArtifactChat } = await import('../apps/studio/src/components/ArtifactChat.js');
+const chatArtifact = ArtifactSchema.parse({
+  slug: 'winner',
+  name: 'Winner',
+  svgPath: 'threads/x/artifacts/winner.svg', // fake path — SVG fetch may placeholder, markers only
+  provenance: { optionIds: ['b'] },
+  capturedAt: '2026-07-07T10:00:00.000Z',
+});
+const chatMessages = [
+  ArtifactChatMessageSchema.parse({
+    artifactSlug: 'winner',
+    role: 'user',
+    text: 'why this glow?',
+    at: '2026-07-07T10:01:00.000Z',
+  }),
+  ArtifactChatMessageSchema.parse({
+    artifactSlug: 'winner',
+    role: 'claude',
+    text: 'tightened the glow radius',
+    at: '2026-07-07T10:02:00.000Z',
+    revisedSlug: 'winner-2',
+  }),
+];
+const chatIdle = renderToString(
+  createElement(ArtifactChat, { artifact: chatArtifact, messages: chatMessages, onSend: () => {} }),
+);
+// Markers live inside single text nodes — never spanning adjacent JSX expressions.
+for (const marker of [
+  'Artifact chat',
+  'Ask or ask for a change…',
+  'Send',
+  'revised',
+  'why this glow?',
+  'tightened the glow radius',
+]) {
+  assert.ok(chatIdle.includes(marker), `[artifact-chat] missing marker "${marker}"`);
+}
+assert.ok(
+  !chatIdle.includes('Claude is thinking…'),
+  '[artifact-chat] busy note must not render when not busy',
+);
+const chatBusy = renderToString(
+  createElement(ArtifactChat, { artifact: chatArtifact, messages: chatMessages, onSend: () => {}, busy: true }),
+);
+assert.ok(chatBusy.includes('Claude is thinking…'), '[artifact-chat] busy note missing when busy');
+console.log('UI artifact chat renders ✓ (messages + revision marker, busy + idle variants)');
 
 console.log(`UI SMOKE PASS — all ${Object.keys(EXPECT).length} phase surfaces render with their mechanics`);

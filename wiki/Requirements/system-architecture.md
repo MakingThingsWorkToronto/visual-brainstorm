@@ -62,6 +62,12 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
     colors: …".
 - `GET /api/artifact-svg/<slug>.svg` — serves live-thread artifact SVGs (used by the
   wayfinder strip's drag-out/download); 404 for an unknown slug.
+- `POST /api/artifact-chat` — `{artifactSlug, text}` from the fullscreen artifact chat
+  panel. Persists the user message (append-only `artifacts/chat.jsonl` + a brainstorm.md
+  line), broadcasts the `artifact-chat` envelope, and routes to Claude Code as UI command
+  `artifact-chat` via the same plumbing as `POST /api/command`. Unknown slug → honest 404.
+  Contract: interaction-protocol §Artifact chat; procedure:
+  `.claude/commands/artifact-chat.md`.
 - `POST /api/target-repo` — `{ path: string|null, scope: 'thread'|'default' }`. Validates the
   folder exists (honest 400; any plain folder qualifies, not necessarily a git repo).
   `thread` → `SessionInfo.targetRepo` in session.json; `default` → rewrites `targetRepo` in
@@ -75,7 +81,7 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
 - `POST /api/session-theme` — `{ name: string|null }`. Validated against the theme list
   (unknown name → honest 400); persists the per-discussion theme via `SessionStore.setTheme`
   (session.json + a brainstorm.md note) and broadcasts `hello`. `null` clears it.
-- `GET /ws` — WebSocket; server→studio envelopes: `hello`, `board`, `thinking`, `responded`, `artifact`.
+- `GET /ws` — WebSocket; server→studio envelopes: `hello`, `board`, `thinking`, `responded`, `artifact`, `artifact-chat`.
 
 ## Configuration — `visual-brainstorm.config.json` (cwd, human-editable)
 
@@ -127,8 +133,13 @@ discussion/<yyyy-mm-dd-hhmm>-<slug>/
   round-01/response.json       the user's survey response (incl. chosen model)
   attachments/<stamp>-<name>   composer file/photo attachments, decoded from response data
                                URIs by the bridge (savedPath in the recorded response)
+  progress.jsonl               append-only session-progress events (SessionActivity strip,
+                               token meter) — never rewritten, reloads with the thread
   artifacts/<slug>.svg         accepted/final artifacts
-  artifacts/<slug>.json        provenance: boardId, optionIds, notes
+  artifacts/<slug>.json        provenance: boardId, optionIds, notes (+ optional `revises`:
+                               parent slug — a revision is a NEW artifact, rule 7)
+  artifacts/chat.jsonl         append-only artifact-chat messages (ArtifactChatMessage:
+                               user questions + Claude replies, revisedSlug links)
 
 discussion/.seeds/seed-<stamp>.(svg|png|jpeg|…)   non-text seed intake files (root-level,
                                not per-thread — the seed precedes the thread)

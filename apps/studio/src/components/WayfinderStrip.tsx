@@ -15,6 +15,7 @@ export function WayfinderStrip({
   proposal,
   onJump,
   onAdvance,
+  onOpenArtifact,
 }: {
   rounds: RoundRecord[];
   artifacts: Artifact[];
@@ -22,6 +23,8 @@ export function WayfinderStrip({
   proposal: PhaseProposal | null;
   onJump: (boardId: string) => void;
   onAdvance: () => void;
+  /** When provided, clicking a keep opens the artifact chat instead of downloading (drag-out still exports). */
+  onOpenArtifact?: (artifact: Artifact) => void;
 }) {
   if (rounds.length === 0) return null;
   const keeps = artifacts.slice(-6);
@@ -67,7 +70,17 @@ export function WayfinderStrip({
                   e.dataTransfer.setData('DownloadURL', `image/svg+xml:${artifact.slug}.svg:${url}`);
                   e.dataTransfer.setData('text/uri-list', url);
                 }}
-                title={`${artifact.name}: drag into your editor or click to download; no export dialog`}
+                onClick={(e) => {
+                  if (onOpenArtifact) {
+                    e.preventDefault();
+                    onOpenArtifact(artifact);
+                  }
+                }}
+                title={
+                  onOpenArtifact
+                    ? `${artifact.name}: click to enlarge and chat about it; drag into your editor to export`
+                    : `${artifact.name}: drag into your editor or click to download; no export dialog`
+                }
                 className="shrink-0 cursor-grab rounded-lg border border-line bg-surface-2 px-2 py-1 text-xs hover:border-accent active:cursor-grabbing"
               >
                 {artifact.slug.slice(0, 18)}

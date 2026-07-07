@@ -35,12 +35,41 @@ Every round is persisted before the user ever responds — a closed browser lose
 |---|---|---|
 | `present_board` | yes (timeout → `pending`) | push a board, await the survey response; `discussionId` resumes a cached thread |
 | `peek_response` | no | recover a response after a client-side timeout |
-| `capture_artifact` | no | persist an accepted SVG with provenance (+ copy to the EFFECTIVE targetRepo's `brainstorm-artifacts/` — thread override ?? config default); appears on the studio's artifact shelf |
+| `capture_artifact` | no | persist an accepted SVG with provenance (+ copy to the EFFECTIVE targetRepo's `brainstorm-artifacts/` — thread override ?? config default); appears on the studio's artifact shelf. Optional `revises: <parent slug>` marks a revision (`Artifact.provenance.revises`) — a change is a NEW artifact linked to its parent, never an overwrite (rule 7) |
 | `list_discussions` | no | enumerate the thread cache (`discussion`) |
 | `load_discussion` | no | reload a full cached thread so a chat reinitializes without regenerating anything |
 | `session_status` | no | thread dir, round count, artifact list, effective targetRepo, pendingUiCommands |
 | `open_studio` | yes (timeout → `waiting`) | open the studio with NO board — the New Discussion landing panel — and block until the panel submits a brief (arrives as a new-brainstorm command with prompt/seed notes) or timeout returns `{status:"waiting"}` (the studio stays open; call again or check `session_status.pendingUiCommands`). For a bare `/run-brainstorm` (its step 0): land the user on the panel and build AskUserQuestion clarifications on the submission. The placeholder "New discussion" thread is retitled by the first `present_board` (`SessionStore.retitle` — display title only, directory slug unchanged) |
 | `compose_poster` | no | DETERMINISTIC (no model) decision-poster composition: winner embedded large + lineage tree (parents/grandparents from cached rounds) + the notes that decided it (lineage perOptionNotes + elaborations) as ONE self-contained SVG; captured via the normal artifact path (rule 7 provenance) and copied to the effective targetRepo like any artifact; throws honestly if the optionId is in no cached round |
+| `reply_artifact_chat` | no | Claude's answer channel for the artifact chat: `{artifactSlug, text, revisedSlug?}` — persists a `claude`-role `ArtifactChatMessage` to `<thread dir>/artifacts/chat.jsonl` and broadcasts the `artifact-chat` WS envelope |
+
+## Artifact chat
+
+Clicking a captured artifact in the studio opens it fullscreen with a chat panel
+(simplified composer: one input + Send). The loop:
+
+1. **Studio → bridge.** `POST /api/artifact-chat` `{artifactSlug, text}`. The bridge
+   persists the user message (append-only `<thread dir>/artifacts/chat.jsonl` plus a
+   `brainstorm.md` line), broadcasts an `artifact-chat` WS envelope, and routes the request
+   to Claude Code through the EXISTING UI-command plumbing as command `artifact-chat`:
+   board awaiting response → synthetic park response with `commands:['artifact-chat']` and
+   the question in `elaboration`/`seedNote`; otherwise queued into `pendingUiCommands` /
+   the next tool result / `waitForCommand`. Unknown slug → honest 404 (rule 6).
+2. **Orchestrator → subagent, ALWAYS** (operator mandate). Procedure:
+   `.claude/commands/artifact-chat.md`. Questions go to a general subagent (Reads the SVG +
+   the thread's `brainstorm.md` for provenance); change requests go to `svg-artisan`
+   (thread model override applies), which produces a full self-contained revised SVG. The
+   orchestrator never answers or regenerates inline — it only routes and replies.
+3. **Reply.** A change: `capture_artifact` with `revises: <original slug>` (new artifact,
+   original untouched — rule 7), then `reply_artifact_chat` with text + `revisedSlug`; the
+   studio refreshes every display of the artifact. A question: `reply_artifact_chat` with
+   the answer text only.
+4. **Shapes** (packages/protocol, rule 5): `ArtifactChatMessage
+   { artifactSlug, role: 'user'|'claude', text, at, revisedSlug? }`; `StudioState.artifactChat`;
+   `ServerToStudio` `artifact-chat` envelope; `Artifact.provenance.revises?`.
+
+Chat history persists in `artifacts/chat.jsonl` and reloads with the thread. The chat is a
+detour — after replying, the orchestrator resumes whatever the session was doing.
 
 ## Seed intake — open with anything
 

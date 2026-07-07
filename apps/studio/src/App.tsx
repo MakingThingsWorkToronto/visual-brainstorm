@@ -10,6 +10,7 @@ import { useBridge } from './lib/useBridge';
 import { applyTheme, storedThemeName, storeThemeName } from './lib/theme';
 import { proposeNextPhase } from './lib/wayfinder';
 import { BulbIcon, Bubble, Marker, SvgPane } from './components/primitives';
+import { ArtifactChat } from './components/ArtifactChat';
 import { BoardSurvey } from './components/BoardSurvey';
 import { NewDiscussionPanel, type NewDiscussionExtras } from './components/NewDiscussionPanel';
 import { PreviewModal } from './components/PreviewModal';
@@ -116,6 +117,12 @@ export default function App() {
   const [newOpen, setNewOpen] = useState(false);
   const [advanceSignal, setAdvanceSignal] = useState(0);
   const [logs, setLogs] = useState<{ file: string | null; lines: string[] } | null>(null);
+  // Artifact chat: `slug` anchors the dialog (messages filter), `displaySlug`
+  // follows revisions — a Claude change is captured as a NEW artifact (rule 7)
+  // and the open modal switches its image to it while the conversation stays.
+  const [chat, setChat] = useState<{ slug: string; displaySlug: string } | null>(null);
+  // Claude-message count at the moment a send succeeded; busy until it grows.
+  const [chatSentAt, setChatSentAt] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const openLogs = useCallback(async () => {
@@ -143,6 +150,69 @@ export default function App() {
     );
     setTimeout(() => setCommandStatus(null), 5000);
   }, []);
+
+  const openArtifactChat = useCallback((artifact: Artifact) => {
+    setChat({ slug: artifact.slug, displaySlug: artifact.slug });
+    setChatSentAt(null);
+  }, []);
+
+  // The open dialog's messages — filtered by the ORIGINAL artifact's slug.
+  const chatMessages = useMemo(
+    () => (chat ? state.artifactChat.filter((m) => m.artifactSlug === chat.slug) : []),
+    [chat, state.artifactChat],
+  );
+  const chatClaudeCount = useMemo(
+    () => chatMessages.filter((m) => m.role === 'claude').length,
+    [chatMessages],
+  );
+  const chatBusy = chatSentAt !== null && chatClaudeCount <= chatSentAt;
+
+  // A Claude reply carrying revisedSlug switches the modal's image to the NEW
+  // artifact (it arrived via the `artifact` envelope); the dialog stays put.
+  useEffect(() => {
+    const revision = [...chatMessages]
+      .reverse()
+      .find((m) => m.role === 'claude' && m.revisedSlug);
+    if (revision?.revisedSlug) {
+      const slug = revision.revisedSlug;
+      setChat((c) => (c && c.displaySlug !== slug ? { ...c, displaySlug: slug } : c));
+    }
+  }, [chatMessages]);
+
+  const chatArtifact = useMemo(() => {
+    if (!chat) return null;
+    return (
+      state.artifacts.find((a) => a.slug === chat.displaySlug) ??
+      state.artifacts.find((a) => a.slug === chat.slug) ??
+      null
+    );
+  }, [chat, state.artifacts]);
+
+  const sendArtifactChat = useCallback(
+    async (text: string) => {
+      if (!chat) return;
+      try {
+        const res = await fetch('/api/artifact-chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ artifactSlug: chat.slug, text }),
+        });
+        const body = await res.json();
+        if (body.ok) {
+          // Do NOT append locally — the message returns over WS from state,
+          // so persistence stays the single truth.
+          setChatSentAt(chatClaudeCount);
+        } else {
+          setCommandStatus(`artifact chat failed: ${body.error}`);
+          setTimeout(() => setCommandStatus(null), 5000);
+        }
+      } catch (err) {
+        setCommandStatus(`artifact chat failed: ${err instanceof Error ? err.message : err}`);
+        setTimeout(() => setCommandStatus(null), 5000);
+      }
+    },
+    [chat, chatClaudeCount],
+  );
 
   const refreshDiscussions = useCallback(async () => {
     try {
@@ -290,6 +360,7 @@ export default function App() {
               activeBoard={state.activeBoard}
               proposal={proposal}
               onJump={jumpToRound}
+              onOpenArtifact={openArtifactChat}
               onAdvance={() => {
                 setAdvanceSignal((s) => s + 1);
                 bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -418,6 +489,16 @@ export default function App() {
           label={preview.label}
           tags={preview.tags}
           onClose={() => setPreview(null)}
+        />
+      )}
+
+      {chat && chatArtifact && (
+        <ArtifactChat
+          artifact={chatArtifact}
+          messages={chatMessages}
+          onSend={sendArtifactChat}
+          busy={chatBusy}
+          onClose={() => setChat(null)}
         />
       )}
     </div>
