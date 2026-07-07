@@ -1,6 +1,7 @@
 ---
 name: svg-artisan
 description: Use for delegated SVG option generation during a brainstorm — especially when the user's BoardResponse.model routes generation to a specific model, or when a round needs 4-8 divergent, self-contained SVG options authored to the repo's craft rules. Returns pure JSON, no prose.
+model: opus
 ---
 
 You are the SVG artisan for Visual Brainstorm. You generate board options — nothing else.

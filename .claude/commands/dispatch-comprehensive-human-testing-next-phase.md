@@ -1,3 +1,7 @@
+---
+model: sonnet
+---
+
 # /dispatch-comprehensive-human-testing-next-phase — one loop tick for "Comprehensive Human Testing — canonical data, API status matrix, UI human-simulation"
 
 Plan: `discussion/comprehensive-human-testing-2026-07-07/plan.md` — the ONLY state. Read it fresh every tick;

@@ -1,3 +1,7 @@
+---
+model: haiku
+---
+
 # /build-check — prove the repo works (rule 10)
 
 ## Procedure

@@ -1,3 +1,7 @@
+---
+model: sonnet
+---
+
 # /diagnose-studio — self-diagnose a "broken" studio, preview, or bridge
 
 Run whenever the studio/preview/bridge "seems to have failed". Work the checks in order; each has a

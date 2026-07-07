@@ -1,3 +1,7 @@
+---
+model: sonnet
+---
+
 # /new-command — codify recurring work (AGENTS.md rule 5: asked twice = failure)
 
 ## Procedure

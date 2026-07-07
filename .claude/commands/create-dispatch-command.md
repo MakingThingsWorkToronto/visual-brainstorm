@@ -1,3 +1,7 @@
+---
+model: sonnet
+---
+
 # /create-dispatch-command — scaffold a loopable build plan + its dispatcher
 
 Simplified from the donor (`tp`) pattern: ONE plan file that carries its own phases AND

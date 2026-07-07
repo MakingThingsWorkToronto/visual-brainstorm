@@ -1,3 +1,7 @@
+---
+model: haiku
+---
+
 # /add-theme — add or ingest a studio theme
 
 ## Procedure

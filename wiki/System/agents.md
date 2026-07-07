@@ -4,13 +4,17 @@ Subagents with scoped tools and embedded procedure. Use them instead of ad-hoc w
 The full interface-task → owner map (which agent/command/script owns every UI mechanic)
 is `wiki/System/interface-coverage.md`.
 
-| Agent | Use when | Notes |
-|---|---|---|
-| `brainstorm-orchestrator` | any brainstorm run/resume — the primary persona guiding the human through the five-phase funnel | creative facilitator; delegates ALL heavy procedures (generation → svg-artisan, artifact chat → general/svg-artisan, diagnosis → devops-diagnostician, fact capture → wiki-librarian) to preserve orchestration context; persists brainstorm-routine orchestration learnings in its own agent file (living `## Orchestration learnings` section) |
-| `devops-diagnostician` | studio/preview/bridge/MCP "seems broken", hangs, stale content, port suspicion | evidence-first: /api/health → process census → logs; never restart-loops; kills node pids, not npm wrappers |
-| `svg-artisan` | delegated option generation — esp. when `BoardResponse.model` routes a round to a specific model | reads svg-authoring skill; returns pure JSON options; synthesis by MEANING, never overlay |
-| `test-engineer` | features land/change (tests ship with features), failures, coverage doubts | knows the three layers + conventions; frameworkless; no mocks |
-| `wiki-librarian` | authoritative facts need capturing, closeout doc steps, wiki/code drift | enforces rule 1 authority + rule 2 log discipline; owns command/skill changelog footers |
+Every agent (and command/skill) pins a `model:` tier — see
+[model-tiering.md](model-tiering.md) for the rule. Opus is the reserved carve-out
+(orchestrator + security + long-run); everything else runs on the cheapest capable tier.
+
+| Agent | Model | Use when | Notes |
+|---|---|---|---|
+| `brainstorm-orchestrator` | opus | any brainstorm run/resume — the primary persona guiding the human through the five-phase funnel | orchestrator + long-run → opus; creative facilitator; delegates ALL heavy procedures (generation → svg-artisan, artifact chat → general/svg-artisan, diagnosis → devops-diagnostician, fact capture → wiki-librarian) to preserve orchestration context; persists brainstorm-routine orchestration learnings in its own agent file (living `## Orchestration learnings` section) |
+| `devops-diagnostician` | sonnet | studio/preview/bridge/MCP "seems broken", hangs, stale content, port suspicion | evidence-first: /api/health → process census → logs; never restart-loops; kills node pids, not npm wrappers |
+| `svg-artisan` | opus | delegated option generation — esp. when `BoardResponse.model` routes a round to a specific model | opus for best board-SVG quality (the artifact the human judges); frontmatter tier is the default, `BoardResponse.model` overrides per round; reads svg-authoring skill; returns pure JSON options; synthesis by MEANING, never overlay |
+| `test-engineer` | sonnet | features land/change (tests ship with features), failures, coverage doubts | knows the three layers + conventions; frameworkless; no mocks |
+| `wiki-librarian` | haiku | authoritative facts need capturing, closeout doc steps, wiki/code drift | mechanical transcription + log discipline → haiku; enforces rule 1 authority + rule 2 log discipline; owns command/skill changelog footers |
 
 Model delegation flow: user picks a model in the composer → `BoardResponse.model` →
 orchestrator spawns `svg-artisan` with that model override → artisan returns options JSON →

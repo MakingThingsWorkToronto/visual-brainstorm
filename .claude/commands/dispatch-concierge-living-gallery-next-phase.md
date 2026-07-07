@@ -1,3 +1,7 @@
+---
+model: sonnet
+---
+
 # /dispatch-concierge-living-gallery-next-phase — one loop tick for "Concierge → Living Gallery — mind-map methodology + intake flow"
 
 Plan: `discussion/concierge-living-gallery-2026-07-07/plan.md` — the ONLY state. Read it fresh every tick;

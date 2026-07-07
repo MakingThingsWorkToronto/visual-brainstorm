@@ -1,3 +1,7 @@
+---
+model: sonnet
+---
+
 # /discover-skills — interactively find (or web-discover) the skills that improve THIS brainstorm
 
 Run when the operator clicks ✨ Discover skills in the studio, or whenever unsure which

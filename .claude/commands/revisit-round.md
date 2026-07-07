@@ -1,3 +1,7 @@
+---
+model: inherit
+---
+
 # /revisit-round — the user returned to a previous round and re-answered it
 
 The studio's return-to-round control (the ⟲ tag on a round separator) re-opened a previous

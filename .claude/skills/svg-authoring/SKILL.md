@@ -1,6 +1,7 @@
 ---
 name: svg-authoring
 description: How to author board-option SVGs for Visual Brainstorm — conventions, divergence discipline, per-kind recipes, and the quality checklist. Load before every present_board call.
+model: inherit
 ---
 
 # SVG Authoring for Boards

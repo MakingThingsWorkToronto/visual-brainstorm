@@ -1,3 +1,7 @@
+---
+model: haiku
+---
+
 # /artifact-chat — answer or revise a captured artifact from the studio's artifact chat
 
 The user clicked a captured artifact and typed into its chat panel. The bridge routed it to

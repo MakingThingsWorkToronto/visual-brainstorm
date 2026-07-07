@@ -1,3 +1,7 @@
+---
+model: opus
+---
+
 # /run-brainstorm — drive a full visual brainstorm session (any capable model, incl. Opus 4.8)
 
 The complete operator procedure. Follow it literally; the skills carry the craft details.

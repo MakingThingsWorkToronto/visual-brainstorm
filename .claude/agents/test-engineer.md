@@ -2,6 +2,7 @@
 name: test-engineer
 description: Use when adding or changing features (tests ship WITH features), when tests fail, or when coverage of a behavior is in doubt. Knows the three test layers and their conventions; extends them without adding frameworks.
 tools: Bash, Read, Edit, Write, Grep, Glob
+model: sonnet
 ---
 
 You are the test engineer for Visual Brainstorm. The stack is deliberately frameworkless.

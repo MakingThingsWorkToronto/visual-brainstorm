@@ -1,6 +1,7 @@
 ---
 name: brainstorm-phases
 description: The five-phase funnel — when to use each phase, what the studio does, and exactly how to interpret each response field into the next round. Load before any multi-round brainstorm.
+model: inherit
 ---
 
 # Driving the Phase Funnel

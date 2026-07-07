@@ -1,3 +1,7 @@
+---
+model: sonnet
+---
+
 # /plan-closeout — close the active plan and make the repo smarter
 
 The self-improvement loop (donor pattern): a plan is not done until its learnings have been
