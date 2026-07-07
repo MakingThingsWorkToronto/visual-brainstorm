@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { BUILTIN_THEMES } from '../apps/mcp/dist/themes.js';
-import { ArtifactChatMessageSchema } from '../packages/protocol/dist/index.js';
+import { ArtifactChatMessageSchema, LivingGallerySchema } from '../packages/protocol/dist/index.js';
+import { loadCanonical } from '../tests/canonical/load.mjs';
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-smoke-'));
 const store = new SessionStore('Smoke test session', scratch);
@@ -679,9 +680,65 @@ const cNone = await fetch(`http://127.0.0.1:${bridge.port}/api/concierge`, {
 });
 assert.equal(cNone.status, 404, 'no pending concierge question → 404');
 
+// --- Living Gallery round-trip (living-gallery phase): present the four method minis,
+// block on the user's pick, resolve with the chosen method, clear the surface, and
+// record the choice to brainstorm.md. The WS handler above keys only on the two smoke
+// board ids, so the 'gallery' broadcast rides past it harmlessly. ---
+const gal = { ...loadCanonical('gallery/gallery.json', LivingGallerySchema), id: 'gallery-smoke' };
+const gWait = bridge.presentGallery(gal, 15_000);
+await new Promise((r) => setTimeout(r, 100));
+let gState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.ok(gState.gallery, '/api/state carries the pending living gallery');
+assert.equal(gState.gallery.id, 'gallery-smoke', 'gallery id round-trips to state');
+assert.equal(gState.gallery.cards.length, 4, 'all four method cards delivered to the studio');
+const gPick = await fetch(`http://127.0.0.1:${bridge.port}/api/gallery-pick`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: 'gallery-smoke', method: 'mindmap' }),
+});
+assert.equal(gPick.status, 200, 'picking a real method resolves the gallery');
+assert.deepEqual(await gPick.json(), { ok: true }, 'gallery-pick body is {ok:true}');
+const gPicked = await gWait;
+assert.equal(gPicked, 'mindmap', 'presentGallery resolves with the picked method');
+gState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.equal(gState.gallery, null, 'living gallery surface clears after the pick');
+const galleryMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+assert.ok(
+  galleryMd.includes('Living Gallery — offered [mindmap, funnel, wreck, cluster]; user picked: mindmap'),
+  'brainstorm.md records the offered methods and the pick',
+);
+
+// 404 path: with nothing pending, a pick is an honest 404.
+const gNone = await fetch(`http://127.0.0.1:${bridge.port}/api/gallery-pick`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: 'nope', method: 'mindmap' }),
+});
+assert.equal(gNone.status, 404, 'no pending living gallery → 404');
+
+// 400 path: with a gallery pending, a method that is not one of its cards is a 400.
+const gWait2 = bridge.presentGallery({ ...gal, id: 'gallery-smoke-2' }, 15_000);
+await new Promise((r) => setTimeout(r, 100));
+const g2State = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+const g2Id = g2State.gallery.id;
+const gBad = await fetch(`http://127.0.0.1:${bridge.port}/api/gallery-pick`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: g2Id, method: 'not-a-method' }),
+});
+assert.equal(gBad.status, 400, 'a method not on the gallery is rejected 400');
+// Resolve the pending gallery with a real pick so no timer leaks.
+const gFix = await fetch(`http://127.0.0.1:${bridge.port}/api/gallery-pick`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: g2Id, method: 'funnel' }),
+});
+assert.equal(gFix.status, 200, 'a valid follow-up pick resolves the second gallery');
+assert.equal(await gWait2, 'funnel', 'the second gallery resolves with the real pick');
+
 ws.close();
 await bridge.stop();
 fs.rmSync(scratch, { recursive: true, force: true });
 console.log(
-  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md), Claude-Code handoff (openStudio seedBrief) + concierge round-trip (ask, pending state, answer, resolve, brainstorm.md, 404)',
+  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md), Claude-Code handoff (openStudio seedBrief) + concierge round-trip (ask, pending state, answer, resolve, brainstorm.md, 404), Living Gallery round-trip (present four minis, pending state, pick, resolve, clear, brainstorm.md, 404, 400 bad-method)',
 );

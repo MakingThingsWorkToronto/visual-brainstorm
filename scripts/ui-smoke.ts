@@ -12,8 +12,9 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>');
 
 const { createElement } = await import('react');
 const { renderToString } = await import('react-dom/server');
-const { ArtifactChatMessageSchema, ArtifactSchema, BoardResponseSchema, BoardSchema, ConciergeExchangeSchema, ProgressEventSchema, DiscussionSummarySchema } =
+const { ArtifactChatMessageSchema, ArtifactSchema, BoardResponseSchema, BoardSchema, ConciergeExchangeSchema, LivingGallerySchema, ProgressEventSchema, DiscussionSummarySchema } =
   await import('@visual-brainstorm/protocol');
+const { loadCanonical } = await import('../tests/canonical/load.mjs');
 const { BoardSurvey } = await import('../apps/studio/src/components/BoardSurvey.js');
 
 const EXPECT: Record<string, string[]> = {
@@ -317,6 +318,42 @@ for (const marker of [
   assert.ok(conciergeHtml.includes(marker), `[concierge-intake] missing marker "${marker}"`);
 }
 console.log('UI concierge intake renders ✓');
+
+// --- Living Gallery surface (concierge's final response: four method minis) ---
+// Fixture goes through the schema like every production path (defaults stay in sync).
+const { LivingGallery } = await import('../apps/studio/src/components/LivingGallery.js');
+const livingGallery = LivingGallerySchema.parse({
+  ...(loadCanonical('gallery/gallery.json', LivingGallerySchema) as Record<string, unknown>),
+  id: 'g1',
+});
+const galleryHtml = renderToString(
+  createElement(LivingGallery, { gallery: livingGallery, onPick: async () => {} }),
+);
+// Markers live inside single text/attribute nodes — never spanning adjacent JSX expressions.
+for (const marker of [
+  'data-testid="living-gallery"',
+  'Living Gallery',
+  'here are ways to explore it', // a substring of gallery.prompt
+  'data-testid="method-card-mindmap"',
+  'data-testid="method-card-funnel"',
+  'data-testid="method-card-wreck"',
+  'data-testid="method-card-cluster"',
+  'Mind map',
+  'Funnel',
+  'data-testid="recommended-ribbon"',
+  'Recommended',
+  'data-testid="reason-chip"',
+  'co-edited map fits', // a substring of the mindmap card's reason
+]) {
+  assert.ok(galleryHtml.includes(marker), `[living-gallery] missing marker "${marker}"`);
+}
+// Only the recommended (mindmap) card is ribboned — exactly one ribbon on the surface.
+assert.equal(
+  galleryHtml.split('data-testid="recommended-ribbon"').length - 1,
+  1,
+  '[living-gallery] exactly one recommended ribbon (only mindmap recommended)',
+);
+console.log('UI living gallery renders ✓');
 
 // --- Triage gate with all keeps: sudden-death bracket offered ---
 const { TriageGate } = await import('../apps/studio/src/components/phases/TriageGate.js');

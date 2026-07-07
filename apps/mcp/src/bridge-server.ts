@@ -19,6 +19,7 @@ import {
   type Board,
   type BoardResponse,
   type ConciergeExchange,
+  type LivingGallery,
   type ResponseAttachment,
   type SeedIntake,
   type ServerToStudio,
@@ -119,6 +120,9 @@ export class Bridge {
   private concierge: ConciergeExchange | null = null;
   private conciergeResolve: ((answer: string | null) => void) | null = null;
   private conciergeSeq = 1;
+  /** Pending Living Gallery + its pick resolver (methodology chooser). */
+  private gallery: LivingGallery | null = null;
+  private galleryResolve: ((method: string | null) => void) | null = null;
   port = 0;
 
   /** Invoked when a UI command is queued (no board waiting) — demo orchestrator hook. */
@@ -177,6 +181,7 @@ export class Bridge {
       artifactChat: this.store.artifactChat,
       seedBrief: this.seedBrief,
       concierge: this.concierge,
+      gallery: this.gallery,
     };
   }
 
@@ -577,6 +582,34 @@ export class Bridge {
         });
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/api/gallery-pick') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { id, method } = z
+              .object({ id: z.string(), method: z.string().max(200) })
+              .parse(JSON.parse(body));
+            if (!this.gallery || this.gallery.id !== id || !this.galleryResolve) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: 'no living gallery awaiting this id' }));
+              return;
+            }
+            if (!this.gallery.cards.some((c) => c.method === method)) {
+              res.writeHead(400, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `method "${method}" is not a card in this gallery` }));
+              return;
+            }
+            this.galleryResolve(method);
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
       // Static studio
       const rel = url.pathname === '/' ? '/index.html' : url.pathname;
       const file = path.join(dist, path.normalize(rel).replace(/^([.][.][\\/])+/, ''));
@@ -855,6 +888,37 @@ export class Bridge {
         clearTimeout(timer);
         this.store.recordConcierge(question, answer);
         finish(answer);
+      };
+    });
+  }
+
+  /**
+   * Living Gallery: present the methodology cards (each a live mini seeded from
+   * the brief + answers) and BLOCK until the user picks one via
+   * POST /api/gallery-pick or the timeout passes. The picked method routes the
+   * session into that methodology; the choice is recorded to brainstorm.md.
+   */
+  async presentGallery(gallery: LivingGallery, timeoutMs: number): Promise<string | null> {
+    await this.start();
+    this.gallery = gallery;
+    const methods = gallery.cards.map((c) => c.method);
+    this.log(
+      `living gallery: ${gallery.cards.length} cards (${methods.join(', ')}), ` +
+        `recommended ${gallery.cards.find((c) => c.recommended)?.method ?? 'none'}`,
+    );
+    this.broadcast({ type: 'gallery', gallery });
+    return new Promise<string | null>((resolve) => {
+      const finish = (method: string | null) => {
+        this.gallery = null;
+        this.galleryResolve = null;
+        this.broadcast({ type: 'gallery', gallery: null });
+        resolve(method);
+      };
+      const timer = setTimeout(() => finish(null), timeoutMs);
+      this.galleryResolve = (method) => {
+        clearTimeout(timer);
+        this.store.recordGalleryPick(method, methods);
+        finish(method);
       };
     });
   }

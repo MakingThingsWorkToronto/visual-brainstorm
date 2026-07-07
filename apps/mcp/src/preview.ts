@@ -67,6 +67,24 @@ console.error(`  Real brainstorms run through Claude Code — this harness only 
 const phaseArg = PhaseSchema.safeParse(process.argv[2]);
 let i = phaseArg.success ? PHASES.indexOf(phaseArg.data) : 0;
 
+// Intake preamble: show the Living Gallery once (fixture cards) so the new
+// methodology-chooser surface is exercisable in the browser, then fall through
+// to the phase tour. Fixture minis are the canonical gallery — never generated.
+if (!phaseArg.success) {
+  try {
+    const galleryFixture = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'tests', 'canonical', 'gallery', 'gallery.json'), 'utf8'),
+    );
+    const picked = await bridge.presentGallery(
+      { ...galleryFixture, id: `preview-gallery-${Date.now()}` },
+      60 * 60 * 1000,
+    );
+    if (picked) bridge.think(`fixture gallery pick logged: "${picked}" — presenting the phase tour`);
+  } catch (err) {
+    logger.log(`preview gallery fixture skipped: ${String(err)}`);
+  }
+}
+
 for (;;) {
   const phase = PHASES[i];
   const board: Board = {

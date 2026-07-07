@@ -17,6 +17,7 @@ import { ArtifactChat } from './components/ArtifactChat';
 import { BoardSurvey } from './components/BoardSurvey';
 import { NewDiscussionPanel, type NewDiscussionExtras } from './components/NewDiscussionPanel';
 import { ConciergeIntake } from './components/ConciergeIntake';
+import { LivingGallery } from './components/LivingGallery';
 import { PreviewModal } from './components/PreviewModal';
 import { SessionActivity } from './components/SessionActivity';
 import { Sidebar } from './components/Sidebar';
@@ -151,7 +152,7 @@ function RoundHistoryView({
 }
 
 export default function App() {
-  const { state, connected, respond, answerConcierge } = useBridge();
+  const { state, connected, respond, answerConcierge, pickMethod } = useBridge();
   const [discussions, setDiscussions] = useState<DiscussionSummary[]>([]);
   const [archived, setArchived] = useState<Thread | null>(null);
   const [preview, setPreview] = useState<Preview>(null);
@@ -348,7 +349,8 @@ export default function App() {
     history.length === 0 &&
     !state.activeBoard &&
     !state.thinking &&
-    !state.concierge;
+    !state.concierge &&
+    !state.gallery;
 
   // Wayfinder: what the studio would do next (the orchestrator still decides).
   const proposal = useMemo(
@@ -572,6 +574,12 @@ export default function App() {
           {viewingLive && state.concierge && (
             <div className="mt-3">
               <ConciergeIntake exchange={state.concierge} onAnswer={answerConcierge} />
+            </div>
+          )}
+
+          {viewingLive && state.gallery && (
+            <div className="mt-3">
+              <LivingGallery gallery={state.gallery} onPick={pickMethod} />
             </div>
           )}
 

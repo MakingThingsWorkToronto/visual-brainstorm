@@ -292,6 +292,37 @@ export const ConciergeExchangeSchema = z.object({
 export type ConciergeExchange = z.infer<typeof ConciergeExchangeSchema>;
 
 /**
+ * One method card in the Living Gallery (wiki/Product/intake-methodologies.md):
+ * after the concierge Q&A, Claude presents the methodologies (Mind map, Funnel,
+ * Wreck, Cluster) as cards, each a LIVE miniature genuinely seeded from the
+ * brief + answers. The recommended card is ribboned with a reason chip quoting
+ * the user's answers. Picking a card routes the session into that methodology.
+ * `method` is the routing key the pick returns; the roster is open (string) so
+ * new methodologies never need a protocol bump.
+ */
+export const MethodCardSchema = z.object({
+  /** Routing key returned on pick, e.g. 'mindmap' | 'funnel' | 'wreck' | 'cluster'. */
+  method: z.string(),
+  label: z.string(),
+  blurb: z.string().default(''),
+  /** The live mini SVG — seeded from the brief + answers. Self-contained. */
+  svg: z.string(),
+  /** The one recommendation: accent-ringed + ribboned in the studio. */
+  recommended: z.boolean().default(false),
+  /** Reason chip on the recommended card — quotes the user's answers. */
+  reason: z.string().default(''),
+});
+export type MethodCard = z.infer<typeof MethodCardSchema>;
+
+export const LivingGallerySchema = z.object({
+  id: z.string(),
+  /** Claude's framing line above the cards. */
+  prompt: z.string().default(''),
+  cards: z.array(MethodCardSchema).min(1),
+});
+export type LivingGallery = z.infer<typeof LivingGallerySchema>;
+
+/**
  * Option chats reuse the artifact-chat channel: a board OPTION (any round,
  * incl. previous ones) is addressed by this synthetic slug in
  * ArtifactChatMessage.artifactSlug, so questions about earlier choices
@@ -431,6 +462,8 @@ export interface StudioState {
   seedBrief: string | null;
   /** Pending adaptive-concierge question, null when none is awaiting an answer. */
   concierge: ConciergeExchange | null;
+  /** Pending Living Gallery (method cards), null when none is awaiting a pick. */
+  gallery: LivingGallery | null;
 }
 
 export type ServerToStudio =
@@ -441,6 +474,7 @@ export type ServerToStudio =
   | { type: 'artifact'; artifact: Artifact }
   | { type: 'progress'; event: ProgressEvent }
   | { type: 'artifact-chat'; message: ArtifactChatMessage }
-  | { type: 'concierge'; exchange: ConciergeExchange | null };
+  | { type: 'concierge'; exchange: ConciergeExchange | null }
+  | { type: 'gallery'; gallery: LivingGallery | null };
 
 export type StudioToServer = { type: 'response'; response: BoardResponse };

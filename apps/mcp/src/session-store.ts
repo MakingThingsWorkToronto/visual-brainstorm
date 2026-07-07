@@ -328,6 +328,17 @@ export class SessionStore {
     );
   }
 
+  /**
+   * Living Gallery pick (methodology chooser): the method the user picked from
+   * the offered roster, appended to brainstorm.md so the routing choice is part
+   * of the thread's memory. A null pick means the gallery timed out (honest).
+   */
+  recordGalleryPick(method: string | null, offered: string[]): void {
+    this.appendMd(
+      `\n> Living Gallery — offered [${offered.join(', ')}]; user picked: ${method ?? '(no pick — timed out)'}`,
+    );
+  }
+
   captureArtifact(
     name: string,
     svg: string,

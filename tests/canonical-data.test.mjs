@@ -10,6 +10,7 @@ import {
   BoardResponseSchema,
   BoardSchema,
   DiscussionSummarySchema,
+  LivingGallerySchema,
   PHASES,
   ProgressEventSchema,
   SessionInfoSchema,
@@ -38,6 +39,7 @@ const CANONICAL_FILES = {
   'responses/finalize.json': BoardResponseSchema,
   'responses/edited-tree.json': BoardResponseSchema,
   'themes/theme.json': ThemeSchema,
+  'gallery/gallery.json': LivingGallerySchema,
 };
 
 test('every canonical file parses through its protocol schema', () => {
@@ -205,6 +207,24 @@ test('mindmap board carries a tree instead of options; the edited tree encodes r
     before.some((t) => !after.includes(t)),
     'a node was renamed (its old topic is gone)',
   );
+});
+
+test('living gallery fixture: four method minis, exactly mindmap recommended, self-contained safe SVGs', () => {
+  const gallery = loadCanonical('gallery/gallery.json', LivingGallerySchema);
+  assert.equal(gallery.cards.length, 4, 'four method cards');
+  assert.deepEqual(
+    gallery.cards.map((c) => c.method),
+    ['mindmap', 'funnel', 'wreck', 'cluster'],
+    'the four intake methodologies, in order',
+  );
+  const recommended = gallery.cards.filter((c) => c.recommended);
+  assert.equal(recommended.length, 1, 'exactly one recommended card');
+  assert.equal(recommended[0].method, 'mindmap', 'mindmap is the recommended method');
+  assert.ok(recommended[0].reason.length > 0, 'the recommended card carries a non-empty reason');
+  for (const card of gallery.cards) {
+    assert.ok(card.svg.includes('viewBox="0 0 100 100"'), `${card.method} mini is self-contained`);
+    assert.ok(!card.svg.includes('<script'), `${card.method} mini carries no script`);
+  }
 });
 
 test('canonical theme is complete: both schemes, 5-color named palette on the accent', () => {

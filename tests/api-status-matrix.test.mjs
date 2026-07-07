@@ -16,6 +16,7 @@ import {
   BoardResponseSchema,
   BoardSchema,
   DiscussionSummarySchema,
+  LivingGallerySchema,
   ProgressEventSchema,
   ThemeSchema,
   optionChatSlug,
@@ -41,6 +42,7 @@ const CENSUS = [
   ['POST /api/artifact-notes', [200, 400, 404]],
   ['POST /api/respond', [200, 400]],
   ['POST /api/concierge', [200, 400, 404]],
+  ['POST /api/gallery-pick', [200, 400, 404]],
   ['GET /* (static studio)', [200, 503]],
   ['WS /ws', ['hello', 'responded', 'artifact', 'malformed-logged', 'unknown-type-ignored']],
 ];
@@ -846,6 +848,77 @@ test('POST /api/concierge → 400 on an invalid body (zod refuses)', async () =>
     assert.equal(status, 400);
     assertMatches(body, expectation('concierge-400-invalid.json'));
     prove('POST /api/concierge', 400);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/gallery-pick — 200 (resolves the pending gallery), 404 (none pending
+// / id mismatch), 400 (a method that is not one of the gallery's cards)
+// ---------------------------------------------------------------------------
+test('POST /api/gallery-pick → 200 resolves the pending living gallery (id read from state)', async () => {
+  const { bridge } = await startBridge();
+  try {
+    const gal = { ...loadCanonical('gallery/gallery.json', LivingGallerySchema), id: 'gallery-matrix' };
+    // Present WITHOUT awaiting — the surface stays pending until we pick below.
+    const wait = bridge.presentGallery(gal, 10_000);
+    let state = null;
+    for (let i = 0; i < 50 && !state; i++) {
+      const s = (await getJson(bridge, '/api/state')).body;
+      if (s.gallery !== null) state = s;
+      else await new Promise((r) => setTimeout(r, 15));
+    }
+    assert.ok(state && state.gallery, 'living gallery posted to /api/state');
+    assert.equal(state.gallery.id, 'gallery-matrix', 'the pending gallery id round-trips');
+    const { status, body } = await postJson(bridge, '/api/gallery-pick', {
+      id: state.gallery.id,
+      method: 'mindmap',
+    });
+    assert.equal(status, 200);
+    assertMatches(body, expectation('gallery-pick-200.json'));
+    assert.equal(await wait, 'mindmap', 'presentGallery resolves with the pick (no leaked timer)');
+    prove('POST /api/gallery-pick', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/gallery-pick → 404 when no living gallery is awaiting this id', async () => {
+  const { bridge } = await startBridge();
+  try {
+    const { status, body } = await postJson(bridge, '/api/gallery-pick', { id: 'x', method: 'mindmap' });
+    assert.equal(status, 404);
+    assertMatches(body, expectation('gallery-pick-404.json'));
+    prove('POST /api/gallery-pick', 404);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/gallery-pick → 400 when the method is not a card in this gallery', async () => {
+  const { bridge } = await startBridge();
+  try {
+    const gal = { ...loadCanonical('gallery/gallery.json', LivingGallerySchema), id: 'gallery-matrix-2' };
+    const wait = bridge.presentGallery(gal, 10_000);
+    let state = null;
+    for (let i = 0; i < 50 && !state; i++) {
+      const s = (await getJson(bridge, '/api/state')).body;
+      if (s.gallery !== null) state = s;
+      else await new Promise((r) => setTimeout(r, 15));
+    }
+    assert.ok(state && state.gallery, 'living gallery posted to /api/state');
+    const { status, body } = await postJson(bridge, '/api/gallery-pick', {
+      id: state.gallery.id,
+      method: 'bogus',
+    });
+    assert.equal(status, 400);
+    assertMatches(body, expectation('gallery-pick-400-bad-method.json'));
+    prove('POST /api/gallery-pick', 400);
+    // Resolve the pending gallery with a real pick so no timer leaks.
+    const good = await postJson(bridge, '/api/gallery-pick', { id: state.gallery.id, method: 'funnel' });
+    assert.equal(good.status, 200);
+    assert.equal(await wait, 'funnel', 'the real follow-up pick resolves the gallery');
   } finally {
     await bridge.stop();
   }

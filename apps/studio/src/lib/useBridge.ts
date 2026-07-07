@@ -22,6 +22,7 @@ const EMPTY: StudioState = {
   tokens: { input: 0, output: 0 },
   seedBrief: null,
   concierge: null,
+  gallery: null,
 };
 
 /** WS in (boards), HTTP POST out (responses), auto-reconnect, hello resync. */
@@ -91,6 +92,8 @@ export function useBridge() {
               return { ...prev, artifactChat: [...prev.artifactChat, msg.message] };
             case 'concierge':
               return { ...prev, concierge: msg.exchange };
+            case 'gallery':
+              return { ...prev, gallery: msg.gallery };
             case 'progress':
               return {
                 ...prev,
@@ -133,5 +136,15 @@ export function useBridge() {
     if (!res.ok) throw new Error(`concierge answer failed: ${res.status} ${await res.text()}`);
   }, []);
 
-  return { state, connected, respond, answerConcierge };
+  /** Pick a methodology from the Living Gallery — routes the session into it. */
+  const pickMethod = useCallback(async (id: string, method: string) => {
+    const res = await fetch('/api/gallery-pick', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id, method }),
+    });
+    if (!res.ok) throw new Error(`gallery pick failed: ${res.status} ${await res.text()}`);
+  }, []);
+
+  return { state, connected, respond, answerConcierge, pickMethod };
 }

@@ -324,6 +324,62 @@ server.tool(
 );
 
 server.tool(
+  'present_gallery',
+  'Living Gallery (wiki/Product/intake-methodologies.md): after the concierge Q&A, present the methodologies as ' +
+    'cards — Mind map, Funnel, Wreck, Cluster — and BLOCK until the user picks one. Each card carries a LIVE mini ' +
+    'SVG genuinely seeded from the brief + answers (delegate the minis to svg-artisan). Mark exactly ONE card ' +
+    'recommended=true with a `reason` that QUOTES the user’s answers; it is accent-ringed + ribboned in the studio. ' +
+    'The pick ROUTES the session into that methodology (mindmap → present_board with a tree; funnel/wreck/cluster → ' +
+    'present_board at that phase). Returns {status:"picked", method} or {status:"pending"} on timeout.',
+  {
+    prompt: z.string().default('').describe('Framing line above the cards'),
+    cards: z
+      .array(
+        z.object({
+          method: z.string().describe("Routing key: 'mindmap' | 'funnel' | 'wreck' | 'cluster'"),
+          label: z.string(),
+          blurb: z.string().default(''),
+          svg: z.string().describe('Self-contained live mini SVG seeded from the brief + answers'),
+          recommended: z.boolean().default(false),
+          reason: z.string().default('').describe('On the recommended card: reason quoting the user’s answers'),
+        }),
+      )
+      .min(2)
+      .max(8),
+    timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
+  },
+  async ({ prompt, cards, timeoutSeconds }) => {
+    if (!bridge) {
+      return text({ status: 'no-studio', hint: 'open_studio or present_board first to attach the studio bridge' });
+    }
+    if (cards.filter((c) => c.recommended).length > 1) {
+      return text({ status: 'error', error: 'Mark at most ONE card recommended.' });
+    }
+    const gallery = {
+      id: `gallery-${Date.now()}`,
+      prompt,
+      cards: cards.map((c) => ({
+        method: c.method,
+        label: c.label,
+        blurb: c.blurb,
+        svg: c.svg,
+        recommended: c.recommended,
+        reason: c.reason,
+      })),
+    };
+    const method = await bridge.presentGallery(gallery, timeoutSeconds * 1000);
+    if (method === null) {
+      return text({
+        status: 'pending',
+        studioUrl: bridge.url,
+        hint: 'User has not picked yet. The gallery is still live; call present_gallery again to re-present, or proceed.',
+      });
+    }
+    return text({ status: 'picked', method });
+  },
+);
+
+server.tool(
   'peek_response',
   'Non-blocking: fetch the user response for a board that previously returned {status:"pending"}.',
   { boardId: z.string() },
