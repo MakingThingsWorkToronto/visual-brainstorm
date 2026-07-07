@@ -36,7 +36,25 @@ You are the test engineer for Visual Brainstorm. The stack is deliberately frame
 - Never mock providers or fake success (rules 6/11-spirit): tests hit the real Bridge,
   real filesystem, real schemas.
 - Failures are reported verbatim with output — then fixed at the root cause.
+- **APIs: every status code proven.** A new or changed endpoint lands with a test per
+  REACHABLE status code, asserting the response BODY against the canonical expectation —
+  never just the code. Untested codes are unproven claims.
+- **UIs: humans simulated, then broken.** A new or changed surface lands with a
+  human-simulation pass — headless Chrome/Edge via raw CDP over the repo's own `ws`
+  (frameworkless; pattern in `.agents/learnings.md` 2026-07-07 crash-repro), driving the
+  REAL built studio against a REAL bridge: accomplish the user's goal end-to-end, then
+  iterate every button and every input trying to break it (empty, oversized, invalid,
+  rapid double-fire). An unmounted root or a `STUDIO CLIENT ERROR` log line = failure.
+  Harness home: `discussion/comprehensive-human-testing-2026-07-07/plan.md` (phases 3–4);
+  until it lands, script the CDP pass by hand — do not skip it.
+- **Canonical data anchor.** Test data lives in `tests/canonical/` (its README is the
+  convention): tests import canonical files instead of declaring inline literals;
+  protocol-shaped canonical JSON is proven via `Schema.parse` at use. New features extend
+  the canonical set in the same change.
 
 ## Changelog
+- 2026-07-07 — operator mandate: API status-code+body proof, UI human-simulation +
+  break-sweep, canonical data anchor in tests/canonical (from
+  comprehensive-human-testing-2026-07-07)
 - 2026-07-06 — ui-smoke markers must not span adjacent JSX expressions (renderToString
   comment nodes) (from fullscreen-notes-target-repo-2026-07-06)

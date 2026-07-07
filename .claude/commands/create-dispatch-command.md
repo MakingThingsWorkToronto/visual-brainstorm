@@ -47,6 +47,14 @@ Progress persists to the plan itself — no separate progress file, no state in 
      goal, a VERIFIABLE exit criterion (a command or observable, not "works"), and an
      owner routed per CLAUDE.md rule 11 (agent, skill, or inline). Phases state intent and
      acceptance — never code, never guessed file paths. Write `plan.md` per the format above.
+     **Mandatory human-verification phase** (operator mandate 2026-07-07 — never skip,
+     never merge into "write tests"): any plan that creates or changes an API gets a phase
+     proving EVERY reachable status code with response bodies asserted against canonical
+     expectations; any plan that creates or changes a UI gets a phase simulating a human
+     clicking through to accomplish the goal PLUS a break-sweep iterating every button and
+     every input. Both anchor to `tests/canonical/` (its README is the convention) and
+     both exit criteria must be a runnable command with observable output. Owner:
+     `test-engineer`.
    - *wrap-existing*: Read the plan, present the rows back for confirmation (no regex
      parsing), add the Status column and Progress log section if missing.
 3. **Emit the dispatcher** — fill the inline template below (plain `<placeholder>`
@@ -101,6 +109,9 @@ repo ever runs concurrent dispatchers, steal those pieces back from
 `c:\code\tp\.claude\commands\create-dispatch-command.md` rather than reinventing them.
 
 ## Changelog
+- 2026-07-07 — scaffold-new: mandatory human-verification phase (API = all status codes +
+  canonical body assertions; UI = human-sim goal run + every-control break-sweep; anchored
+  to tests/canonical) (operator mandate, from comprehensive-human-testing-2026-07-07)
 - 2026-07-06 — created: simplified donor `tp` /create-dispatch-command — single plan.md
   carries phases + progress, inline dispatcher template, dispatcher enforces the 5-stage
   loop + Ship discipline per tick (operator request: brainstorm output must be a loopable plan)
