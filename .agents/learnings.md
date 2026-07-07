@@ -1,5 +1,15 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — concierge-living-gallery (phase 1)
+
+- **Concurrent dispatch loops share ONE working tree — a red `npm test` may belong to the
+  OTHER plan's uncommitted diff.** Attribute before reacting: `git diff <suspect files> |
+  Select-String '<failing string>'` — if the failing assertion's strings are `+` lines in
+  someone else's in-flight diff, your phase didn't break it. Then (a) commit your own
+  disjoint paths immediately to protect them from sweeps, (b) do NOT "fix" the other
+  plan's canonical expectations mid-flight (their diff isn't final), (c) leave the row
+  in-progress with the attribution and re-verify next tick.
+
 ## 2026-07-07 — mindmap-methodology brainstorm (4 rounds to finality)
 
 - **Delegated SVG JSON can be invalid XML — scan before present_board.** svg-artisan
