@@ -59,6 +59,29 @@
   against the presented board silently mislabels every option id. Rewind never deletes
   rounds; response.json is rewritten, brainstorm.md appends.
 
+## 2026-07-07 — concierge-living-gallery (phase 2, mind-elixir)
+
+- **A browser engine that imports CSS/`.less` (mind-elixir) must be DYNAMICALLY
+  imported inside the mount effect, never statically at module top.** ui-smoke runs the
+  studio `.tsx` through tsx/esbuild with no `.less` loader and no real layout; a static
+  `import 'mind-elixir'` anywhere in BoardSurvey's import graph would crash the whole
+  render pass on the `.less` import. `await import('mind-elixir')` inside `useEffect`
+  (which renderToString never runs) keeps the static graph clean AND code-splits the
+  engine into its own chunk that only loads when the canvas mounts. Assert the STATIC
+  wrapper markers in ui-smoke; the live engine gets real proof in the human-sim phase.
+- **mind-elixir 5.13 API pinned:** `new MindElixir({el, direction, editable, theme})` →
+  `.init({nodeData, direction})`; edits arrive via `instance.bus.addListener('operation',
+  cb)`; read back with `.getData()` (returns `{nodeData, direction}`); `.exportSvg()`
+  returns a Blob; light/dark = `MindElixir.THEME` / `MindElixir.DARK_THEME`; `direction`
+  is typed `0|1|2` (cast our `number`). Our MindTree (`{nodeData, direction?}`) is
+  structurally its data format — no adapter needed.
+- **Rule 7 for a live-DOM engine = a deterministic SERVER-side snapshot, not the engine's
+  own export.** mind-elixir renders in the browser; the server can't run it. `recordBoard`
+  captures the presented tree via `apps/mcp/src/tree-svg.ts` (a plain recursive SVG layout,
+  XML-escaping topics for rule 8) at present time — deterministic, testable, independent of
+  whether the client ever exports. The browser engine is the editing surface; the snapshot
+  is the archival still.
+
 ## 2026-07-07 — concierge-living-gallery (phase 1)
 
 - **Concurrent dispatch loops share ONE working tree — a red `npm test` may belong to the
