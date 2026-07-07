@@ -4,11 +4,13 @@ import {
   ArtifactSchema,
   BoardResponseSchema,
   BoardSchema,
+  ProgressEventSchema,
   SessionInfoSchema,
   type Artifact,
   type Board,
   type BoardResponse,
   type DiscussionSummary,
+  type ProgressEvent,
   type RoundRecord,
   type SessionInfo,
 } from '@visual-brainstorm/protocol';
@@ -39,6 +41,8 @@ export class SessionStore {
   readonly info: SessionInfo;
   readonly rounds: RoundRecord[] = [];
   readonly artifacts: Artifact[] = [];
+  /** Session-progress events (progress.jsonl) — deterministic UI feedback, reloadable. */
+  readonly progress: ProgressEvent[] = [];
 
   /** Create a NEW thread under the discussion root. */
   constructor(title: string, root: string) {
@@ -79,7 +83,19 @@ export class SessionStore {
       info: { ...info, id: path.basename(dir), dir },
       rounds: [],
       artifacts: [],
+      progress: [],
     });
+    const progressFile = path.join(dir, 'progress.jsonl');
+    if (fs.existsSync(progressFile)) {
+      for (const line of fs.readFileSync(progressFile, 'utf8').split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          store.progress.push(ProgressEventSchema.parse(JSON.parse(line)));
+        } catch (err) {
+          console.error(`[store] skipping progress line: ${String(err)}`);
+        }
+      }
+    }
     const roundDirs = fs
       .readdirSync(dir)
       .filter((d) => /^round-\d+$/.test(d))
@@ -204,6 +220,19 @@ export class SessionStore {
     );
   }
 
+  /**
+   * Session-progress event (rule 7 recall): kept in memory for the studio tail
+   * and appended to progress.jsonl — never rewritten, reloads with the thread.
+   */
+  recordProgress(event: ProgressEvent): void {
+    this.progress.push(event);
+    try {
+      fs.appendFileSync(path.join(this.info.dir, 'progress.jsonl'), JSON.stringify(event) + '\n');
+    } catch (err) {
+      console.error(`[store] progress.jsonl append failed: ${String(err)}`);
+    }
+  }
+
   captureArtifact(
     name: string,
     svg: string,
@@ -231,6 +260,44 @@ export class SessionStore {
     );
     this.artifacts.push(artifact);
     return artifact;
+  }
+
+  /**
+   * Rename a thread started as a placeholder (open_studio landing) once the
+   * real topic arrives with the first board. Display title only — the
+   * directory name keeps its original stamp-slug.
+   */
+  retitle(title: string): void {
+    if (title === this.info.title) return;
+    this.info.title = title;
+    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    this.appendMd(`\n> Thread retitled to "${title}" when the first board arrived.`);
+  }
+
+  /** Per-thread theme override — persisted so a resumed thread keeps its look. */
+  setTheme(theme: string | undefined): void {
+    if (theme === undefined) {
+      delete (this.info as { theme?: string }).theme;
+    } else {
+      this.info.theme = theme;
+    }
+    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    this.appendMd(
+      `\n> Discussion theme ${theme ? `set to \`${theme}\`` : 'cleared'} — the studio skin and generated artifact colors follow it.`,
+    );
+  }
+
+  /** Per-thread target repo/folder override — persisted so a resumed thread keeps it. */
+  setTargetRepo(targetRepo: string | undefined): void {
+    if (targetRepo === undefined) {
+      delete (this.info as { targetRepo?: string }).targetRepo;
+    } else {
+      this.info.targetRepo = targetRepo;
+    }
+    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    this.appendMd(
+      `\n> Target repo for this thread ${targetRepo ? `set to \`${targetRepo}\`` : 'cleared'} — final artifacts are COPIED there on plan-closeout.`,
+    );
   }
 
   nextRound(): number {

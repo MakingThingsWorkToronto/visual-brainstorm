@@ -86,11 +86,53 @@ export const BoardSchema = z.object({
 export type Board = z.infer<typeof BoardSchema>;
 
 // ---------------------------------------------------------------------------
+// Seed intake — "Open with anything": a session can start from a scribble, an
+// uploaded image, a voice transcript, or plain text. Zero typing required.
+// ---------------------------------------------------------------------------
+
+export const SeedIntakeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('text'), text: z.string() }),
+  /** Pointer-drawn scribble captured as self-contained SVG markup. */
+  z.object({ kind: z.literal('sketch'), svg: z.string() }),
+  /** Dropped/uploaded image as a data URI (persisted to disk by the bridge). */
+  z.object({ kind: z.literal('image'), dataUri: z.string(), name: z.string().default('') }),
+  /** Speech-recognition transcript (honest: only sent when recognition ran). */
+  z.object({ kind: z.literal('voice'), transcript: z.string() }),
+]);
+export type SeedIntake = z.infer<typeof SeedIntakeSchema>;
+
+// ---------------------------------------------------------------------------
 // Response
 // ---------------------------------------------------------------------------
 
 export const ResponseActionSchema = z.enum(['iterate', 'accept', 'park', 'finalize', 'back']);
 export type ResponseAction = z.infer<typeof ResponseActionSchema>;
+
+/**
+ * A file or photo attached in the composer. On the wire from the studio it
+ * carries the content as a data URI; the bridge persists it to the thread
+ * directory, blanks dataUri, and sets savedPath. A missing savedPath after
+ * the bridge processed it means persistence failed (reported honestly).
+ */
+export const ResponseAttachmentSchema = z.object({
+  name: z.string().default(''),
+  dataUri: z.string().default(''),
+  savedPath: z.string().optional(),
+});
+export type ResponseAttachment = z.infer<typeof ResponseAttachmentSchema>;
+
+/**
+ * A named generation color. Themes carry curated palettes of these (see
+ * Theme.palette); selecting a theme in the studio ships its resolved palette
+ * as BoardResponse.paletteColors, constraining SVG generation for following
+ * rounds. Names are stable handles the user can refer to in conversation.
+ */
+export const PaletteColorSchema = z.object({
+  name: z.string(),
+  /** CSS color value, e.g. "#a855f7". */
+  value: z.string(),
+});
+export type PaletteColor = z.infer<typeof PaletteColorSchema>;
 
 export const BoardResponseSchema = z.object({
   boardId: z.string(),
@@ -118,6 +160,18 @@ export const BoardResponseSchema = z.object({
   gapNotes: z
     .array(z.object({ between: z.tuple([z.number(), z.number()]), note: z.string() }))
     .default([]),
+  /** judge deck: per-option flick verdicts (keep flicked right, kill flicked left). */
+  deckVerdicts: z.record(z.enum(['keep', 'kill'])).default({}),
+  /** judge deck / sudden death: pairwise duels the user resolved — winner is preference data. */
+  duelResults: z
+    .array(z.object({ pair: z.tuple([z.string(), z.string()]), winner: z.string() }))
+    .default([]),
+  /** judge deck: keeps ordered strongest-pull first (refined by duels). Leads the synthesis vector. */
+  ranking: z.array(z.string()).default([]),
+  /** Files/photos attached in the composer — persisted by the bridge, surfaced in the digest. */
+  attachments: z.array(ResponseAttachmentSchema).default([]),
+  /** Generation colors picked in the palette picker — constrain the next round's SVGs. */
+  paletteColors: z.array(PaletteColorSchema).default([]),
   /** UI-invoked repo procedures (plan-closeout, discover-skills, new-brainstorm) to run now. */
   commands: z.array(z.string()).default([]),
   /** User clicked a phase tab — present the NEXT board in this phase. */
@@ -151,6 +205,10 @@ export const SessionInfoSchema = z.object({
   title: z.string(),
   startedAt: z.string(),
   dir: z.string(),
+  /** Per-thread target repo/folder override — final artifacts are COPIED here on closeout. */
+  targetRepo: z.string().optional(),
+  /** Per-thread theme override — skins the studio AND steers generated artifact colors. */
+  theme: z.string().optional(),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 
@@ -192,8 +250,38 @@ export const ThemeSchema = z.object({
   label: z.string(),
   light: ThemeVarsSchema,
   dark: ThemeVarsSchema,
+  /**
+   * Curated generation palette: 5 named colors designed to work together,
+   * anchored on the theme's accent. Optional — drop-in themes without one get
+   * a derived fallback in the studio's palette picker.
+   */
+  palette: z.array(PaletteColorSchema).optional(),
 });
 export type Theme = z.infer<typeof ThemeSchema>;
+
+// ---------------------------------------------------------------------------
+// Session progress — deterministic feedback piped from Claude Code to the UI
+// ---------------------------------------------------------------------------
+
+/**
+ * One progress event from the working session — posted to the bridge
+ * (POST /api/progress) by the orchestrator or the deterministic hook script
+ * (scripts/pipe-progress.mjs), broadcast live to the studio, and persisted
+ * append-only to the thread's progress.jsonl for recall. `tokens` carries the
+ * usage this event accounts for; a thread's token meter is the sum over all
+ * of its events.
+ */
+export const ProgressEventSchema = z.object({
+  /** ISO timestamp — the bridge stamps arrival time when the sender omits it. */
+  at: z.string(),
+  /** Who reported: 'orchestrator', an agent name, or 'hook:<event>'. */
+  source: z.string().default('orchestrator'),
+  note: z.string(),
+  tokens: z
+    .object({ input: z.number().min(0).default(0), output: z.number().min(0).default(0) })
+    .optional(),
+});
+export type ProgressEvent = z.infer<typeof ProgressEventSchema>;
 
 // ---------------------------------------------------------------------------
 // Bridge ⇄ studio envelopes
@@ -214,6 +302,10 @@ export interface StudioState {
   /** Models offered in the composer picker. */
   models: string[];
   defaultModel: string;
+  /** Effective target repo/folder (thread override ?? config default), null when unset. */
+  targetRepo: string | null;
+  /** Recent session-progress events (tail — the full log is the thread's progress.jsonl). */
+  progress: ProgressEvent[];
 }
 
 export type ServerToStudio =
@@ -221,6 +313,7 @@ export type ServerToStudio =
   | { type: 'board'; board: Board }
   | { type: 'thinking'; note: string | null }
   | { type: 'responded'; boardId: string; response: BoardResponse }
-  | { type: 'artifact'; artifact: Artifact };
+  | { type: 'artifact'; artifact: Artifact }
+  | { type: 'progress'; event: ProgressEvent };
 
 export type StudioToServer = { type: 'response'; response: BoardResponse };

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { SessionStore, slugify } from '../apps/mcp/dist/session-store.js';
+import { BoardResponseSchema, ProgressEventSchema } from '../packages/protocol/dist/index.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'));
 
@@ -24,23 +25,19 @@ const board = (round, overrides = {}) => ({
   ...overrides,
 });
 
-const response = (boardId) => ({
-  boardId,
-  selectedOptionIds: ['b'],
-  elaboration: 'more like Beta',
-  perOptionNotes: {},
-  axisValues: {},
-  remixPairs: [],
-  action: 'iterate',
-  triage: {},
-  mutations: {},
-  flaws: {},
-  positions: {},
-  clusters: [],
-  gapNotes: [],
-  commands: [],
-  respondedAt: 'now',
-});
+// Through the schema, like every production path — defaults stay in sync (rule 5).
+const response = (boardId) =>
+  BoardResponseSchema.parse({
+    boardId,
+    selectedOptionIds: ['b'],
+    elaboration: 'more like Beta',
+    action: 'iterate',
+    respondedAt: 'now',
+  });
+
+// Through the schema, like every production path — defaults stay in sync (rule 5).
+const progressEvent = (note, overrides = {}) =>
+  ProgressEventSchema.parse({ at: '2026-07-06T10:00:00.000Z', note, ...overrides });
 
 test('slugify produces safe kebab slugs', () => {
   assert.equal(slugify('Visualize 5 OPTIONS!! for search'), 'visualize-5-options-for-search');
@@ -73,6 +70,50 @@ test('open() reloads a thread and continues round numbering', () => {
   assert.equal(reopened.rounds.length, 1);
   assert.equal(reopened.rounds[0].response.elaboration, 'more like Beta');
   assert.equal(reopened.nextRound(), 2);
+});
+
+test('recordProgress persists one JSON line per event; open() reloads in order', () => {
+  const root = tmp();
+  const store = new SessionStore('Progress test', root);
+  store.recordProgress(progressEvent('reading the brief'));
+  store.recordProgress(
+    progressEvent('generating options', { source: 'svg-artisan', tokens: { input: 100, output: 50 } }),
+  );
+
+  const file = path.join(store.info.dir, 'progress.jsonl');
+  assert.ok(fs.existsSync(file), 'progress.jsonl written');
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter((l) => l.trim());
+  assert.equal(lines.length, 2, 'one JSON line per event');
+  assert.equal(JSON.parse(lines[0]).note, 'reading the brief');
+  assert.equal(JSON.parse(lines[1]).source, 'svg-artisan');
+  assert.equal(store.progress.length, 2, 'in-memory progress tracks records');
+
+  const reopened = SessionStore.open(store.info.dir);
+  assert.equal(reopened.progress.length, 2, 'progress reloads');
+  assert.equal(reopened.progress[0].note, 'reading the brief');
+  assert.equal(reopened.progress[0].source, 'orchestrator', 'schema default survives reload');
+  assert.equal(reopened.progress[1].note, 'generating options');
+  assert.deepEqual(reopened.progress[1].tokens, { input: 100, output: 50 }, 'tokens survive reload');
+});
+
+test('a corrupted progress.jsonl line is skipped on reload, valid events still load', () => {
+  const root = tmp();
+  const store = new SessionStore('Corrupt progress test', root);
+  store.recordProgress(progressEvent('before the corruption'));
+  const file = path.join(store.info.dir, 'progress.jsonl');
+  fs.appendFileSync(file, 'this is { not json\n');
+  store.recordProgress(progressEvent('after the corruption'));
+
+  let reopened;
+  assert.doesNotThrow(() => {
+    reopened = SessionStore.open(store.info.dir);
+  }, 'malformed line never throws');
+  assert.equal(reopened.progress.length, 2, 'corrupt line skipped, valid events kept');
+  assert.deepEqual(
+    reopened.progress.map((e) => e.note),
+    ['before the corruption', 'after the corruption'],
+    'order preserved around the skipped line',
+  );
 });
 
 test('artifacts capture with provenance and slug dedupe', () => {

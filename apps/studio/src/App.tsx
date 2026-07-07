@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Artifact,
   DiscussionSummary,
   RoundRecord,
+  SeedIntake,
   SessionInfo,
 } from '@visual-brainstorm/protocol';
 import { useBridge } from './lib/useBridge';
 import { applyTheme, storedThemeName, storeThemeName } from './lib/theme';
-import { Bubble, Marker, SvgPane } from './components/primitives';
+import { proposeNextPhase } from './lib/wayfinder';
+import { BulbIcon, Bubble, Marker, SvgPane } from './components/primitives';
 import { BoardSurvey } from './components/BoardSurvey';
+import { NewDiscussionPanel, type NewDiscussionExtras } from './components/NewDiscussionPanel';
 import { PreviewModal } from './components/PreviewModal';
+import { SessionActivity } from './components/SessionActivity';
 import { Sidebar } from './components/Sidebar';
 import { ThemePicker } from './components/ThemePicker';
+import { WayfinderStrip } from './components/WayfinderStrip';
 
 interface Thread {
   session: SessionInfo;
@@ -19,20 +24,20 @@ interface Thread {
   artifacts: Artifact[];
 }
 
-type Preview = { svg: string; label: string } | null;
+type Preview = { svg: string; label: string; tags?: string[] } | null;
 
 /** Rotating progress strings — visible feedback while Claude works between rounds. */
 const PROGRESS = [
-  'reading your selections…',
-  'weighing the dials…',
-  'breeding remix offspring…',
-  'inking new candidates…',
-  'checking lineage against earlier rounds…',
-  'sharpening strokes…',
-  'arguing with itself about composition…',
+  'reading your selections...',
+  'weighing the dials...',
+  'combining your remix picks...',
+  'drawing new candidates...',
+  'checking against earlier rounds...',
+  'sharpening strokes...',
+  'weighing composition choices...',
 ];
 
-function ThinkingMarker({ note }: { note: string }) {
+function ThinkingMarker({ note, latest }: { note: string; latest?: string }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 2200);
@@ -41,7 +46,9 @@ function ThinkingMarker({ note }: { note: string }) {
   return (
     <div className="space-y-1">
       <Marker shimmer>{note}</Marker>
-      <div className="text-center text-[11px] text-ink-dim">{PROGRESS[tick % PROGRESS.length]}</div>
+      <div className="text-center text-[11px] text-ink-dim">
+        {latest || PROGRESS[tick % PROGRESS.length]}
+      </div>
     </div>
   );
 }
@@ -52,7 +59,7 @@ function RoundHistoryView({
   onPreview,
 }: {
   record: RoundRecord;
-  onPreview: (preview: { svg: string; label: string }) => void;
+  onPreview: (preview: { svg: string; label: string; tags?: string[] }) => void;
 }) {
   const { board, response } = record;
   const selectedSet = new Set(response?.selectedOptionIds ?? []);
@@ -69,8 +76,8 @@ function RoundHistoryView({
           <button
             key={option.id}
             type="button"
-            title={`${option.label} — click for full-screen preview`}
-            onClick={() => onPreview({ svg: option.svg, label: option.label })}
+            title={`${option.label}: click for full-screen preview`}
+            onClick={() => onPreview({ svg: option.svg, label: option.label, tags: option.tags })}
             className={`rounded-xl border p-2 text-left ${
               selectedSet.has(option.id)
                 ? 'border-accent bg-accent/10'
@@ -89,7 +96,7 @@ function RoundHistoryView({
           <div className="text-xs text-ink-dim">
             {response.action} · picked {response.selectedOptionIds.length}
             {response.remixPairs.length > 0 && ` · ${response.remixPairs.length} remix`}
-            {response.model && ` · → ${response.model.replace(/^claude-/, '')}`}
+            {response.model && ` · to ${response.model.replace(/^claude-/, '')}`}
           </div>
           {response.elaboration && <div className="mt-1">{response.elaboration}</div>}
         </Bubble>
@@ -107,7 +114,7 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false);
   const [commandStatus, setCommandStatus] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
-  const [newPrompt, setNewPrompt] = useState('');
+  const [advanceSignal, setAdvanceSignal] = useState(0);
   const [logs, setLogs] = useState<{ file: string | null; lines: string[] } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -115,17 +122,22 @@ export default function App() {
     setLogs(await (await fetch('/api/logs')).json());
   }, []);
 
-  const invokeCommand = useCallback(async (command: 'plan-closeout' | 'discover-skills' | 'new-brainstorm', prompt?: string) => {
+  const invokeCommand = useCallback(async (
+    command: 'plan-closeout' | 'discover-skills' | 'new-brainstorm',
+    prompt?: string,
+    seed?: SeedIntake,
+    extras?: NewDiscussionExtras,
+  ) => {
     const res = await fetch('/api/command', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ command, prompt }),
+      body: JSON.stringify({ command, prompt, seed, ...extras }),
     });
     const body = await res.json();
     setCommandStatus(
       body.ok
         ? body.delivered === 'via-board-response'
-          ? `${command} sent — Claude is on it`
+          ? `${command} sent, Claude is on it`
           : `${command} queued for Claude's next check-in`
         : `failed: ${body.error}`,
     );
@@ -144,12 +156,14 @@ export default function App() {
     refreshDiscussions();
   }, [refreshDiscussions, state.session?.id, state.rounds.length, state.artifacts.length]);
 
-  // Theme: stored pick wins, else config default; applied live, tracks OS scheme.
+  // Theme: the viewed discussion's theme wins, then the stored local pick,
+  // then the config default; applied live, tracks OS scheme.
+  const effectiveTheme =
+    (archived ? archived.session.theme : state.session?.theme) ?? themeName ?? state.theme;
   useEffect(() => {
-    const name = themeName ?? state.theme;
-    const theme = state.themes.find((t) => t.name === name) ?? state.themes[0];
+    const theme = state.themes.find((t) => t.name === effectiveTheme) ?? state.themes[0];
     if (theme) return applyTheme(theme);
-  }, [themeName, state.theme, state.themes]);
+  }, [effectiveTheme, state.themes]);
 
   const openDiscussion = useCallback(
     async (id: string | null) => {
@@ -166,15 +180,36 @@ export default function App() {
 
   const viewingLive = archived === null;
   const rounds = viewingLive ? state.rounds : archived.rounds;
-  const artifacts = viewingLive ? state.artifacts : archived.artifacts;
   const history = rounds.filter((r) => r.response !== null);
+  // Empty live session → land on the New Discussion panel (the intake surface),
+  // e.g. a bare /run-brainstorm opening the studio via open_studio.
+  const landing =
+    viewingLive && history.length === 0 && !state.activeBoard && !state.thinking;
+
+  // Wayfinder: what the studio would do next (the orchestrator still decides).
+  const proposal = useMemo(
+    () => (viewingLive ? proposeNextPhase(state.rounds, state.activeBoard?.phase ?? null) : null),
+    [viewingLive, state.rounds, state.activeBoard?.phase],
+  );
+  const jumpToRound = useCallback((boardId: string) => {
+    document.getElementById(`round-${boardId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   useEffect(() => {
     if (viewingLive) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [viewingLive, state.activeBoard?.id, state.rounds.length, state.thinking]);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen">
+      <button
+        type="button"
+        onClick={() => setNavOpen(true)}
+        className="fixed left-3 top-3 z-20 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm shadow lg:hidden"
+        aria-label="Open discussions"
+      >
+        ☰
+      </button>
+
       <div className={`${navOpen ? 'block' : 'hidden'} fixed inset-0 z-30 lg:static lg:block`}>
         <div
           className="absolute inset-0 bg-black/40 lg:hidden"
@@ -187,118 +222,113 @@ export default function App() {
             liveId={state.session?.id ?? null}
             selectedId={archived?.session.id ?? null}
             onSelect={openDiscussion}
+            brand={
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15">
+                    <BulbIcon className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-base font-bold leading-tight">Visual Brainstorm</h1>
+                    <div className="truncate text-xs text-ink-dim">
+                      {viewingLive
+                        ? (state.session ? state.session.title : 'waiting for a session')
+                        : `${archived.session.title} (archived)`}
+                      <span
+                        className={`ml-2 inline-block h-2 w-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-400'}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNewOpen(true)}
+                  title="Start a fresh brainstorm from your own prompt (requires the Claude engine)"
+                  className="mt-3 w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:brightness-105"
+                >
+                  New Discussion
+                </button>
+              </div>
+            }
+            footer={
+              <div className="flex items-end justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={openLogs}
+                  title="Live bridge logs: every board, response, command, and error"
+                  className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink-dim hover:border-accent hover:text-ink"
+                >
+                  Logs
+                </button>
+                <ThemePicker
+                  themes={state.themes}
+                  current={effectiveTheme}
+                  onPick={(name) => {
+                    setThemeName(name);
+                    storeThemeName(name);
+                    // Bind the pick to the live discussion too — its artifacts
+                    // and skin travel together (session.json persists it).
+                    void fetch('/api/session-theme', {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({ name }),
+                    }).catch(() => {});
+                  }}
+                />
+              </div>
+            }
           />
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col px-4 py-6 lg:px-8">
-        <header className="mb-6 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setNavOpen(true)}
-            className="rounded-lg border border-line px-2.5 py-1.5 text-sm lg:hidden"
-            aria-label="Open discussions"
-          >
-            ☰
-          </button>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15 text-lg">💡</div>
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold leading-tight">Visual Brainstorm</h1>
-            <div className="truncate text-xs text-ink-dim">
-              {viewingLive
-                ? (state.session ? state.session.title : 'waiting for a session')
-                : `${archived.session.title} (archived)`}
-              <span
-                className={`ml-2 inline-block h-2 w-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-400'}`}
-              />
-            </div>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            {commandStatus && (
-              <span className="hidden text-xs text-ink-dim sm:inline">{commandStatus}</span>
-            )}
-            <button
-              type="button"
-              onClick={() => setNewOpen(true)}
-              title="Start a fresh brainstorm from your own prompt (requires the Claude engine)"
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:brightness-105"
-            >
-              ✚ New Brainstorm
-            </button>
-            <button
-              type="button"
-              onClick={() => invokeCommand('discover-skills')}
-              title="Interactive: match local skills to the task, or web-discover new techniques and ingest them as skills — quality compounds every turn"
-              className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs hover:border-accent"
-            >
-              ✨ Discover skills
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm('Run plan closeout? Claude will harvest learnings, improve the slash commands, update the wiki, and archive this discussion.')) {
-                  invokeCommand('plan-closeout');
-                }
-              }}
-              title="Run .claude/commands/plan-closeout.md — harvest learnings, improve commands, archive the thread"
-              className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs hover:border-accent"
-            >
-              📦 Plan closeout
-            </button>
-            {artifacts.length > 0 && (
-              <div className="hidden items-center gap-2 md:flex">
-                {artifacts.slice(-4).map((artifact) => (
-                  <span
-                    key={artifact.slug}
-                    title={artifact.name}
-                    className="rounded-lg border border-line bg-surface px-2 py-1 text-xs"
-                  >
-                    🏆 {artifact.slug}
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={openLogs}
-              title="Live bridge logs — every board, response, command, and error"
-              className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink-dim hover:border-accent hover:text-ink"
-            >
-              🧾
-            </button>
-            <ThemePicker
-              themes={state.themes}
-              current={themeName ?? state.theme}
-              onPick={(name) => {
-                setThemeName(name);
-                storeThemeName(name);
+      <div className="flex min-w-0 flex-1 flex-col pb-6 pl-4 pt-16 lg:pl-8 lg:pt-6">
+        {viewingLive && !newOpen && (
+          <div className="pr-4 lg:pr-8">
+            <WayfinderStrip
+              rounds={state.rounds}
+              artifacts={state.artifacts}
+              activeBoard={state.activeBoard}
+              proposal={proposal}
+              onJump={jumpToRound}
+              onAdvance={() => {
+                setAdvanceSignal((s) => s + 1);
+                bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
               }}
             />
           </div>
-        </header>
+        )}
 
-        <main className="scroll-fade flex-1 space-y-6 overflow-y-auto pb-8">
+        <main
+          className={`scroll-fade flex-1 space-y-6 overflow-y-auto pb-8 pr-4 lg:pr-8 ${
+            newOpen || landing ? 'flex flex-col' : ''
+          }`}
+        >
+          {(newOpen || landing) && (
+            <NewDiscussionPanel
+              enginePreview={state.engine === 'preview'}
+              themes={state.themes}
+              models={state.models}
+              defaultModel={state.defaultModel}
+              targetRepo={state.targetRepo}
+              cancellable={!landing}
+              onCancel={() => setNewOpen(false)}
+              onStart={(prompt, seed, extras) => {
+                invokeCommand('new-brainstorm', prompt || undefined, seed, extras);
+                setNewOpen(false);
+              }}
+            />
+          )}
+          {!newOpen && !landing && (
+            <>
           {!viewingLive && (
             <div className="rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs">
-              Archived thread — fully cached, nothing regenerated. Ask Claude to resume it with
+              Archived thread. Fully cached, nothing regenerated. Ask Claude to resume it with
               discussionId <code className="font-mono">{archived.session.id}</code>.
             </div>
           )}
 
-          {history.length === 0 && !state.activeBoard && !state.thinking && viewingLive && (
-            <div className="mx-auto mt-16 max-w-md rounded-2xl border border-line bg-surface p-8 text-center">
-              <div className="text-3xl">🎨</div>
-              <h2 className="mt-3 font-semibold">No board yet</h2>
-              <p className="mt-2 text-sm text-ink-dim">
-                Ask Claude Code to brainstorm something visual. It will clarify with
-                AskUserQuestion, then present SVG options here for you to select, annotate,
-                remix, and steer. Previous threads live in the left nav.
-              </p>
-            </div>
-          )}
-
           {history.map((record) => (
-            <div key={record.board.id}>
+            <div key={record.board.id} id={`round-${record.board.id}`}>
               <Marker>Round {record.board.round} · {record.board.kind} · {record.board.phase}</Marker>
               <div className="mt-3">
                 <RoundHistoryView record={record} onPreview={setPreview} />
@@ -307,7 +337,7 @@ export default function App() {
           ))}
 
           {viewingLive && state.activeBoard && (
-            <div>
+            <div id={`round-${state.activeBoard.id}`}>
               <Marker>
                 Round {state.activeBoard.round} · {state.activeBoard.kind} · {state.activeBoard.phase} · your turn
               </Marker>
@@ -324,64 +354,33 @@ export default function App() {
                   models={state.models}
                   defaultModel={state.defaultModel}
                   onRespond={respond}
-                  onPreview={setPreview}
+                  proposal={proposal}
+                  advanceSignal={advanceSignal}
+                  onCommand={invokeCommand}
+                  targetRepo={state.targetRepo}
+                  themes={state.themes}
                 />
               </div>
             </div>
           )}
 
           {viewingLive && !state.activeBoard && state.thinking && (
-            <ThinkingMarker note={state.thinking} />
+            <ThinkingMarker
+              note={state.thinking}
+              latest={state.progress.length > 0 ? state.progress[state.progress.length - 1].note : undefined}
+            />
+          )}
+
+          {viewingLive && <SessionActivity events={state.progress} />}
+            </>
           )}
           <div ref={bottomRef} />
         </main>
       </div>
 
-      {newOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 shadow-2xl">
-            <h2 className="text-sm font-bold">✚ New Brainstorm</h2>
-            <p className="mt-1 text-xs text-ink-dim">
-              What are we brainstorming? Your prompt seeds the first board.
-            </p>
-            {state.engine === 'preview' && (
-              <div className="mt-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-[11px] leading-snug text-ink-dim">
-                <span className="font-semibold text-ink">Preview harness — no generator attached.</span>{' '}
-                This server only shows static fixture boards for exercising the UI. To brainstorm
-                for real, start Claude Code in this repo (the MCP server auto-loads via .mcp.json)
-                and ask it to brainstorm your prompt.
-              </div>
-            )}
-            <textarea
-              autoFocus
-              value={newPrompt}
-              onChange={(e) => setNewPrompt(e.target.value)}
-              placeholder="e.g. app icons for a note-taking tool — hand-drawn, warm, must read at 16px"
-              rows={3}
-              className="mt-3 w-full resize-y rounded-xl border border-line bg-surface-2 p-3 text-sm outline-none focus:border-accent"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setNewOpen(false)}
-                className="rounded-lg px-3 py-1.5 text-xs text-ink-dim hover:text-ink"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!newPrompt.trim()}
-                onClick={() => {
-                  invokeCommand('new-brainstorm', newPrompt.trim());
-                  setNewOpen(false);
-                  setNewPrompt('');
-                }}
-                className="rounded-lg bg-accent px-4 py-1.5 text-xs font-semibold text-white hover:brightness-105 disabled:opacity-50"
-              >
-                Start brainstorm →
-              </button>
-            </div>
-          </div>
+      {commandStatus && (
+        <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-line bg-surface px-3 py-2 text-xs shadow-xl">
+          {commandStatus}
         </div>
       )}
 
@@ -396,7 +395,7 @@ export default function App() {
                 onClick={openLogs}
                 className="ml-auto rounded-lg border border-line px-2.5 py-1 text-xs hover:border-accent"
               >
-                ↻ refresh
+                Refresh
               </button>
               <button
                 type="button"
@@ -414,7 +413,12 @@ export default function App() {
       )}
 
       {preview && (
-        <PreviewModal svg={preview.svg} label={preview.label} onClose={() => setPreview(null)} />
+        <PreviewModal
+          svg={preview.svg}
+          label={preview.label}
+          tags={preview.tags}
+          onClose={() => setPreview(null)}
+        />
       )}
     </div>
   );

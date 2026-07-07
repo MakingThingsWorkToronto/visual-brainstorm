@@ -16,6 +16,8 @@ const EMPTY: StudioState = {
   theme: 'neon-purple',
   models: [],
   defaultModel: 'claude-fable-5',
+  targetRepo: null,
+  progress: [],
 };
 
 /** WS in (boards), HTTP POST out (responses), auto-reconnect, hello resync. */
@@ -69,6 +71,8 @@ export function useBridge() {
               return { ...prev, thinking: msg.note };
             case 'artifact':
               return { ...prev, artifacts: [...prev.artifacts, msg.artifact] };
+            case 'progress':
+              return { ...prev, progress: [...prev.progress, msg.event].slice(-200) };
           }
         });
       };
