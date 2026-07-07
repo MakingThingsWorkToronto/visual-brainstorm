@@ -1,0 +1,51 @@
+{
+  "boardId": "board-mindmap-1",
+  "elaboration": "Renamed the motion branch — 'escape' reads as loss; it's a gift. Added the 16px favicon stress test under applications.",
+  "editedTree": {
+    "nodeData": {
+      "id": "root",
+      "topic": "Glow Mark — a living identity of contained light",
+      "children": [
+        {
+          "id": "warmth",
+          "topic": "Warmth language",
+          "children": [
+            {
+              "id": "filament",
+              "topic": "Filament core — the amber heart every mark keeps",
+              "style": { "color": "#f59e0b" }
+            },
+            {
+              "id": "ember-strata",
+              "topic": "Ember strata — layered heat",
+              "children": [
+                { "id": "strata-gradient", "topic": "Gradient steps from #7c3aed to #f59e0b" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "motion",
+          "topic": "Gift arc — light offered outward, not escaping",
+          "tags": ["kinetic"]
+        },
+        {
+          "id": "applications",
+          "topic": "Applications",
+          "children": [
+            { "id": "app-favicon", "topic": "Favicon — halo ring only" },
+            { "id": "app-splash", "topic": "Splash screen — full bloom animation" },
+            { "id": "app-favicon-16", "topic": "16px stress test — does the halo survive?" }
+          ]
+        },
+        {
+          "id": "voice",
+          "topic": "Verbal identity — 'kept light, shared light'"
+        }
+      ]
+    },
+    "direction": 2
+  },
+  "action": "iterate",
+  "respondedAt": "2026-07-07T10:21:00.000Z"
+}

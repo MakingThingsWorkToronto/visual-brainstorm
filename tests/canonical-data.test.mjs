@@ -28,12 +28,14 @@ const CANONICAL_FILES = {
   'boards/wreck.json': BoardSchema,
   'boards/cluster.json': BoardSchema,
   'boards/converge.json': BoardSchema,
+  'boards/mindmap-tree.json': BoardSchema,
   'responses/iterate.json': BoardResponseSchema,
   'responses/steer-attachments.json': BoardResponseSchema,
   'responses/wreck-flaws.json': BoardResponseSchema,
   'responses/cluster-positions.json': BoardResponseSchema,
   'responses/converge-triage.json': BoardResponseSchema,
   'responses/finalize.json': BoardResponseSchema,
+  'responses/edited-tree.json': BoardResponseSchema,
   'themes/theme.json': ThemeSchema,
 };
 
@@ -99,7 +101,9 @@ test('board lineage is coherent: every parent id exists on an earlier board', ()
 
 test('every canonical response targets a real board and only its option ids', () => {
   const boardsById = new Map(
-    PHASES.map((phase) => loadCanonical(`boards/${phase}.json`, BoardSchema)).map((b) => [b.id, b]),
+    [...PHASES.map((phase) => `boards/${phase}.json`), 'boards/mindmap-tree.json']
+      .map((relPath) => loadCanonical(relPath, BoardSchema))
+      .map((b) => [b.id, b]),
   );
   const responseFiles = Object.keys(CANONICAL_FILES).filter((p) => p.startsWith('responses/'));
   for (const relPath of responseFiles) {
@@ -177,6 +181,29 @@ test('per-phase mechanics carry real data in their canonical responses', () => {
   assert.ok(steer.attachments[0].dataUri.startsWith('data:image/png;base64,'));
   assert.ok(steer.attachments[1].savedPath.includes('attachments/'));
   assert.equal(steer.paletteColors.length, 3);
+});
+
+test('mindmap board carries a tree instead of options; the edited tree encodes real edits', () => {
+  const board = loadCanonical('boards/mindmap-tree.json', BoardSchema);
+  assert.equal(board.sessionId, 'glow-mark-2026-07-07', 'mindmap board belongs to the canonical thread');
+  assert.deepEqual(board.options, [], 'tree boards carry no options');
+  assert.ok(board.tree.nodeData.children.length >= 3, 'root has 3+ branches');
+  assert.ok(
+    board.tree.nodeData.children.some((c) => c.children?.some((g) => g.children?.length)),
+    'at least one branch nests to grandchild depth',
+  );
+
+  const response = loadCanonical('responses/edited-tree.json', BoardResponseSchema);
+  assert.equal(response.boardId, board.id);
+  assert.notDeepEqual(response.editedTree, board.tree, 'the fixture encodes a real edit, not a copy');
+  const topics = (node) => [node.topic, ...(node.children ?? []).flatMap(topics)];
+  const before = topics(board.tree.nodeData);
+  const after = topics(response.editedTree.nodeData);
+  assert.ok(after.length > before.length, 'a node was added');
+  assert.ok(
+    before.some((t) => !after.includes(t)),
+    'a node was renamed (its old topic is gone)',
+  );
 });
 
 test('canonical theme is complete: both schemes, 5-color named palette on the accent', () => {

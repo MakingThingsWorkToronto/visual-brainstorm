@@ -5,6 +5,8 @@ import {
   BoardResponseSchema,
   BoardSchema,
   DiscussionSummarySchema,
+  MindNodeSchema,
+  MindTreeSchema,
   PHASES,
   ResponseActionSchema,
   SeedIntakeSchema,
@@ -127,6 +129,64 @@ test('judge-deck response fields round-trip and reject bad verdicts', () => {
   assert.throws(() =>
     BoardResponseSchema.parse({ boardId: 'b', respondedAt: 'n', duelResults: [{ pair: ['a'], winner: 'a' }] }),
   );
+});
+
+// 3-level tree (root → 2 children → 1 grandchild) for round-trip proofs. Only
+// known keys, so a parsed tree deepEquals its input (optional fields stay absent —
+// recursive z.lazy nodes carry no defaults).
+const TREE = {
+  nodeData: {
+    id: 'root',
+    topic: 'glow mark',
+    children: [
+      { id: 'c1', topic: 'warmth', children: [{ id: 'g1', topic: 'filament', style: { color: '#f59e0b' } }] },
+      { id: 'c2', topic: 'motion', tags: ['kinetic'], expanded: true },
+    ],
+  },
+  direction: 2,
+};
+
+test('mindmap board: tree carries content, options default empty, tree round-trips', () => {
+  const { options: _omitted, ...boardWithoutOptions } = BOARD_BASE;
+  const board = BoardSchema.parse({ ...boardWithoutOptions, kind: 'mindmap', tree: TREE });
+  assert.deepEqual(board.options, [], 'omitted options default to []');
+  assert.deepEqual(board.tree, TREE, 'nested tree round-trips exactly');
+  const emptyOptions = BoardSchema.parse({ ...BOARD_BASE, options: [], tree: TREE });
+  assert.deepEqual(emptyOptions.options, []);
+});
+
+test('mind tree rejects malformed shapes at every depth', () => {
+  assert.throws(() => MindTreeSchema.parse({ direction: 1 }), 'missing nodeData');
+  assert.throws(() => MindTreeSchema.parse({ nodeData: { id: 'x' } }), 'node missing topic');
+  assert.throws(() => MindTreeSchema.parse({ ...TREE, direction: 3 }), 'direction out of 0..2');
+  assert.throws(
+    () =>
+      MindTreeSchema.parse({
+        nodeData: {
+          id: 'root',
+          topic: 't',
+          children: [{ id: 'c', topic: 'c', children: [{ topic: 'grandchild missing id' }] }],
+        },
+      }),
+    'recursion validates nested grandchildren',
+  );
+  assert.doesNotThrow(() => MindNodeSchema.parse({ id: 'bare', topic: 'leaf' }));
+});
+
+test('response editedTree: optional, round-trips, and validates through the tree schema', () => {
+  const edited = BoardResponseSchema.parse({ boardId: 'b1', respondedAt: 'now', editedTree: TREE });
+  assert.deepEqual(edited.editedTree, TREE);
+  const untouched = BoardResponseSchema.parse({ boardId: 'b1', respondedAt: 'now' });
+  assert.equal(untouched.editedTree, undefined, 'absent means the tree was untouched');
+  assert.throws(() =>
+    BoardResponseSchema.parse({ boardId: 'b1', respondedAt: 'now', editedTree: { nodeData: { id: 'x' } } }),
+  );
+});
+
+test('plain options board still parses with tree undefined', () => {
+  const board = BoardSchema.parse(BOARD_BASE);
+  assert.equal(board.tree, undefined);
+  assert.equal(board.options.length, 1);
 });
 
 test('seed intake round-trips all four kinds', () => {

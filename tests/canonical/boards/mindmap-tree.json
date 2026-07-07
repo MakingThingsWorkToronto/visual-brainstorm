@@ -1,0 +1,69 @@
+{
+  "id": "board-mindmap-1",
+  "sessionId": "glow-mark-2026-07-07",
+  "round": 7,
+  "kind": "mindmap",
+  "phase": "expand",
+  "title": "Glow Mark territory map — co-edit the branches",
+  "prompt": "Round 7: the accepted glow-mark direction unpacked as a living mind map. Rename, prune, or grow any branch — your edits steer the next round.",
+  "options": [],
+  "tree": {
+    "nodeData": {
+      "id": "root",
+      "topic": "Glow Mark — a living identity of contained light",
+      "children": [
+        {
+          "id": "warmth",
+          "topic": "Warmth language",
+          "children": [
+            {
+              "id": "filament",
+              "topic": "Filament core — the amber heart every mark keeps",
+              "style": { "color": "#f59e0b" }
+            },
+            {
+              "id": "ember-strata",
+              "topic": "Ember strata — layered heat",
+              "children": [
+                { "id": "strata-gradient", "topic": "Gradient steps from #7c3aed to #f59e0b" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "motion",
+          "topic": "Escape arc — light leaving the ring",
+          "tags": ["kinetic"]
+        },
+        {
+          "id": "applications",
+          "topic": "Applications",
+          "children": [
+            { "id": "app-favicon", "topic": "Favicon — halo ring only" },
+            { "id": "app-splash", "topic": "Splash screen — full bloom animation" }
+          ]
+        },
+        {
+          "id": "voice",
+          "topic": "Verbal identity — 'kept light, shared light'"
+        }
+      ]
+    },
+    "direction": 2
+  },
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 0,
+    "elaborationPrompt": "Which branch deserves the next deep cut?",
+    "allowPerOptionNotes": true,
+    "allowRemix": true,
+    "axes": [
+      { "id": "depth", "label": "Depth", "leftLabel": "Broad map", "rightLabel": "One branch deep", "defaultValue": 50 },
+      { "id": "literal", "label": "Literalness", "leftLabel": "Abstract glow", "rightLabel": "Named artifacts", "defaultValue": 40 },
+      { "id": "warmth", "label": "Warmth", "leftLabel": "Cool violet", "rightLabel": "Amber heat", "defaultValue": 60 },
+      { "id": "motion", "label": "Motion", "leftLabel": "Still emblem", "rightLabel": "Animated system", "defaultValue": 50 },
+      { "id": "scope", "label": "Scope", "leftLabel": "Logo only", "rightLabel": "Whole identity", "defaultValue": 70 }
+    ]
+  },
+  "createdAt": "2026-07-07T10:14:00.000Z"
+}

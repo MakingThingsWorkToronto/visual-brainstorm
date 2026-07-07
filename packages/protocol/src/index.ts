@@ -69,6 +69,48 @@ export const BoardOptionSchema = z.object({
 });
 export type BoardOption = z.infer<typeof BoardOptionSchema>;
 
+// ---------------------------------------------------------------------------
+// Mind tree — the live co-edited structure behind mindmap boards
+// (wiki/Research/visualization-engines.md). Claude sends ONE tree instead of
+// N SVG options; the user edits it directly and the edited tree returns in
+// BoardResponse.editedTree — the artifact IS the feedback.
+// ---------------------------------------------------------------------------
+
+/** One node of a mind tree — mind-elixir-compatible (id + topic + children). */
+export interface MindNode {
+  id: string;
+  topic: string;
+  children?: MindNode[];
+  /** Collapsed/expanded state — mind-elixir persists it through edits. */
+  expanded?: boolean;
+  tags?: string[];
+  style?: { color?: string; background?: string; fontSize?: string };
+}
+
+export const MindNodeSchema: z.ZodType<MindNode> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    topic: z.string(),
+    children: z.array(MindNodeSchema).optional(),
+    expanded: z.boolean().optional(),
+    tags: z.array(z.string()).optional(),
+    style: z
+      .object({
+        color: z.string().optional(),
+        background: z.string().optional(),
+        fontSize: z.string().optional(),
+      })
+      .optional(),
+  }),
+);
+
+export const MindTreeSchema = z.object({
+  nodeData: MindNodeSchema,
+  /** mind-elixir layout: 0 = left, 1 = right, 2 = both sides. */
+  direction: z.number().int().min(0).max(2).optional(),
+});
+export type MindTree = z.infer<typeof MindTreeSchema>;
+
 export const BoardSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
@@ -79,7 +121,14 @@ export const BoardSchema = z.object({
   title: z.string(),
   /** Claude's narration for this round — shown as the round's chat bubble. */
   prompt: z.string(),
-  options: z.array(BoardOptionSchema).min(1),
+  /**
+   * SVG options. May be empty ONLY when `tree` carries the board's content —
+   * "options or tree" is enforced at the tool boundary (present_board), not
+   * here, so cached threads always reload (wiki/Meta/conventions.md).
+   */
+  options: z.array(BoardOptionSchema).default([]),
+  /** Mindmap boards: the live co-edited tree presented instead of options. */
+  tree: MindTreeSchema.optional(),
   survey: SurveyConfigSchema,
   createdAt: z.string(),
 });
@@ -178,6 +227,8 @@ export const BoardResponseSchema = z.object({
   requestedPhase: PhaseSchema.optional(),
   /** action=finalize: THE one — capture it, then run plan-closeout (finality). */
   finalOptionId: z.string().optional(),
+  /** mindmap: the user's edited tree — absent means the tree was untouched. */
+  editedTree: MindTreeSchema.optional(),
   respondedAt: z.string(),
 });
 export type BoardResponse = z.infer<typeof BoardResponseSchema>;
@@ -219,6 +270,25 @@ export const ArtifactChatMessageSchema = z.object({
   revisedSlug: z.string().optional(),
 });
 export type ArtifactChatMessage = z.infer<typeof ArtifactChatMessageSchema>;
+
+/**
+ * Option chats reuse the artifact-chat channel: a board OPTION (any round,
+ * incl. previous ones) is addressed by this synthetic slug in
+ * ArtifactChatMessage.artifactSlug, so questions about earlier choices
+ * persist to the same artifacts/chat.jsonl and reload with the thread.
+ * Board ids and option ids contain no ':' (board-r<N>-<ts> / r<N>-o<N>).
+ */
+export function optionChatSlug(boardId: string, optionId: string): string {
+  return `option:${boardId}:${optionId}`;
+}
+
+/** Inverse of optionChatSlug; null for ordinary artifact slugs. */
+export function parseOptionChatSlug(
+  slug: string,
+): { boardId: string; optionId: string } | null {
+  const match = slug.match(/^option:([^:]+):([^:]+)$/);
+  return match ? { boardId: match[1], optionId: match[2] } : null;
+}
 
 export const SessionInfoSchema = z.object({
   id: z.string(),
