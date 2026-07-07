@@ -51,7 +51,10 @@ export function useBridge() {
         setState((prev) => {
           switch (msg.type) {
             case 'hello':
-              return msg.state;
+              // Merge over defaults: a bridge process built before (or after) this
+              // bundle may omit state fields — missing ones degrade to EMPTY's
+              // values instead of crashing the render (blank-page skew, 2026-07-07).
+              return { ...EMPTY, ...msg.state };
             case 'board': {
               const known = prev.rounds.some((r) => r.board.id === msg.board.id);
               return {

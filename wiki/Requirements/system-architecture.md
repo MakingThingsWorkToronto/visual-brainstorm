@@ -36,7 +36,12 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
 - `GET /` static studio (dist resolved `../../studio/dist` from apps/mcp/dist; override `VIBR_STUDIO_DIST`).
 - `GET /api/health` — self-diagnosis: pid, port, startedAt, session id/dir, active board,
   connected clients, studio-dist existence. First stop when anything "seems broken"
-  (`.claude/commands/diagnose-demo.md`).
+  (`.claude/commands/diagnose-studio.md`; field semantics:
+  System/testing-observability §Observability).
+- `POST /api/client-log` — `{ source, message, stack? }` (zod-validated, 32k body cap)
+  from the studio's global error handlers/CrashBoundary; written to the same log ring as
+  bridge events, prefix `STUDIO CLIENT ERROR [source]:` (see
+  System/testing-observability §Observability).
 - `GET /api/state` — full session state (hello payload) incl. themes/models for initial load/reconnect.
 - `GET /api/discussions` — all cached threads (left-nav source), newest first; threads in
   `_completed/` carry `archived: true` and populate the Archive nav section.
@@ -149,6 +154,10 @@ discussion/.seeds/seed-<stamp>.(svg|png|jpeg|…)   non-text seed intake files (
 
 - apps/mcp: **stderr-only logging** (stdout is the MCP channel).
 - Studio sanitizes all SVG before DOM insertion (no scripts / on* / foreignObject / js: hrefs).
+- **Version-skew guardrail**: a long-running bridge process can predate the studio bundle
+  it serves, so `useBridge`'s `hello` handler merges server state over typed defaults
+  (`{ ...EMPTY, ...msg.state }`). Any field added to `StudioState` in packages/protocol
+  MUST get a default in useBridge's EMPTY object (`apps/studio/src/lib/useBridge.ts`).
 - protocol package has zero runtime deps besides zod.
 - **One engine: Claude.** All orchestration and generation live in Claude + the
   `.claude/{commands,skills}` procedures — NEVER in harness code. `StudioState.engine` is

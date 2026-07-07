@@ -24,7 +24,19 @@ port — the browser shows the ghost.
    - `presenting … 0 client(s) connected` → no browser tab on THIS instance.
    - `FATAL uncaught…` → real crash with stack; fix the cause, never restart-loop.
    - `studio … MISSING` → `npm run build -w apps/studio`.
+   - `STUDIO CLIENT ERROR [source]: …` → browser-side crash self-reported by the studio
+     (the page shows a crash panel with the same stack).
+   - `studio connected`/`studio disconnected` within ~1s, repeatedly → client crash loop
+     ("flashes then goes blank"). No STUDIO CLIENT ERROR line alongside it = bundle
+     predates the reporter — repro headlessly: Edge/Chrome `--headless=new
+     --remote-debugging-port`, raw CDP via the repo's `ws` package, watch
+     `Runtime.exceptionThrown`, then `#root` childElementCount (0 = unmounted root).
+     Classic cause: version skew — a long-lived server's `hello` state missing fields the
+     freshly built bundle dereferences.
 4. **Stale tab:** the WS auto-reconnects but the JS bundle doesn't — Ctrl+Shift+R.
+   Health-field semantics while you're there: `awaitingResponse` is the BLOCKING
+   present_board wait (false after the tool timeout, board still answerable);
+   `activeBoard: null` is the only "user submitted" signal.
 5. **Only after evidence:** propose the minimal fix; get confirmation before killing
    anything that might be the user's live session.
 

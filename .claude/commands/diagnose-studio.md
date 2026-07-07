@@ -21,6 +21,16 @@ verdict. Most reports are a port-conflict ghost, not a failure.
    - `presenting board-…` with `0 client(s) connected` — no browser tab is on THIS instance.
    - `FATAL uncaught…` — an actual crash, with stack. Fix the code, don't restart-loop.
    - `studio … MISSING` — run `npm run build -w apps/studio`.
+   - `STUDIO CLIENT ERROR [source]: …` — a browser-side crash, reported by the studio
+     itself (global handlers + CrashBoundary → `POST /api/client-log`). The page shows a
+     crash panel with the same stack.
+   - `studio connected` → `studio disconnected` within ~1s, REPEATEDLY — client crash
+     loop (the page "flashes then goes blank"). If no `STUDIO CLIENT ERROR` accompanies
+     it, the served bundle predates the reporter: repro headlessly — Edge/Chrome
+     `--headless=new --remote-debugging-port`, raw CDP over the repo's `ws` package,
+     watch `Runtime.exceptionThrown`, then check `#root` childElementCount (0 =
+     unmounted root). Classic cause: version skew — a long-running server whose `hello`
+     state lacks fields the freshly built bundle expects.
 4. **Is the studio stale?** Hard-refresh the tab (Ctrl+Shift+R) — an old tab keeps old JS;
    the WS auto-reconnects but the bundle doesn't self-update. Know the split: the bridge
    streams `apps/studio/dist` per-request, so a STUDIO rebuild only needs a refresh — but
@@ -42,8 +52,13 @@ verdict. Most reports are a port-conflict ghost, not a failure.
 | blank page / 503 | studio dist missing | build studio |
 | board never appears | 0 clients in log — wrong URL open | use the URL from the log |
 | process gone, no output | crash — see FATAL in log | fix root cause |
+| page flashes, then blank / crash panel | browser-side JS crash (often hello-state version skew) | `STUDIO CLIENT ERROR` in `/api/logs`; no line → CDP headless repro (step 3); fix code, not restarts |
+| "response submitted" never detected | misread health: `awaitingResponse` is the BLOCKING present_board wait (false after tool timeout) | a user submission is `activeBoard: null`; the board stays answerable via peek_response |
 
 ## Changelog
+- 2026-07-07 — step 3 signals: STUDIO CLIENT ERROR lines + connect/disconnect-≤1s crash-loop
+  signature + CDP headless repro; failure table: blank-page client crash, awaitingResponse
+  vs activeBoard semantics (from studio-blank-crash-observability-2026-07-07)
 - 2026-07-06 — step 4: refresh-vs-restart split — dist streams per-request (refresh
   suffices) but themes/config/endpoints load at process start (restart needed) (from
   ui-changes)

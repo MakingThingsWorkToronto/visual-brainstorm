@@ -77,6 +77,11 @@ closeout surfaces a non-obvious orchestration lesson, append one bullet here (wh
 matters) and mirror repo-wide lessons to `.agents/learnings.md`. Wiki-worthy facts still go
 through `wiki-librarian` (rules 1–2).
 
+- 2026-07-07 — waiting on a human's board answer out-of-band (the blocking present_board
+  call timed out or was interrupted): poll `/api/health` for `activeBoard: null` — that
+  flips ONLY when a response is accepted. `awaitingResponse` tracks the blocking tool
+  wait and goes false at tool-timeout while the board is still live and answerable via
+  `peek_response` (from studio-blank-crash-observability-2026-07-07).
 - 2026-07-07 — seeded from `.agents/learnings.md` at agent creation:
   - Fresh board id per presentation — the bridge's first-response-wins dedup silently
     swallows answers to reused ids.

@@ -421,6 +421,35 @@ export class Bridge {
         });
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/api/client-log') {
+        // Client-error observability: uncaught studio errors land in the SAME
+        // log ring as bridge events, so GET /api/logs tells the whole story
+        // (a blank page must never be evidence-free — 2026-07-07).
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+          if (body.length > 32_000) req.destroy(); // cap: errors are small
+        });
+        req.on('end', () => {
+          try {
+            const { source, message, stack } = z
+              .object({
+                source: z.string().max(200),
+                message: z.string().min(1).max(4000),
+                stack: z.string().max(8000).optional(),
+              })
+              .parse(JSON.parse(body));
+            const firstFrames = (stack ?? '').split('\n').slice(0, 6).join(' | ');
+            this.log(`STUDIO CLIENT ERROR [${source}]: ${message}${firstFrames ? ` — ${firstFrames}` : ''}`);
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/api/artifact-chat') {
         let body = '';
         req.on('data', (chunk) => (body += chunk));

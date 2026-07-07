@@ -371,4 +371,38 @@ const chatBusy = renderToString(
 assert.ok(chatBusy.includes('Claude is thinking…'), '[artifact-chat] busy note missing when busy');
 console.log('UI artifact chat renders ✓ (messages + revision marker, busy + idle variants)');
 
+// --- Crash boundary (blank-page skew, 2026-07-07) ---
+// renderToString never invokes error boundaries (client-runtime only), so the
+// fallback branch is exercised directly: a tiny subclass whose constructor seeds
+// the caught-error state renders the crash panel instead of its children.
+const { CrashBoundary } = await import('../apps/studio/src/components/CrashPanel.js');
+const healthy = renderToString(
+  createElement(CrashBoundary, null, createElement('div', null, 'healthy child content')),
+);
+assert.ok(healthy.includes('healthy child content'), '[crash-boundary] children must pass through');
+assert.ok(
+  !healthy.includes('The studio crashed while rendering'),
+  '[crash-boundary] fallback must not render without an error',
+);
+
+class CrashedBoundary extends CrashBoundary {
+  constructor(props: ConstructorParameters<typeof CrashBoundary>[0]) {
+    super(props);
+    this.state = { error: new Error('vibr-crash-marker: render exploded') };
+  }
+}
+const crashed = renderToString(
+  createElement(CrashedBoundary, null, createElement('div', null, 'healthy child content')),
+);
+// Markers live inside single text nodes — never spanning adjacent JSX expressions.
+for (const marker of ['The studio crashed while rendering', 'Reload the studio', 'vibr-crash-marker']) {
+  assert.ok(crashed.includes(marker), `[crash-boundary] missing marker "${marker}"`);
+}
+assert.ok(crashed.includes('<pre'), '[crash-boundary] error stack must render in a <pre>');
+assert.ok(
+  !crashed.includes('healthy child content'),
+  '[crash-boundary] children must not render alongside the fallback',
+);
+console.log('UI crash boundary renders ✓ (pass-through healthy, fallback with stack)');
+
 console.log(`UI SMOKE PASS — all ${Object.keys(EXPECT).length} phase surfaces render with their mechanics`);
