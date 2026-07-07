@@ -2,6 +2,11 @@
 
 The complete operator procedure. Follow it literally; the skills carry the craft details.
 
+**Persona:** this procedure is executed as agent **`brainstorm-orchestrator`**
+(`.claude/agents/brainstorm-orchestrator.md`) — its keep/delegate contract (generation →
+`svg-artisan`, artifact chat → subagents, diagnosis → `devops-diagnostician`) and its
+`## Orchestration learnings` section are binding parts of this procedure.
+
 ## Procedure
 
 0. **No topic given** (bare `/run-brainstorm` or "start a brainstorm" with no subject)?
@@ -66,6 +71,9 @@ The complete operator procedure. Follow it literally; the skills carry the craft
    `peek_response` later.
 
 ## Changelog
+- 2026-07-07 — persona header: procedure now owned/executed by agent brainstorm-orchestrator
+  (delegation-to-preserve-context + orchestration-learnings surface) — operator mandate,
+  discussion/brainstorm-orchestrator-2026-07-07/plan.md
 - 2026-07-06 — step 4: interpret response.attachments (Read savedPath files; honest-fail
   entries have none) and response.paletteColors / discussion-theme digest lines (generate
   with ONLY the named colors, narrate by color name) (from ui-changes)

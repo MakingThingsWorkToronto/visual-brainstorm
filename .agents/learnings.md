@@ -1,5 +1,35 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — studio blank-page crash (version skew)
+
+- **A long-running bridge process serves the NEW studio bundle but sends OLD state
+  shapes — and `hello`'s wholesale `return msg.state` made that a blank page.** The
+  bridge process outlives rebuilds (it's spawned per Claude Code session); its compiled
+  `state()` lacked fields the freshly-built client dereferences (`state.progress`), React
+  unmounted the root, and the only server evidence was connect/disconnect pairs ~200ms
+  apart. Fix pattern: the client merges every `hello` over its typed defaults
+  (`{ ...EMPTY, ...msg.state }`). Treat "connected then disconnected within ~1s,
+  repeatedly" in the bridge log as the client-crash signature.
+- **ui-smoke (JSDOM renderToString) structurally cannot catch browser-runtime crashes** —
+  useBridge/WebSocket/effects never run there. Repro cheaply without Playwright: headless
+  Edge/Chrome + raw CDP over the repo's own `ws` package (`--remote-debugging-port`,
+  `Runtime.exceptionThrown`, then `document.getElementById('root').childElementCount` —
+  0 children = unmounted root). Script pattern: scratchpad `crash-repro.mjs`, 2026-07-07.
+- **`/api/health` `awaitingResponse` tracks the BLOCKING present_board wait, not the
+  board's liveness.** After the 1740s tool timeout it flips false while the board stays
+  live and answerable (peek_response still `pending`). Don't monitor it to detect a user
+  submission — poll `activeBoard: null` (set only when a response is accepted) instead.
+
+## 2026-07-07 — brainstorm-orchestrator plan
+
+- **Agent files can be living memory surfaces, same as commands.** The
+  `brainstorm-orchestrator` agent persists brainstorm-routine orchestration lessons in its
+  own `## Orchestration learnings` section — role memory lives next to the procedure owner,
+  so spawning the agent loads it for free. Consequence for closeout step 4 ("which file
+  would have prevented this?"): candidate files now include `.claude/agents/*` living
+  sections, not just commands/skills. Repo-wide lessons still mirror to THIS file; wiki
+  facts still go through wiki-librarian.
+
 ## 2026-07-07 — askaquestion plan
 
 - **Parallel agent waves work when the contract is written down, not described.** Three

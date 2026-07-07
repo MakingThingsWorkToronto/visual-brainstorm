@@ -63,7 +63,7 @@ wiki/user-guide.md    how humans use the tool (SVG-illustrated)
 .agents/learnings.md   hard-won gotchas
 .claude/commands/      repeatable procedures (self-improving)
 .claude/skills/        binding craft
-.claude/agents/        specialized roles
+.claude/agents/        specialized roles (brainstorm-orchestrator also carries its living ## Orchestration learnings section)
 tests/ + scripts/      executable proof
 discussion/.logs runtime evidence (+ /api/health, /api/logs)
 ```

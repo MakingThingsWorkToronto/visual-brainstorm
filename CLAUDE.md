@@ -15,7 +15,7 @@
 
 | Need | Use |
 |---|---|
-| Run/resume a visual brainstorm | `.claude/commands/run-brainstorm.md` + the two skills; resume via `list_discussions` → `discussionId`; thread memory = its `brainstorm.md` |
+| Run/resume a visual brainstorm | **agent `brainstorm-orchestrator`** (the primary persona) driving `.claude/commands/run-brainstorm.md` + the two skills; resume via `list_discussions` → `discussionId`; thread memory = its `brainstorm.md` |
 | Generate board options (esp. when `response.model` routes a round) | **agent `svg-artisan`** (with the model override) |
 | Studio/bridge/MCP "seems broken" | **agent `devops-diagnostician`** or `.claude/commands/diagnose-studio.md`; evidence: `GET /api/health`, `GET /api/logs`, `discussion/.logs/` |
 | Verify work | `.claude/commands/build-check.md` → `npm run build` + `npm test` (unit / smoke / ui-smoke — `wiki/System/testing-observability.md`) |
@@ -61,7 +61,8 @@
     (`.claude/agents/` — roster in `wiki/System/agents.md`) owns it, and use it. All
     intelligence lives in Claude + these layers — harness/test code stays dumb (fixtures
     only). Delegated generation goes to `svg-artisan`; diagnosis to `devops-diagnostician`;
-    orchestration is never delegated.
+    brainstorm orchestration has ONE owner — `brainstorm-orchestrator` — which delegates
+    the heavy procedures downward but is itself never re-delegated.
 12. **Docs move with the product.** A change to what humans see or do updates
     `wiki/user-guide.md` (and its diagrams) in the same change; a change to facts or
     contracts updates the wiki (rule 2 applies).
@@ -80,8 +81,8 @@ discussion/      plans + brainstorm thread cache (dirs with session.json);
 .agents/learnings.md   hard-won gotchas (newest first)
 .claude/commands/      repeatable procedures — living documents improved on every closeout
 .claude/skills/        binding craft (svg-authoring, brainstorm-phases)
-.claude/agents/        specialized subagents (devops-diagnostician, svg-artisan,
-                       test-engineer, wiki-librarian)
+.claude/agents/        specialized subagents (brainstorm-orchestrator, devops-diagnostician,
+                       svg-artisan, test-engineer, wiki-librarian)
 tests/ + scripts/      unit tests (node:test) + smoke.mjs + ui-smoke.ts
 .mcp.json              registers this repo's own MCP server (dogfooding)
 visual-brainstorm.config.json   targetRepo / styles / theme / models / discussionDir

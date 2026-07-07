@@ -19,8 +19,11 @@ done/skipped-with-reason.
    quirk, decision + rationale, failed approach) goes to `.agents/learnings.md` (newest
    first). If nothing was learned, write nothing — no filler.
 4. **Improve the commands** — for each harvested learning, ask: *which file in
-   `.claude/commands/` or `.claude/skills/` would have prevented this or exploited it
-   sooner?* Edit those files now. Append one line to the file's `## Changelog` footer:
+   `.claude/commands/`, `.claude/skills/`, or `.claude/agents/` would have prevented this
+   or exploited it sooner?* Agent files with living sections count (e.g.
+   `brainstorm-orchestrator`'s `## Orchestration learnings` — brainstorm-routine
+   orchestration lessons land THERE, next to the procedure owner). Edit those files now.
+   Append one line to the file's `## Changelog` footer:
    `- <date> — <improvement> (from <plan-slug>)`. This step is the point of closeout;
    skipping it silently is a rule violation.
 5. **Update the wiki** — any fact or guardrail established by this plan moves to the
@@ -75,6 +78,9 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-07 — step 4: improvement targets now include `.claude/agents/` living sections
+  (brainstorm-orchestrator's Orchestration learnings) — agent files are living memory
+  surfaces too (from brainstorm-orchestrator-2026-07-07)
 - 2026-07-06 — step 10: mixed-file rider rule — `--only` can't split hunks; converge or
   declare riders in the commit body (from ship-discipline-loopable-plans)
 - 2026-07-06 — added step 7: build-plan generation as the brainstorm's deliverable —
