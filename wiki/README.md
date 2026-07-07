@@ -16,6 +16,7 @@ the wiki wins until explicitly amended (and every amendment is logged in `log.md
 - **System/**
   - [testing-observability.md](System/testing-observability.md) — **authoritative**: the three test layers, conventions, logs/health/diagnosis
   - [agents.md](System/agents.md) — specialized agent roster and when to use each
+  - [interface-coverage.md](System/interface-coverage.md) — **authoritative**: interface task → owner (zero unowned) + message → persistence recall audit
 - **Research/**
   - [visualization-engines.md](Research/visualization-engines.md) — engine evaluations (mindmapcn/mind-elixir)
 - **Meta/**

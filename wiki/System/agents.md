@@ -1,6 +1,8 @@
 # Specialized Agents (`.claude/agents/`)
 
 Subagents with scoped tools and embedded procedure. Use them instead of ad-hoc work.
+The full interface-task → owner map (which agent/command/script owns every UI mechanic)
+is `wiki/System/interface-coverage.md`.
 
 | Agent | Use when | Notes |
 |---|---|---|
