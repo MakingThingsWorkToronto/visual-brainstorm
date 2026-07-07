@@ -16,6 +16,10 @@ them with the same survey machinery; Claude varies the SVG content and option co
 
 ## Roadmap (visionary backlog — implement via `discussion/` plans)
 
+- **Concierge → Living Gallery intake + mind-map methodology (`tree` payload).** DECIDED,
+  open plan — the facts live in [intake-methodologies.md](intake-methodologies.md); the
+  `mindmap` kind above stays the static-options variant until that plan ships.
+
 - **Sketch-back annotations.** Draw on an option in the studio; strokes return to Claude as an
   SVG overlay — pointing beats describing.
 - **Idea lineage tree.** Every option records its parents (selection/remix provenance already

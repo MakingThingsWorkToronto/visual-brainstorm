@@ -1,5 +1,65 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — mindmap-methodology brainstorm (4 rounds to finality)
+
+- **Delegated SVG JSON can be invalid XML — scan before present_board.** svg-artisan
+  emitted a `<text>` carrying two `x=` attributes (round 3); DOMParser rejects duplicate
+  attributes, which would have crashed/blanked the option. The orchestrator owns a
+  pre-present validity scan of delegated SVG (duplicate attributes, unclosed tags,
+  double quotes when the brief demanded single).
+- **The merge→crown two-step is the clean funnel ending.** Triage `merge` verdicts →
+  next round presents exactly ONE synthesis at converge → the user crowns it Final.
+  Diverge(6) → synthesis-diverge(5) → converge(3, merge+kill) → converge(1, crown) went
+  brief-to-poster in 4 rounds with zero wasted boards; don't pad the pool once notes
+  start converging on ordering instructions ("1 and 2 are perfect, X comes after").
+
+## 2026-07-07 — human-sim harness (phase 3)
+
+- **Windows Edge (`msedge.exe`) can exit 0 IMMEDIATELY with empty stderr when launched
+  `--headless=new --remote-debugging-port=0` — a launcher/startup-boost handoff, even with a
+  fresh `--user-data-dir`.** No error, no DevTools line, nothing. A CDP harness must treat
+  "process exited (or 20s passed) without `DevTools listening on ws://…`" as launch failure
+  and fall back to the next installed chromium-family browser (Chrome worked first try on
+  the same machine). Give each attempt its OWN profile dir — a handoff may leave a hidden
+  process holding the first one.
+- **`document.body.innerText` reflects CSS `text-transform` — the studio's `uppercase`
+  markers/titles render as `YOUR TURN`, so `innerText.includes('your turn')` never matches.**
+  Assert page text via `textContent` (DOM truth); reserve innerText/screenshots for
+  visibility questions. (Cost 15 minutes of "board never rendered" when the screenshot
+  plainly showed it rendered.)
+- **A concurrent session's `npm run build` clears `apps/studio/dist` mid-run — and the
+  bridge's static file streaming (`fs.createReadStream(...).pipe(res)` with no `error`
+  handler) then CRASHES the whole node process on the ENOENT** (unhandled stream 'error'
+  event), not just that request. Open finding for bridge-server.ts static serving.
+
+- **`String(ZodError)` never contains the word "ZodError"** — zod v3 stringifies to the
+  bare issues JSON, so canonical 400-body expectations must anchor on issue codes
+  (`invalid_type`, `invalid_enum_value`, `too_small`), never the class name. Non-JSON
+  bodies DO yield `SyntaxError:` in the message.
+- **`VIBR_STUDIO_DIST` is read inside `Bridge.start()`**, not at construction — per-test
+  dist overrides must scope the env var tightly around `start(0)`; safe only because
+  node:test runs one file's tests sequentially in one process.
+- **`presentAndWait`'s third arg `open` defaults to `true`** — any test presenting a board
+  must pass `false` or every test run pops a real browser window.
+- Proving "silently ignored" over WS: send the ignored frame, then a garbage frame, and
+  wait for the garbage's log line — in-order socket processing guarantees the ignored
+  frame was consumed without side effects.
+
+## 2026-07-07 — fixed-position overlays paint-trapped by `scroll-fade` (mask-image)
+
+- **`mask-image` on an ancestor (main's `scroll-fade`) makes it a paint group that
+  clips even `position: fixed` descendants — while `getBoundingClientRect()` still
+  reports full-viewport geometry.** A `fixed inset-0` modal rendered inside
+  `main.scroll-fade` painted inset to main's box, faded at the mask edges, and sat
+  visually behind the sidebar/wayfinder ("fullscreen isn't fullscreen, appears behind
+  the nav"). Measure-based debugging lies here: the DOM rect is correct, only PAINT is
+  clipped — screenshot the page, don't trust rects. Fix: fullscreen dialogs portal to
+  `document.body` (`BodyPortal` in `primitives.tsx`; inline fallback keeps
+  `renderToString` ui-smoke working since the server renderer has no portals). Any new
+  `fixed inset-0` surface must either mount at App root or wrap in `BodyPortal`.
+- **CDP `Page.captureScreenshot` on a backgrounded tab can return a stale composited
+  frame** that contradicts the live DOM — `Page.bringToFront` first, then capture.
+
 ## 2026-07-07 — canonical test data (phase 1)
 
 - **A recursive directory walk on Windows yields backslash separators that never match

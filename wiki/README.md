@@ -13,6 +13,7 @@ the wiki wins until explicitly amended (and every amendment is logged in `log.md
   - [vision.md](Product/vision.md) — what this is, the two polar use cases, mashup lineage
   - [board-modes.md](Product/board-modes.md) — the 8 board kinds + visionary roadmap
   - [phase-funnel.md](Product/phase-funnel.md) — **authoritative**: the five psychological routes as built interface mechanics
+  - [intake-methodologies.md](Product/intake-methodologies.md) — DECIDED (open plan): Concierge → Living Gallery intake + mind map as a peer methodology; killed directions + taste dials
 - **System/**
   - [testing-observability.md](System/testing-observability.md) — **authoritative**: the three test layers, conventions, logs/health/diagnosis
   - [agents.md](System/agents.md) — specialized agent roster and when to use each

@@ -33,6 +33,9 @@ one structural, one minimal. If two options would earn the same one-line descrip
   dashed container. Each option = a genuinely different topology (monolith / hub-and-spoke /
   event bus / layered), not the same diagram rearranged.
 - **storyboard**: 3–6 frames per option inside one SVG, frame borders, stick-level figures fine.
+  Finalist/merge storyboards may go asymmetric: two compact frames + one full-width HERO
+  frame (drawn like a real screen, not a diagram) + a wide strip — the hero carries the
+  round's decision weight.
 - **palette**: swatch rows + a tiny sample application (button/card mock) inside the SVG.
 - **moodboard**: texture/typography/composition studies; abstraction welcome.
 - **mindmap**: radial node trees; center node = the seed concept.
@@ -57,8 +60,13 @@ renamed them, and speaks in those names.
 - [ ] remix/synthesis offspring combine the parents' MEANINGS drawn fresh — never a
       graphical overlay/composite of the parent SVGs (system-map: merge the architectures
       into one clean diagram)
+- [ ] valid XML: NO duplicate attributes on any element (delegated generation has emitted
+      `<text>` with two `x=` — DOMParser rejects it; the orchestrator scans delegated SVG
+      for this before present_board)
 
 ## Changelog
+- 2026-07-07 — storyboard hero-frame recipe for finalist/merge rounds + checklist item:
+  duplicate-attribute XML scan on delegated SVG (from mindmap-methodology brainstorm)
 - 2026-07-06 — palette constraint: honor paletteColors / discussion-theme palettes, name
   colors by their user-visible names (from ui-changes)
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)

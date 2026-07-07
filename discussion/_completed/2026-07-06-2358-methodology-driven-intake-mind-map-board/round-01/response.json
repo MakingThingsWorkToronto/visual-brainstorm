@@ -1,0 +1,41 @@
+{
+  "boardId": "board-r1-1783396721879",
+  "selectedOptionIds": [
+    "gallery",
+    "concierge",
+    "canvas-first",
+    "meta-board"
+  ],
+  "elaboration": "Mind maps need to be a new methodology that sit beside the others. we should use the initial brainstorming prompt to guide into the most appropriate methodology. ",
+  "perOptionNotes": {
+    "gallery": "we should suggest the best method based on the initial prompt. ",
+    "concierge": "this could be an option in the method gallery / funnel.",
+    "seed-inference": "i don't think we want to do this one. we already have the sketch pad and we should assume whatever is drawn there is rough, if we received a sketch of a mind map we could suggest that method be used in the method gallery / funnel",
+    "canvas-first": "this makes sense for when mind map is selected as the option in the method gallery / funnel",
+    "meta-board": "i think this is the flow we want in general but needs to be combined with the others"
+  },
+  "axisValues": {
+    "guidance": 50,
+    "visibility": 73,
+    "effort": 32,
+    "structure-origin": 68,
+    "mindmap-role": 12,
+    "liveness": 65
+  },
+  "remixPairs": [],
+  "action": "iterate",
+  "model": "claude-fable-5",
+  "triage": {},
+  "mutations": {},
+  "flaws": {},
+  "positions": {},
+  "clusters": [],
+  "gapNotes": [],
+  "deckVerdicts": {},
+  "duelResults": [],
+  "ranking": [],
+  "attachments": [],
+  "paletteColors": [],
+  "commands": [],
+  "respondedAt": "2026-07-07T05:00:45.656Z"
+}

@@ -1,0 +1,37 @@
+{
+  "boardId": "board-r4-1783402874842",
+  "selectedOptionIds": [
+    "concierge-living-gallery"
+  ],
+  "elaboration": "",
+  "perOptionNotes": {},
+  "axisValues": {
+    "guidance": 50,
+    "visibility": 73,
+    "effort": 32,
+    "structure-origin": 68,
+    "liveness": 65,
+    "rec-strength": 50
+  },
+  "remixPairs": [],
+  "action": "finalize",
+  "model": "claude-fable-5",
+  "triage": {
+    "concierge-living-gallery": "keep"
+  },
+  "mutations": {},
+  "flaws": {},
+  "positions": {},
+  "clusters": [],
+  "gapNotes": [],
+  "deckVerdicts": {},
+  "duelResults": [],
+  "ranking": [],
+  "attachments": [],
+  "paletteColors": [],
+  "commands": [
+    "plan-closeout"
+  ],
+  "finalOptionId": "concierge-living-gallery",
+  "respondedAt": "2026-07-07T05:42:15.955Z"
+}

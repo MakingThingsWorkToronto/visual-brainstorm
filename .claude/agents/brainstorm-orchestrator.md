@@ -77,6 +77,14 @@ closeout surfaces a non-obvious orchestration lesson, append one bullet here (wh
 matters) and mirror repo-wide lessons to `.agents/learnings.md`. Wiki-worthy facts still go
 through `wiki-librarian` (rules 1–2).
 
+- 2026-07-07 — validity-scan every delegated SVG before present_board: svg-artisan has
+  emitted duplicate attributes on one element (`<text x=… x=…>`), which DOMParser rejects.
+  Scan for dup attributes / stray double quotes; fix inline rather than re-delegating
+  (from mindmap-methodology brainstorm).
+- 2026-07-07 — the merge→crown two-step: triage `merge` verdicts → next round is exactly
+  ONE synthesis presented at converge → the human crowns it Final. When notes turn into
+  ordering instructions ("1 and 2 are perfect, X comes after"), stop widening the pool —
+  brief-to-poster took 4 rounds (from mindmap-methodology brainstorm).
 - 2026-07-07 — waiting on a human's board answer out-of-band (the blocking present_board
   call timed out or was interrupted): poll `/api/health` for `activeBoard: null` — that
   flips ONLY when a response is accepted. `awaitingResponse` tracks the blocking tool
@@ -97,6 +105,8 @@ through `wiki-librarian` (rules 1–2).
     when a flag is resolved.
 
 ## Changelog
+- 2026-07-07 — learnings: delegated-SVG validity scan, merge→crown two-step, activeBoard
+  polling (from mindmap-methodology brainstorm + studio-blank-crash closeouts)
 - 2026-07-07 — created (discussion/brainstorm-orchestrator-2026-07-07/plan.md): primary
   brainstorm persona; keep/delegate contract to preserve context; creative + honesty
   duties; orchestration-learnings living section (operator mandate).
