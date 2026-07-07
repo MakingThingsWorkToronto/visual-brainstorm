@@ -7,6 +7,8 @@ import {
   DiscussionSummarySchema,
   PHASES,
   ResponseActionSchema,
+  SeedIntakeSchema,
+  SessionInfoSchema,
   SurveyConfigSchema,
   ThemeSchema,
 } from '../packages/protocol/dist/index.js';
@@ -67,6 +69,83 @@ test('response actions include finalize and back; defaults are empty', () => {
   assert.equal(response.requestedPhase, undefined);
 });
 
+test('judge-deck response fields default empty', () => {
+  const response = BoardResponseSchema.parse({ boardId: 'b1', respondedAt: 'now' });
+  assert.deepEqual(response.deckVerdicts, {});
+  assert.deepEqual(response.duelResults, []);
+  assert.deepEqual(response.ranking, []);
+});
+
+test('palette colors default empty, round-trip, and require name+value', () => {
+  const empty = BoardResponseSchema.parse({ boardId: 'b1', respondedAt: 'now' });
+  assert.deepEqual(empty.paletteColors, []);
+  const response = BoardResponseSchema.parse({
+    boardId: 'b1',
+    respondedAt: 'now',
+    paletteColors: [{ name: 'Neon Purple accent', value: '#a855f7' }],
+  });
+  assert.deepEqual(response.paletteColors, [{ name: 'Neon Purple accent', value: '#a855f7' }]);
+  assert.throws(() =>
+    BoardResponseSchema.parse({ boardId: 'b', respondedAt: 'n', paletteColors: [{ value: '#fff' }] }),
+  );
+});
+
+test('attachments default empty and round-trip name/dataUri/savedPath', () => {
+  const empty = BoardResponseSchema.parse({ boardId: 'b1', respondedAt: 'now' });
+  assert.deepEqual(empty.attachments, []);
+  const response = BoardResponseSchema.parse({
+    boardId: 'b1',
+    respondedAt: 'now',
+    attachments: [
+      { name: 'ref.png', dataUri: 'data:image/png;base64,AA==' },
+      { name: 'saved.pdf', dataUri: '', savedPath: 'C:/threads/t/attachments/saved.pdf' },
+      {},
+    ],
+  });
+  assert.equal(response.attachments[0].dataUri, 'data:image/png;base64,AA==');
+  assert.equal(response.attachments[1].savedPath, 'C:/threads/t/attachments/saved.pdf');
+  assert.equal(response.attachments[2].name, '', 'name defaults empty');
+  assert.equal(response.attachments[2].dataUri, '', 'dataUri defaults empty');
+});
+
+test('judge-deck response fields round-trip and reject bad verdicts', () => {
+  const response = BoardResponseSchema.parse({
+    boardId: 'b1',
+    respondedAt: 'now',
+    deckVerdicts: { a: 'keep', b: 'kill' },
+    duelResults: [{ pair: ['a', 'b'], winner: 'a' }],
+    ranking: ['a', 'c'],
+  });
+  assert.deepEqual(response.deckVerdicts, { a: 'keep', b: 'kill' });
+  assert.deepEqual(response.duelResults, [{ pair: ['a', 'b'], winner: 'a' }]);
+  assert.deepEqual(response.ranking, ['a', 'c']);
+  assert.throws(() => BoardResponseSchema.parse({ boardId: 'b', respondedAt: 'n', deckVerdicts: { a: 'merge' } }));
+  assert.throws(() =>
+    BoardResponseSchema.parse({ boardId: 'b', respondedAt: 'n', duelResults: [{ pair: ['a'], winner: 'a' }] }),
+  );
+});
+
+test('seed intake round-trips all four kinds', () => {
+  assert.deepEqual(SeedIntakeSchema.parse({ kind: 'text', text: 'a logo' }), { kind: 'text', text: 'a logo' });
+  assert.deepEqual(SeedIntakeSchema.parse({ kind: 'sketch', svg: '<svg viewBox="0 0 1 1"/>' }), {
+    kind: 'sketch',
+    svg: '<svg viewBox="0 0 1 1"/>',
+  });
+  const image = SeedIntakeSchema.parse({ kind: 'image', dataUri: 'data:image/png;base64,AA==' });
+  assert.equal(image.dataUri, 'data:image/png;base64,AA==');
+  assert.equal(image.name, '', 'image name defaults empty');
+  assert.deepEqual(SeedIntakeSchema.parse({ kind: 'voice', transcript: 'make it neon' }), {
+    kind: 'voice',
+    transcript: 'make it neon',
+  });
+});
+
+test('seed intake rejects unknown kinds and mismatched payloads', () => {
+  assert.throws(() => SeedIntakeSchema.parse({ kind: 'telepathy', thought: 'a logo' }));
+  assert.throws(() => SeedIntakeSchema.parse({ kind: 'sketch', text: 'not an svg field' }));
+  assert.throws(() => SeedIntakeSchema.parse({ text: 'no kind at all' }));
+});
+
 test('response rejects invalid triage verdicts and phases', () => {
   assert.throws(() => BoardResponseSchema.parse({ boardId: 'b', respondedAt: 'n', triage: { a: 'maybe' } }));
   assert.throws(() => BoardResponseSchema.parse({ boardId: 'b', respondedAt: 'n', requestedPhase: 'zigzag' }));
@@ -76,6 +155,31 @@ test('theme requires full light+dark variable sets', () => {
   const vars = { canvas: '#fff', surface: '#fff', surface2: '#eee', line: '#ddd', ink: '#000', inkDim: '#666', accent: '#a855f7' };
   assert.equal(ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: vars }).name, 't');
   assert.throws(() => ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: { ...vars, accent: undefined } }));
+});
+
+test('theme palette is optional; when present its colors are named', () => {
+  const vars = { canvas: '#fff', surface: '#fff', surface2: '#eee', line: '#ddd', ink: '#000', inkDim: '#666', accent: '#a855f7' };
+  const bare = ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: vars });
+  assert.equal(bare.palette, undefined);
+  const curated = ThemeSchema.parse({
+    name: 't',
+    label: 'T',
+    light: vars,
+    dark: vars,
+    palette: [{ name: 'Ultraviolet', value: '#a855f7' }],
+  });
+  assert.deepEqual(curated.palette, [{ name: 'Ultraviolet', value: '#a855f7' }]);
+  assert.throws(() =>
+    ThemeSchema.parse({ name: 't', label: 'T', light: vars, dark: vars, palette: [{ value: '#fff' }] }),
+  );
+});
+
+test('session info: theme and targetRepo overrides are optional', () => {
+  const base = { id: 'i', slug: 's', title: 'T', startedAt: 'now', dir: '/d' };
+  const info = SessionInfoSchema.parse(base);
+  assert.equal(info.theme, undefined);
+  assert.equal(info.targetRepo, undefined);
+  assert.equal(SessionInfoSchema.parse({ ...base, theme: 'ocean' }).theme, 'ocean');
 });
 
 test('discussion summary defaults archived=false', () => {

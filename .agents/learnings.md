@@ -1,5 +1,37 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-06 — ui-changes plan (studio restructure, 6 waves)
+
+- **The scroll gutter must live INSIDE the `overflow-y-auto` element.** Padding on the
+  scroll container's PARENT sits outside the scrollbar, so content ends flush against it
+  and right borders "disappear". Put the right padding on the scrolling element itself and
+  give fixed siblings (wayfinder strip) a matching margin. Same family: percentage heights
+  (`min-h-full`) resolve to nothing inside a `min-h-screen` flex column — symptom is
+  duplicate scrollbars (body + inner) AND fill-remaining-space silently failing. Fix:
+  `h-screen` root, `flex-1` to fill, overflow on exactly one inner element.
+- **Zod strips unknown keys: a UI-added response field silently vanishes** unless its shape
+  lands in `packages/protocol` FIRST. The bridge parses every response through
+  `BoardResponseSchema`; a studio-only field never reaches Claude and nothing errors.
+  Rule 5 is not just governance — the parse enforces it destructively.
+- **A resumed subagent's "standing flags" replay stale context.** The wiki-librarian
+  (resumed via SendMessage across 6 waves) kept re-flagging a CLAUDE.md issue for hours
+  after the coordinator fixed it — a resumed agent reasons from its own old transcript,
+  not the current tree. Verify any repeated flag against the file before acting, and tell
+  the agent explicitly to drop resolved flags. (The pattern itself was excellent: one
+  persistent librarian per work stream, fed a concrete changed-facts brief per wave,
+  instructed to verify against source.)
+- **`capture="environment"` on desktop silently degrades to a file-open dialog.** Real
+  camera capture needs `getUserMedia` + a preview/snap modal; keep the file-input fallback
+  for denied/absent cameras and label it honestly (rule 6).
+- **"Edit a built-in" features should shadow, not mutate.** Studio palette edits persist as
+  `styles/<name>.json` — the exact drop-in files `loadThemes` already lets shadow built-ins
+  by name. Zero code mutation, restart-safe, user-ownable, and deletion restores the
+  built-in. Reuse this write-path for any future built-in-customization feature.
+- **Studio rebuilds need only a browser refresh; server-side changes need a restart.** The
+  bridge streams `apps/studio/dist` per-request, but themes, config, and endpoints load at
+  process start. After editing `apps/mcp` or `packages/protocol`, restart the preview; a
+  second instance falls back to a random port and logs PORT CONFLICT with the holder's pid.
+
 ## 2026-07-06 — ship-discipline-loopable-plans plan
 
 - **Never cross-reference another command's step by NUMBER — use the step's name.**

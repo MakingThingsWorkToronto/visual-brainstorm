@@ -18,6 +18,7 @@ const EMPTY: StudioState = {
   defaultModel: 'claude-fable-5',
   targetRepo: null,
   progress: [],
+  tokens: { input: 0, output: 0 },
 };
 
 /** WS in (boards), HTTP POST out (responses), auto-reconnect, hello resync. */
@@ -72,7 +73,16 @@ export function useBridge() {
             case 'artifact':
               return { ...prev, artifacts: [...prev.artifacts, msg.artifact] };
             case 'progress':
-              return { ...prev, progress: [...prev.progress, msg.event].slice(-200) };
+              return {
+                ...prev,
+                progress: [...prev.progress, msg.event].slice(-200),
+                tokens: msg.event.tokens
+                  ? {
+                      input: prev.tokens.input + msg.event.tokens.input,
+                      output: prev.tokens.output + msg.event.tokens.output,
+                    }
+                  : prev.tokens,
+              };
           }
         });
       };

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import type { Board } from '@visual-brainstorm/protocol';
+import type { Board, BoardOption } from '@visual-brainstorm/protocol';
 import { SvgPane } from '../primitives';
 
 /**
@@ -20,10 +20,12 @@ export function MutationLab({
   board,
   mutations,
   onMutations,
+  onPreview,
 }: {
   board: Board;
   mutations: Record<string, string[]>;
   onMutations: (mutations: Record<string, string[]>) => void;
+  onPreview: (option: BoardOption) => void;
 }) {
   const [index, setIndex] = useState(0);
   const [lens, setLens] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function MutationLab({
         <div className="text-center">
           <div className="text-sm font-semibold">{option.label}</div>
           <div className="text-xs text-ink-dim">
-            {index + 1} / {board.options.length} — the rest is hidden on purpose
+            {index + 1} / {board.options.length}, the rest is hidden on purpose
           </div>
         </div>
         <button
@@ -67,7 +69,11 @@ export function MutationLab({
         </button>
       </div>
 
-      <div className="mx-auto mt-4 aspect-square w-full max-w-md overflow-hidden rounded-xl bg-surface-2 p-8 text-ink">
+      <div
+        className="mx-auto mt-4 aspect-square w-full max-w-md cursor-zoom-in overflow-hidden rounded-xl bg-surface-2 p-8 text-ink"
+        onClick={() => onPreview(option)}
+        title="Click for full-screen view (zoom, pan, notes)"
+      >
         <div className="h-full w-full transition-all duration-300" style={active?.style}>
           <SvgPane svg={option.svg} className="h-full w-full" />
         </div>
@@ -88,7 +94,7 @@ export function MutationLab({
             }`}
           >
             {l.label}
-            {kept.includes(l.id) && ' ✦'}
+            {kept.includes(l.id) && ' (marked)'}
           </button>
         ))}
       </div>
@@ -104,7 +110,7 @@ export function MutationLab({
                 : 'bg-accent text-white hover:brightness-105'
             }`}
           >
-            {kept.includes(lens) ? '✦ Marked — this lens reveals something' : 'This lens reveals something'}
+            {kept.includes(lens) ? 'Marked: this lens reveals something' : 'This lens reveals something'}
           </button>
         </div>
       )}

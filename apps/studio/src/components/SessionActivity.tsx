@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ProgressEvent } from '@visual-brainstorm/protocol';
+import { compactCount } from '../lib/format';
 
 /** HH:MM:SS in local time; honest dashes for an unparseable timestamp. */
 function eventTime(at: string): string {
@@ -9,13 +10,22 @@ function eventTime(at: string): string {
 
 /**
  * Session activity strip — real progress events from the working Claude
- * session, streamed over the bridge. Collapsed: the latest note + a count.
- * Expanded: the full recent tail, newest last.
+ * session, streamed over the bridge. Collapsed: the latest note + a count
+ * (and the thread's cumulative token meter, when known). Expanded: the
+ * full recent tail, newest last.
  */
-export function SessionActivity({ events }: { events: ProgressEvent[] }) {
+export function SessionActivity({
+  events,
+  tokens,
+}: {
+  events: ProgressEvent[];
+  /** Cumulative input/output token totals for the live thread. */
+  tokens?: { input: number; output: number };
+}) {
   const [open, setOpen] = useState(false);
   if (events.length === 0) return null;
   const latest = events[events.length - 1];
+  const totalTokens = tokens ? tokens.input + tokens.output : 0;
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2 text-xs">
       <button
@@ -31,6 +41,11 @@ export function SessionActivity({ events }: { events: ProgressEvent[] }) {
         <span className="ml-auto shrink-0 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] text-ink-dim">
           {events.length}
         </span>
+        {totalTokens > 0 && (
+          <span className="shrink-0 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] text-ink-dim">
+            {`Σ ${compactCount(totalTokens)} tok`}
+          </span>
+        )}
         <span className="shrink-0 text-ink-dim">{open ? '▾' : '▸'}</span>
       </button>
       {open && (

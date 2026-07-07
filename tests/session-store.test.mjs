@@ -116,6 +116,31 @@ test('a corrupted progress.jsonl line is skipped on reload, valid events still l
   );
 });
 
+test('tokenTotals sums progress events; events without tokens count zero', () => {
+  const root = tmp();
+  const store = new SessionStore('Token totals test', root);
+  store.recordProgress(progressEvent('first', { tokens: { input: 100, output: 50 } }));
+  store.recordProgress(progressEvent('no tokens on this one'));
+  store.recordProgress(progressEvent('third', { tokens: { input: 10, output: 5 } }));
+  assert.deepEqual(store.tokenTotals(), { input: 110, output: 55 });
+
+  const reopened = SessionStore.open(store.info.dir);
+  assert.deepEqual(reopened.tokenTotals(), { input: 110, output: 55 }, 'totals survive reload');
+});
+
+test('list() summaries carry per-thread token totals; 0 without a progress file', () => {
+  const root = tmp();
+  const counting = new SessionStore('Counting thread', root);
+  counting.recordProgress(progressEvent('first', { tokens: { input: 100, output: 50 } }));
+  counting.recordProgress(progressEvent('no tokens on this one'));
+  counting.recordProgress(progressEvent('third', { tokens: { input: 10, output: 5 } }));
+  new SessionStore('Quiet thread', root); // never records progress → no progress.jsonl
+
+  const list = SessionStore.list(root);
+  assert.equal(list.find((d) => d.title === 'Counting thread').tokens, 165, 'input+output combined');
+  assert.equal(list.find((d) => d.title === 'Quiet thread').tokens, 0, 'no progress file → 0');
+});
+
 test('artifacts capture with provenance and slug dedupe', () => {
   const root = tmp();
   const store = new SessionStore('Artifact test', root);

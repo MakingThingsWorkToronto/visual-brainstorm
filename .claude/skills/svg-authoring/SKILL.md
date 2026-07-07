@@ -38,10 +38,19 @@ one structural, one minimal. If two options would earn the same one-line descrip
 - **mindmap**: radial node trees; center node = the seed concept.
 - **matrix**: grid with row/column labels; highlight the diagonal of tradeoffs.
 
+## Palette constraint
+
+When the response or digest carries `paletteColors` / a "Discussion theme" palette line,
+those NAMED colors are a hard constraint: draw with ONLY them (structure may stay
+currentColor where a theme-agnostic read matters, e.g. option thumbnails). Refer to the
+colors by their names in prompts and option descriptions — the user picked and possibly
+renamed them, and speaks in those names.
+
 ## Quality checklist (run before present_board)
 
 - [ ] viewBox present, nothing clipped at edges (4-unit safe margin)
-- [ ] currentColor structure + at most one accent
+- [ ] currentColor structure + at most one accent — UNLESS a palette constraint is active
+      (then: only the named palette colors)
 - [ ] names/descriptions state the IDEA, not "Option 3"
 - [ ] options are divergent per the discipline above
 - [ ] parents set for every derived option (lineage is the product)
@@ -50,4 +59,6 @@ one structural, one minimal. If two options would earn the same one-line descrip
       into one clean diagram)
 
 ## Changelog
+- 2026-07-06 — palette constraint: honor paletteColors / discussion-theme palettes, name
+  colors by their user-visible names (from ui-changes)
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)

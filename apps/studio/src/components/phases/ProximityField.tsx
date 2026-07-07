@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Board } from '@visual-brainstorm/protocol';
+import type { Board, BoardOption } from '@visual-brainstorm/protocol';
 import { SvgPane } from '../primitives';
 
 type XY = { x: number; y: number };
@@ -48,6 +48,7 @@ export function ProximityField({
   onPositions,
   onClusters,
   onGapNotes,
+  onPreview,
 }: {
   board: Board;
   positions: Record<string, XY>;
@@ -55,9 +56,13 @@ export function ProximityField({
   onPositions: (positions: Record<string, XY>) => void;
   onClusters: (clusters: string[][]) => void;
   onGapNotes: (notes: { between: [number, number]; note: string }[]) => void;
+  onPreview: (option: BoardOption) => void;
 }) {
   const fieldRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<string | null>(null);
+  // Click-vs-drag: a pointerup that never strayed past a few px is a click → fullscreen.
+  const dragMoved = useRef(false);
+  const dragStart = useRef<XY>({ x: 0, y: 0 });
   const [gapPrompt, setGapPrompt] = useState<[number, number] | null>(null);
   const [gapText, setGapText] = useState('');
 
@@ -132,7 +137,7 @@ export function ProximityField({
                 setGapPrompt(gap.between);
                 setGapText(existing?.note ?? '');
               }}
-              title="The blank space between clusters — what lives here?"
+              title="The blank space between clusters. What lives here?"
               className={`absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 animate-pulse items-center justify-center rounded-full border-2 border-dashed text-sm ${
                 existing ? 'border-accent bg-accent/20 text-accent' : 'border-ink-dim/50 text-ink-dim'
               }`}
@@ -153,12 +158,22 @@ export function ProximityField({
               style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
               onPointerDown={(e) => {
                 dragging.current = option.id;
+                dragMoved.current = false;
+                dragStart.current = { x: e.clientX, y: e.clientY };
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
               }}
               onPointerMove={(e) => {
-                if (dragging.current === option.id) move(option.id, e.clientX, e.clientY);
+                if (dragging.current !== option.id) return;
+                if (Math.hypot(e.clientX - dragStart.current.x, e.clientY - dragStart.current.y) > 4) {
+                  dragMoved.current = true;
+                }
+                if (dragMoved.current) move(option.id, e.clientX, e.clientY);
               }}
-              onPointerUp={() => (dragging.current = null)}
+              onPointerUp={() => {
+                if (dragging.current === option.id && !dragMoved.current) onPreview(option);
+                dragging.current = null;
+              }}
+              title="Drag to cluster · click for full-screen view (zoom, pan, notes)"
             >
               <div
                 className="rounded-xl border-2 bg-surface p-1.5 shadow-sm"
@@ -185,7 +200,7 @@ export function ProximityField({
                 value={gapText}
                 onChange={(e) => setGapText(e.target.value)}
                 className="flex-1 rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs outline-none focus:border-accent"
-                placeholder="a hybrid? a missing idea? name the ghost…"
+                placeholder="a hybrid? a missing idea? name what belongs here"
               />
               <button
                 type="button"
@@ -240,7 +255,7 @@ export function ProximityField({
           {gapNotes.length > 0 && (
             <div className="rounded-lg border border-dashed border-accent/50 p-2 text-[11px] text-ink-dim">
               {gapNotes.map((n, i) => (
-                <div key={i}>✦ {n.note}</div>
+                <div key={i}>gap: {n.note}</div>
               ))}
             </div>
           )}

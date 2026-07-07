@@ -227,6 +227,8 @@ export const DiscussionSummarySchema = z.object({
   artifacts: z.number().int(),
   /** True when the thread lives in _completed/ — shown under the Archive nav. */
   archived: z.boolean().default(false),
+  /** Token meter: total tokens (input+output) reported for this thread over its progress events. */
+  tokens: z.number().int().min(0).default(0),
 });
 export type DiscussionSummary = z.infer<typeof DiscussionSummarySchema>;
 
@@ -306,6 +308,8 @@ export interface StudioState {
   targetRepo: string | null;
   /** Recent session-progress events (tail — the full log is the thread's progress.jsonl). */
   progress: ProgressEvent[];
+  /** Token meter: the live thread's cumulative totals over ALL its progress events. */
+  tokens: { input: number; output: number };
 }
 
 export type ServerToStudio =

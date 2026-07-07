@@ -18,10 +18,11 @@ import {
 } from '@visual-brainstorm/protocol';
 import { Bridge, type BridgeOptions } from './bridge-server.js';
 import { buildFeedbackDigest } from './feedback.js';
+import { composePoster } from './poster.js';
 import { SessionStore } from './session-store.js';
-import { discussionRoot, loadConfig } from './config.js';
+import { discussionRoot, loadConfig, saveTargetRepo } from './config.js';
 import { FileLog, installCrashHandlers } from './log.js';
-import { loadThemes } from './themes.js';
+import { loadThemes, saveThemeFile } from './themes.js';
 
 const config = loadConfig();
 const root = discussionRoot(config);
@@ -30,6 +31,12 @@ installCrashHandlers(logger);
 
 let store: SessionStore | null = null;
 let bridge: Bridge | null = null;
+/** Config default; a thread override in session.json wins (see effectiveTargetRepo). */
+let defaultTargetRepo: string | null = config.targetRepo ?? null;
+
+function effectiveTargetRepo(): string | null {
+  return store?.info.targetRepo ?? defaultTargetRepo;
+}
 
 function bridgeOptions(): BridgeOptions {
   return {
@@ -39,6 +46,15 @@ function bridgeOptions(): BridgeOptions {
     models: config.models,
     defaultModel: config.defaultModel,
     engine: 'claude',
+    defaultTargetRepo: () => defaultTargetRepo,
+    setDefaultTargetRepo: (p) => {
+      defaultTargetRepo = p;
+      saveTargetRepo(p);
+    },
+    saveTheme: (theme) => {
+      saveThemeFile(theme, config);
+      return loadThemes(config);
+    },
     log: (m) => logger.log(m),
     recentLogs: () => logger.recent(),
     logFile: () => logger.filePath,
@@ -113,6 +129,9 @@ server.tool(
   },
   async (args) => {
     const { store, bridge } = ensureSession(args.title, args.discussionId);
+    // A thread opened via open_studio has a placeholder title; the first real
+    // board names it (display title only — the directory keeps its slug).
+    if (store.rounds.length === 0 && !args.discussionId) store.retitle(args.title);
     const round = store.nextRound();
     const options: BoardOption[] = args.options.map((option, i) => ({
       id: option.id ?? `r${round}-o${i + 1}`,
@@ -147,11 +166,31 @@ server.tool(
     // Package EVERY UI gesture into labeled, executable instructions — the
     // iterative-cycle contract (wiki/Requirements/interaction-protocol.md).
     const digest = buildFeedbackDigest(board, response);
-    for (const { command, prompt } of bridge.drainCommands()) {
+    if (store.info.theme) {
+      const theme = loadThemes(config).find((t) => t.name === store.info.theme);
+      digest.push(
+        `Discussion theme: ${theme?.label ?? store.info.theme}.` +
+          (theme?.palette?.length
+            ? ` Generate SVGs with its palette: ${theme.palette.map((c) => `${c.name} (${c.value})`).join(', ')}.`
+            : '') +
+          ' The studio is skinned with it; artifacts should harmonize.',
+      );
+    }
+    const target = effectiveTargetRepo();
+    if (target && (response.action === 'finalize' || response.commands.includes('plan-closeout'))) {
+      digest.push(
+        `Target repo for this thread: ${target} — Claude may read its wiki for context and write plans for it. ` +
+          'During plan-closeout, ASK the user (AskUserQuestion) exactly where inside it the final artifacts go ' +
+          '(its wiki/, its discussion/, an app images folder, or a custom path), then COPY the artifact .svg + .json ' +
+          'provenance sidecars there. Copy, never move — the originals stay archived in this repo.',
+      );
+    }
+    for (const { command, prompt, seedNote } of bridge.drainCommands()) {
       const file = command === 'new-brainstorm' ? 'run-brainstorm' : command;
       digest.push(
         `Command (queued from UI): run .claude/commands/${file}.md NOW.` +
-          (prompt ? ` Seed prompt from the user: "${prompt}"` : ''),
+          (prompt ? ` Seed prompt from the user: "${prompt}"` : '') +
+          (seedNote ? ` ${seedNote}` : ''),
       );
     }
     return text({
@@ -160,6 +199,45 @@ server.tool(
       feedbackDigest: digest,
       response,
       threadDir: store.info.dir,
+    });
+  },
+);
+
+server.tool(
+  'open_studio',
+  'Open the Visual Brainstorm studio with NO board — the New Discussion landing panel — and BLOCK until the ' +
+    'user submits a brief (arrives as a new-brainstorm command with their prompt/seed notes) or the timeout ' +
+    'passes. Use this when the user asks to start a brainstorm WITHOUT saying what about (e.g. a bare ' +
+    '/run-brainstorm): instead of interrogating them in chat, land them on the panel and build the ' +
+    'AskUserQuestion clarifications on what they submit. Timeout returns {status:"waiting"} — the studio ' +
+    'stays open; call open_studio again (or check session_status.pendingUiCommands) to keep waiting.',
+  {
+    timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
+  },
+  async ({ timeoutSeconds }) => {
+    const { store, bridge } = ensureSession('New discussion');
+    await bridge.openStudio();
+    console.error('[mcp] studio open on the New Discussion panel — waiting for a brief');
+    const request = await bridge.waitForCommand(timeoutSeconds * 1000);
+    if (!request) {
+      return text({
+        status: 'waiting',
+        studioUrl: bridge.url,
+        hint: 'No brief submitted yet. The studio stays open on the New Discussion panel; call open_studio again to keep waiting.',
+      });
+    }
+    const file = request.command === 'new-brainstorm' ? 'run-brainstorm' : request.command;
+    return text({
+      status: 'submitted',
+      studioUrl: bridge.url,
+      threadDir: store.info.dir,
+      command: request.command,
+      prompt: request.prompt ?? null,
+      seedNote: request.seedNote ?? null,
+      instruction:
+        `Run .claude/commands/${file}.md NOW.` +
+        (request.prompt ? ` The user's brief: "${request.prompt}".` : '') +
+        (request.seedNote ? ` ${request.seedNote}` : ''),
     });
   },
 );
@@ -177,8 +255,8 @@ server.tool(
 server.tool(
   'capture_artifact',
   'Persist an accepted/final SVG artifact with provenance to the thread directory (every artifact is captured — rule 7). ' +
-    'Also copies to <targetRepo>/brainstorm-artifacts/ when targetRepo is set in visual-brainstorm.config.json. ' +
-    'Shows on the studio artifact shelf.',
+    'Also copies to <targetRepo>/brainstorm-artifacts/ when a target repo/folder is set (per-thread via the studio 📁 ' +
+    'button, or the default in visual-brainstorm.config.json). Shows on the studio artifact shelf.',
   {
     name: z.string(),
     svg: z.string(),
@@ -190,24 +268,51 @@ server.tool(
     const { store, bridge } = ensureSession(name);
     const artifact = store.captureArtifact(name, svg, notes, { boardId, optionIds });
     bridge.announceArtifact(artifact);
-    let copiedTo: string | null = null;
-    if (config.targetRepo) {
-      const targetDir = path.join(path.resolve(config.targetRepo), 'brainstorm-artifacts');
-      fs.mkdirSync(targetDir, { recursive: true });
-      copiedTo = path.join(targetDir, `${artifact.slug}.svg`);
-      fs.copyFileSync(artifact.svgPath, copiedTo);
-      fs.writeFileSync(
-        path.join(targetDir, `${artifact.slug}.json`),
-        JSON.stringify(artifact, null, 2),
-      );
+    return text({ status: 'captured', artifact, copiedTo: copyToTargetRepo(artifact) });
+  },
+);
+
+function copyToTargetRepo(artifact: { slug: string; svgPath: string }): string | null {
+  const target = effectiveTargetRepo();
+  if (!target) return null;
+  const targetDir = path.join(path.resolve(target), 'brainstorm-artifacts');
+  fs.mkdirSync(targetDir, { recursive: true });
+  const copiedTo = path.join(targetDir, `${artifact.slug}.svg`);
+  fs.copyFileSync(artifact.svgPath, copiedTo);
+  fs.writeFileSync(path.join(targetDir, `${artifact.slug}.json`), JSON.stringify(artifact, null, 2));
+  return copiedTo;
+}
+
+server.tool(
+  'compose_poster',
+  'Sudden-death finale: deterministically compose the shareable decision poster for the crowned option — ' +
+    'winner large, lineage tree, and the notes that decided it — as ONE self-contained SVG built from the ' +
+    'thread\'s cached rounds (nothing regenerated). Captures it as an artifact (rule 7) and shows it on the ' +
+    'studio shelf. Call it right after capture_artifact when a finalize response arrives.',
+  {
+    optionId: z.string().describe('The crowned option id (response.finalOptionId)'),
+    name: z.string().optional().describe('Poster artifact name; defaults to "<thread title> — decision poster"'),
+    notes: z.string().default(''),
+  },
+  async ({ optionId, name, notes }) => {
+    if (!store) {
+      return text({ status: 'no-session', hint: 'compose_poster needs the live thread that produced the winner' });
     }
-    return text({ status: 'captured', artifact, copiedTo });
+    const svg = composePoster(store.rounds, optionId, store.info.title);
+    const artifact = store.captureArtifact(
+      name ?? `${store.info.title} — decision poster`,
+      svg,
+      notes || `Auto-composed decision poster for crowned option ${optionId}.`,
+      { optionIds: [optionId] },
+    );
+    bridge?.announceArtifact(artifact);
+    return text({ status: 'captured', artifact, copiedTo: copyToTargetRepo(artifact) });
   },
 );
 
 server.tool(
   'list_discussions',
-  'List all cached brainstorm threads in the discussion folder (.docs/discussion by default) — newest first. Use an id with present_board.discussionId or load_discussion.',
+  'List all cached brainstorm threads in the discussion folder (discussion by default) — newest first. Use an id with present_board.discussionId or load_discussion.',
   {},
   async () => text(SessionStore.list(root)),
 );
@@ -250,6 +355,7 @@ server.tool(
       status: 'active',
       session: store.info,
       studioUrl: bridge?.url ?? null,
+      targetRepo: effectiveTargetRepo(),
       pendingUiCommands: bridge?.peekCommands() ?? [],
       rounds: store.rounds.map((r) => ({
         round: r.board.round,

@@ -5,7 +5,7 @@
  * Real brainstorms run through Claude Code (the MCP server in .mcp.json).
  *
  * Run: npm run preview [phase]   →  open the printed URL.
- * Fixture threads persist to a temp dir, not .docs/discussion.
+ * Fixture threads persist to a temp dir, not discussion.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -16,7 +16,7 @@ import { Bridge } from './bridge-server.js';
 import { SessionStore } from './session-store.js';
 import { loadConfig } from './config.js';
 import { FileLog, installCrashHandlers } from './log.js';
-import { loadThemes } from './themes.js';
+import { loadThemes, saveThemeFile } from './themes.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
@@ -45,6 +45,10 @@ const bridge = new Bridge(store, {
   models: config.models,
   defaultModel: config.defaultModel,
   engine: 'preview',
+  saveTheme: (theme) => {
+    saveThemeFile(theme, config, repoRoot);
+    return loadThemes(config, repoRoot);
+  },
   log: (m) => logger.log(m),
   recentLogs: () => logger.recent(),
   logFile: () => logger.filePath,

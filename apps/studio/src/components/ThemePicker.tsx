@@ -19,7 +19,7 @@ export function ThemePicker({
         type="button"
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs hover:border-accent"
-        title="Theme — pick visually, or set in visual-brainstorm.config.json"
+        title="Theme: pick visually, or set in visual-brainstorm.config.json"
       >
         <span
           className="h-3 w-3 rounded-full"
@@ -28,7 +28,7 @@ export function ThemePicker({
         {active?.label ?? current}
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-56 rounded-xl border border-line bg-surface p-2 shadow-xl">
+        <div className="absolute bottom-full right-0 z-40 mb-2 w-56 rounded-xl border border-line bg-surface p-2 shadow-xl">
           {themes.map((theme) => (
             <button
               key={theme.name}

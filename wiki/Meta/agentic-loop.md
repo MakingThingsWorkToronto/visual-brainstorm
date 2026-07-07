@@ -37,13 +37,19 @@ tests. Skipping a stage is a process failure, not a shortcut.
 - **Commands and skills are living documents.** Closeout step 4 exists to feed learnings
   BACK into the procedures — the same task gets easier and safer every cycle. The
   `## Changelog` footers are the visible growth rings.
-- **The studio participates.** Plan closeout (composer More menu) and Finalize & close out
-  trigger stage 5 from the UI; Discover skills (same More menu, web branch) ingests
+- **The studio participates.** Plan closeout (composer More Tools menu, the + button) and
+  Finalize & close out trigger stage 5 from the UI; Discover skills (same menu, web branch)
+  ingests
   brand-new skills mid-brainstorm, so craft
   compounds *inside* a session, not just between them.
 - **Agents are the muscle memory** (`System/agents.md`): diagnosis, delegated generation,
   testing, and wiki-keeping each have an owner with the procedure embedded — a fresh chat
   doesn't improvise, it routes (CLAUDE.md rule 11 + the quick map).
+- **Long-lived subagents replay stale context.** Resuming one agent across a work stream
+  (e.g. the wiki-librarian across many UI waves) keeps its context and works well, but its
+  repeated "standing flags" come from its OWN old transcript, not the current tree — the
+  coordinator verifies a repeated flag against the file before acting and tells the agent
+  explicitly when a flag is resolved.
 - **Cold-start guarantee:** a brand-new session reads CLAUDE.md §Session bootstrap and is
   fully operational — wiki authority, plans, learnings, commands, skills, agents, tests,
   logs — without any chat history.

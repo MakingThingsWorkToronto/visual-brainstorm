@@ -53,6 +53,36 @@ body {
   to { background-position: -200% 0; }
 }
 
+/* liquid-chrome phase tabs — glassy gradient chips that sit flush on the guide bubble */
+.tab-liquid {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 70%, white 12%),
+    color-mix(in srgb, var(--surface-2) 92%, black 4%)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 40%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, black 8%, transparent);
+  backdrop-filter: blur(6px);
+}
+.tab-liquid:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 14%, var(--surface)),
+    color-mix(in srgb, var(--accent) 8%, var(--surface-2))
+  );
+}
+.tab-liquid-active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 78%, white 22%),
+    var(--accent)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 45%, transparent),
+    0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
 /* scroll-fade — after shadcn's chat `scroll-fade` utility */
 .scroll-fade {
   mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);

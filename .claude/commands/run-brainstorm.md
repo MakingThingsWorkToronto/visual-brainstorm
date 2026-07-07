@@ -4,6 +4,12 @@ The complete operator procedure. Follow it literally; the skills carry the craft
 
 ## Procedure
 
+0. **No topic given** (bare `/run-brainstorm` or "start a brainstorm" with no subject)?
+   Call **`open_studio`** — it lands the user on the studio's New Discussion panel (the
+   organized intake: brief + voice, chips, colors palette, scribble, attachments, model,
+   target folder) and blocks until they submit. The submission arrives as a new-brainstorm
+   command whose prompt/seed notes seed step 1; do NOT interrogate them in chat first.
+   A `{status:"waiting"}` timeout is not failure — call `open_studio` again.
 1. **Pre-phrase** with AskUserQuestion (never skip): domain (icons? system? palette? flow?),
    style references/colors, constraints, and how divergent to go. The consensus — not the raw
    request — seeds the first board. If this run was triggered by the studio's ✚ New
@@ -25,6 +31,11 @@ The complete operator procedure. Follow it literally; the skills carry the craft
    remix pairs, axis values, and the phase fields (triage/mutations/flaws/positions/clusters/
    gapNotes) per the phase skill. If `response.model` is set, DELEGATE generation of the next
    round's SVGs to that model via a subagent; you keep orchestrating.
+   `response.attachments`: each entry's `savedPath` is a file the user attached mid-round —
+   **Read it** (vision for images) and fold it in; an entry without `savedPath` failed to
+   persist, tell the user. `response.paletteColors` (or a "Discussion theme" digest line):
+   generate the round's SVGs using ONLY those named colors and refer to them BY NAME when
+   narrating — the user speaks in those names.
 5. **Document the decision, every round** — the server appends the mechanical record
    (options shown, raw response) to the thread's `brainstorm.md`; YOU append the
    interpretation right after it (append-only, never rewrite): a short
@@ -49,6 +60,12 @@ The complete operator procedure. Follow it literally; the skills carry the craft
    `peek_response` later.
 
 ## Changelog
+- 2026-07-06 — step 4: interpret response.attachments (Read savedPath files; honest-fail
+  entries have none) and response.paletteColors / discussion-theme digest lines (generate
+  with ONLY the named colors, narrate by color name) (from ui-changes)
+- 2026-07-06 — step 0: bare invocation lands on the studio's New Discussion panel via the
+  new open_studio tool (ui-changes plan item 13); seed notes may now also carry attachments,
+  a model choice, and a generation palette from the panel's composer
 - 2026-07-06 — step 5: per-round decision blocks appended to brainstorm.md (interpretation,
   not just the server's mechanical record) so closeout can author the target-repo build
   plan; step 8 points finalize at closeout's build-plan hand-off (operator request)

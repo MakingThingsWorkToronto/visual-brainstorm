@@ -1,8 +1,8 @@
 import type { Phase } from '@visual-brainstorm/protocol';
 
 const STEPS: { phase: Phase; label: string; hint: string }[] = [
-  { phase: 'diverge', label: 'Diverge', hint: 'expand freely — no gates' },
-  { phase: 'expand', label: 'Expand', hint: 'select — the pool grows with syntheses' },
+  { phase: 'diverge', label: 'Diverge', hint: 'expand freely, no gates' },
+  { phase: 'expand', label: 'Expand', hint: 'select and the pool grows' },
   { phase: 'mutate', label: 'Mutate', hint: 'distort one thing at a time' },
   { phase: 'wreck', label: 'Wreck', hint: 'nothing is precious' },
   { phase: 'cluster', label: 'Cluster', hint: 'distance is data' },
@@ -10,9 +10,10 @@ const STEPS: { phase: Phase; label: string; hint: string }[] = [
 ];
 
 /**
- * The funnel made visible AND steerable: widths narrow toward converge; the
- * current phase glows; clicking a tab switches the active mechanic locally and
- * requests that phase for the next round (response.requestedPhase).
+ * The funnel made visible AND steerable: liquid-chrome tabs sized to their
+ * words, attached to the guide bubble below; the current phase glows; clicking
+ * a tab switches the active mechanic locally and requests that phase for the
+ * next round (response.requestedPhase).
  */
 export function PhaseBar({
   phase,
@@ -22,8 +23,8 @@ export function PhaseBar({
   onSelect?: (phase: Phase) => void;
 }) {
   return (
-    <div className="flex items-end gap-1" aria-label={`Current phase: ${phase}`}>
-      {STEPS.map((step, i) => {
+    <div className="flex flex-wrap items-end gap-1" aria-label={`Current phase: ${phase}`}>
+      {STEPS.map((step) => {
         const active = step.phase === phase;
         return (
           <button
@@ -31,16 +32,13 @@ export function PhaseBar({
             type="button"
             disabled={!onSelect}
             onClick={() => onSelect?.(step.phase)}
-            title={`${step.label} — ${step.hint}${onSelect ? ' (click to switch)' : ''}`}
-            className={`rounded-t-md text-center text-[10px] font-semibold uppercase tracking-wider transition-all ${
-              active
-                ? 'bg-accent text-white'
-                : 'bg-surface-2 text-ink-dim hover:bg-accent/25 hover:text-ink'
+            title={`${step.label}: ${step.hint}${onSelect ? ' (click to switch)' : ''}`}
+            className={`rounded-t-lg px-3 text-center text-[10px] font-semibold uppercase tracking-wider transition-all ${
+              active ? 'tab-liquid-active text-white' : 'tab-liquid text-ink-dim hover:text-ink'
             } ${onSelect ? 'cursor-pointer' : ''}`}
             style={{
-              width: `${108 - i * 12}px`,
-              paddingTop: active ? '8px' : '4px',
-              paddingBottom: active ? '8px' : '4px',
+              paddingTop: active ? '8px' : '5px',
+              paddingBottom: active ? '8px' : '5px',
             }}
           >
             {step.label}

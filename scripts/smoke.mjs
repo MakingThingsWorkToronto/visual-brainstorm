@@ -376,6 +376,71 @@ assert.ok(piped, 'piped note reached /api/state');
 pipe = spawnSync(process.execPath, [pipeScript, '--note', 'nobody home', '--port', '1'], { encoding: 'utf8' });
 assert.equal(pipe.status, 0, `dead-port pipe must exit 0, got ${pipe.status}: ${pipe.stderr}`);
 
+// Token meter: live totals in state, per-thread totals in summaries + thread reload.
+// The only token-bearing event this smoke posted is 'generating options' (100/50) —
+// the pipe notes above carried none — so the totals are exact, not just lower bounds.
+let tokenState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.ok(
+  tokenState.tokens.input >= 100 && tokenState.tokens.output >= 50,
+  `live totals reflect posted tokens, got ${JSON.stringify(tokenState.tokens)}`,
+);
+assert.deepEqual(tokenState.tokens, { input: 100, output: 50 }, 'live totals are exactly the posted sum');
+const tokenList = await (await fetch(`http://127.0.0.1:${bridge.port}/api/discussions`)).json();
+assert.equal(tokenList[0].tokens, 150, 'summary tokens = input+output combined');
+const tokenThread = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/discussions/${encodeURIComponent(tokenList[0].id)}`)
+).json();
+assert.deepEqual(tokenThread.tokens, { input: 100, output: 50 }, 'thread reload carries token totals');
+
+// Transcript-delta hook mode: pipe-progress reads assistant usage from a Claude Code
+// transcript and posts the DELTA since its last run (cursor in os.tmpdir()).
+const transcriptPath = path.join(scratch, 'transcript.jsonl');
+fs.writeFileSync(
+  transcriptPath,
+  [
+    JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 20 } } }),
+    // Non-assistant line WITH usage — must be filtered out, or the delta below breaks.
+    JSON.stringify({ type: 'user', message: { usage: { input_tokens: 999, output_tokens: 999 } } }),
+    JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 30, output_tokens: 5 } } }),
+  ].join('\n') + '\n',
+);
+// Unique per run — a stale tmpdir cursor from an earlier smoke can never skew the delta.
+const cursorSession = `smoke-cursor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const runTranscriptHook = () =>
+  spawnSync(process.execPath, [pipeScript, '--port', String(bridge.port)], {
+    encoding: 'utf8',
+    input: JSON.stringify({
+      hook_event_name: 'Stop',
+      session_id: cursorSession,
+      transcript_path: transcriptPath,
+    }),
+  });
+const expectTokens = async (expected, label) => {
+  let got = null;
+  for (let i = 0; i < 30; i++) {
+    got = (await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json()).tokens;
+    if (got.input === expected.input && got.output === expected.output) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.deepEqual(got, expected, label);
+};
+let hookPipe = runTranscriptHook();
+assert.equal(hookPipe.status, 0, `transcript hook exited ${hookPipe.status}: ${hookPipe.stderr}`);
+await expectTokens(
+  { input: 230, output: 75 },
+  'first hook run grew totals by exactly 130/25 (assistant usage only; user line filtered)',
+);
+fs.appendFileSync(
+  transcriptPath,
+  JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 7, output_tokens: 3 } } }) + '\n',
+);
+hookPipe = runTranscriptHook();
+assert.equal(hookPipe.status, 0, `second transcript hook exited ${hookPipe.status}: ${hookPipe.stderr}`);
+await expectTokens(
+  { input: 237, output: 78 },
+  'second hook run posted only the delta (7/3) via the cursor, not a re-total',
+);
+
 // WS broadcast delivery is async — give it a beat before asserting.
 for (let i = 0; i < 20 && !seen.includes('progress'); i++) await new Promise((r) => setTimeout(r, 50));
 assert.ok(
@@ -387,5 +452,5 @@ ws.close();
 await bridge.stop();
 fs.rmSync(scratch, { recursive: true, force: true });
 console.log(
-  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe',
+  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook)',
 );

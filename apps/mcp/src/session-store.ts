@@ -26,6 +26,23 @@ export function slugify(text: string): string {
   );
 }
 
+/** Token-meter sum from a thread's progress.jsonl without loading the whole thread. */
+function sumTokensFile(threadDir: string): number {
+  const file = path.join(threadDir, 'progress.jsonl');
+  if (!fs.existsSync(file)) return 0;
+  let total = 0;
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const tokens = (JSON.parse(line) as { tokens?: { input?: number; output?: number } }).tokens;
+      total += (tokens?.input ?? 0) + (tokens?.output ?? 0);
+    } catch {
+      /* corrupt lines are skipped, same as reload */
+    }
+  }
+  return total;
+}
+
 function stamp(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
@@ -154,6 +171,7 @@ export class SessionStore {
             rounds,
             artifacts,
             archived,
+            tokens: sumTokensFile(threadDir),
           });
         } catch (err) {
           console.error(`[store] skipping ${entry.name}: ${String(err)}`);
@@ -217,6 +235,17 @@ export class SessionStore {
         `### User response (${response.respondedAt})`,
         ...buildFeedbackDigest(round.board, response).map((line) => `- ${line}`),
       ].join('\n'),
+    );
+  }
+
+  /** Token meter: cumulative usage over every progress event of this thread. */
+  tokenTotals(): { input: number; output: number } {
+    return this.progress.reduce(
+      (sum, e) => ({
+        input: sum.input + (e.tokens?.input ?? 0),
+        output: sum.output + (e.tokens?.output ?? 0),
+      }),
+      { input: 0, output: 0 },
     );
   }
 

@@ -140,7 +140,10 @@ events from the working session stream into the studio and persist with the thre
 strip shows the latest event's note (it also replaces the shimmer's canned "drawing new
 candidates…" line), with a count badge; click to expand the full recent list — each entry
 timestamped, tagged with its source (orchestrator, agent, or hook), and, when known, its
-token cost.
+token cost. Every thread also carries a **token meter**: all tokens reported for that
+discussion — orchestrator and subagents alike, captured deterministically from session
+transcripts — accumulate and persist with the thread. The running total shows as a
+`Σ … tok` badge on the activity strip and as a per-thread `… tok` badge in the sidebar.
 
 **Every gesture counts** — this is the core contract:
 - **Dials** (min 5 per board, tailored to your topic): moving a dial and sending — with

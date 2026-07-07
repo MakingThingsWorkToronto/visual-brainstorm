@@ -1,12 +1,34 @@
-import { useMemo, useState } from 'react';
-import type { Board, BoardResponse, ResponseAction } from '@visual-brainstorm/protocol';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  Board,
+  BoardOption,
+  BoardResponse,
+  PaletteColor,
+  Phase,
+  ResponseAction,
+  Theme,
+} from '@visual-brainstorm/protocol';
 import { SvgPane } from './primitives';
+import { PreviewModal } from './PreviewModal';
+import { TargetRepoPicker } from './TargetRepoPicker';
+import { PalettePicker } from './PalettePicker';
+import {
+  AttachmentChips,
+  CameraModal,
+  MicButton,
+  cameraAvailable,
+  useAttachments,
+} from './composer';
+import { useVoice } from '../lib/useVoice';
 import { PhaseBar } from './phases/PhaseBar';
 import { PHASE_GUIDE } from './phases/guide';
 import { MutationLab } from './phases/MutationLab';
 import { WreckYard } from './phases/WreckYard';
 import { TriageGate } from './phases/TriageGate';
 import { ProximityField } from './phases/ProximityField';
+import { JudgeDeck } from './phases/JudgeDeck';
+import type { DuelResult } from '../lib/deck';
+import type { PhaseProposal } from '../lib/wayfinder';
 
 /** Deterministic scatter for the proximity field's opening state. */
 function scatter(board: Board): Record<string, { x: number; y: number }> {
@@ -24,25 +46,52 @@ export function BoardSurvey({
   models,
   defaultModel,
   onRespond,
-  onPreview,
+  proposal = null,
+  advanceSignal = 0,
+  onCommand,
+  targetRepo = null,
+  themes = [],
 }: {
   board: Board;
   models: string[];
   defaultModel: string;
   onRespond: (response: BoardResponse) => Promise<void>;
-  onPreview: (preview: { svg: string; label: string }) => void;
+  /** Wayfinder's next-phase suggestion — Enter accepts it once you've judged. */
+  proposal?: PhaseProposal | null;
+  /** Bumped when the wayfinder pill is clicked — switches the local mechanic. */
+  advanceSignal?: number;
+  /** Studio command hook for the composer's pop-out menu (discover-skills, plan-closeout). */
+  onCommand?: (command: 'plan-closeout' | 'discover-skills') => void;
+  /** Current target repo/folder, shown next to Accept. */
+  targetRepo?: string | null;
+  /** Ingested themes — source of the generation color palettes. */
+  themes?: Theme[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [noteOpen, setNoteOpen] = useState<string | null>(null);
+  // Full-screen preview — EVERY phase mechanic opens it by clicking an option's SVG
+  // (dense system-architecture boards need zoom/pan + notes in context).
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewOption = board.options.find((o) => o.id === previewId) ?? null;
+  const onPreview = (option: BoardOption) => setPreviewId(option.id);
   const [remixMarks, setRemixMarks] = useState<string[]>([]);
   const [axisValues, setAxisValues] = useState<Record<string, number>>(() =>
     Object.fromEntries(board.survey.axes.map((a) => [a.id, a.defaultValue])),
   );
   const [elaboration, setElaboration] = useState('');
   const [model, setModel] = useState(defaultModel);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [colorsOpen, setColorsOpen] = useState(false);
+  const [genTheme, setGenTheme] = useState<string | null>(null);
+  const [paletteColors, setPaletteColors] = useState<PaletteColor[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const voice = useVoice((heard) =>
+    setElaboration((prev) => (prev.trim() ? `${prev.trim()} ${heard}` : heard)),
+  );
+  const intake = useAttachments();
   // User-steerable phase: clicking a tab switches the mechanic locally and is
   // sent back as requestedPhase. All mechanics share the same option data.
   const [localPhase, setLocalPhase] = useState(board.phase);
@@ -55,6 +104,11 @@ export function BoardSurvey({
   const [clusterTouched, setClusterTouched] = useState(false);
   const [clusters, setClusters] = useState<string[][]>([]);
   const [gapNotes, setGapNotes] = useState<{ between: [number, number]; note: string }[]>([]);
+  // judge deck (diverge/expand review mode) + sudden-death duels (converge)
+  const [reviewMode, setReviewMode] = useState<'grid' | 'deck'>('grid');
+  const [deckVerdicts, setDeckVerdicts] = useState<Record<string, 'keep' | 'kill'>>({});
+  const [deckRanking, setDeckRanking] = useState<string[]>([]);
+  const [duelResults, setDuelResults] = useState<DuelResult[]>([]);
 
   const { multiSelect, minSelect, maxSelect } = board.survey;
   const phase = localPhase;
@@ -107,7 +161,60 @@ export function BoardSurvey({
     return pairs;
   }, [remixMarks]);
 
-  const send = async (action: ResponseAction) => {
+  // Deck verdicts drive the synthesis vector: keeps join the selection set.
+  const deckVerdict = (id: string, verdict: 'keep' | 'kill') => {
+    setDeckVerdicts((prev) => ({ ...prev, [id]: verdict }));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (verdict === 'keep') next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+  const restartDeck = () => {
+    setSelected((prev) => new Set([...prev].filter((id) => !(id in deckVerdicts))));
+    setDeckVerdicts({});
+    setDeckRanking([]);
+    setDuelResults([]);
+  };
+
+  // Wayfinder: the strip's "next: X" pill switches the local mechanic…
+  const lastAdvance = useRef(advanceSignal);
+  useEffect(() => {
+    if (advanceSignal !== lastAdvance.current) {
+      lastAdvance.current = advanceSignal;
+      if (proposal) setLocalPhase(proposal.phase);
+    }
+  }, [advanceSignal, proposal]);
+
+  // …and Enter sends once you've actually judged something (gate willing).
+  const touched =
+    selected.size > 0 ||
+    Object.keys(triage).length > 0 ||
+    Object.keys(deckVerdicts).length > 0 ||
+    clusterTouched ||
+    Object.values(flaws).some((f) => f.trim() !== '') ||
+    Object.values(mutations).some((l) => l.length > 0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey) return;
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return;
+      if (sending || !gate.ok || !touched) return;
+      e.preventDefault();
+      if (proposal && localPhase === board.phase) {
+        setLocalPhase(proposal.phase);
+        void send('iterate', proposal.phase);
+      } else {
+        void send('iterate');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  const send = async (action: ResponseAction, phaseOverride?: Phase) => {
+    const steeredPhase = phaseOverride ?? localPhase;
     // Back is an escape hatch — it bypasses every gate by design.
     if (action !== 'back') {
       if ((phase === 'diverge' || phase === 'expand') && selected.size < minSelect) {
@@ -119,7 +226,7 @@ export function BoardSurvey({
         return;
       }
       if (action === 'finalize' && !finalId) {
-        setError('Crown one option with 🏁 Final first.');
+        setError('Mark one option as Final first.');
         return;
       }
     }
@@ -149,9 +256,14 @@ export function BoardSurvey({
         positions: clusterTouched ? positions : {},
         clusters: clusterTouched ? clusters : [],
         gapNotes,
+        deckVerdicts,
+        duelResults,
+        ranking: deckRanking,
+        attachments: intake.attachments,
+        paletteColors,
         // Finality triggers the closeout procedure on the orchestrator side.
         commands: action === 'finalize' ? ['plan-closeout'] : [],
-        requestedPhase: localPhase !== board.phase ? localPhase : undefined,
+        requestedPhase: steeredPhase !== board.phase ? steeredPhase : undefined,
         finalOptionId: action === 'finalize' ? (finalId ?? undefined) : undefined,
         respondedAt: new Date().toISOString(),
       });
@@ -166,28 +278,27 @@ export function BoardSurvey({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col items-center gap-1">
+      <div>
         <PhaseBar phase={phase} onSelect={setLocalPhase} />
-        {localPhase !== board.phase && (
-          <div className="text-[11px] text-accent">
-            switched from {board.phase} — next round will be asked for {localPhase}
-          </div>
-        )}
-      </div>
-
-      <div className="mx-auto max-w-3xl rounded-xl border border-line bg-surface-2/70 px-4 py-3">
-        <div className="text-xs font-semibold">{PHASE_GUIDE[phase].title}</div>
-        <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-ink-dim">
-          {PHASE_GUIDE[phase].steps.map((step, i) => (
-            <li key={i}>{step}</li>
-          ))}
-        </ol>
+        <div className="rounded-xl rounded-tl-none border border-line bg-surface-2/70 px-4 py-3">
+          {localPhase !== board.phase && (
+            <div className="mb-1 text-[11px] text-accent">
+              switched from {board.phase}; the next round will be asked for {localPhase}
+            </div>
+          )}
+          <div className="text-xs font-semibold">{PHASE_GUIDE[phase].title}</div>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-ink-dim">
+            {PHASE_GUIDE[phase].steps.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+        </div>
       </div>
 
       {phase === 'mutate' && (
-        <MutationLab board={board} mutations={mutations} onMutations={setMutations} />
+        <MutationLab board={board} mutations={mutations} onMutations={setMutations} onPreview={onPreview} />
       )}
-      {phase === 'wreck' && <WreckYard board={board} flaws={flaws} onFlaws={setFlaws} />}
+      {phase === 'wreck' && <WreckYard board={board} flaws={flaws} onFlaws={setFlaws} onPreview={onPreview} />}
       {phase === 'converge' && (
         <TriageGate
           board={board}
@@ -195,6 +306,8 @@ export function BoardSurvey({
           finalId={finalId}
           onTriage={setTriage}
           onFinal={setFinalId}
+          onDuel={(duel) => setDuelResults((prev) => [...prev, duel])}
+          onPreview={onPreview}
         />
       )}
       {phase === 'cluster' && (
@@ -211,10 +324,48 @@ export function BoardSurvey({
             setClusterTouched(true);
             setGapNotes(n);
           }}
+          onPreview={onPreview}
         />
       )}
 
       {(phase === 'diverge' || phase === 'expand') && (
+        <div className="flex justify-center gap-1">
+          {(['grid', 'deck'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setReviewMode(mode)}
+              title={
+                mode === 'grid'
+                  ? 'Whole pool at once, the classic grid'
+                  : 'One card at a time: flick right keeps, left kills; close calls become duels'
+              }
+              className={`rounded-lg border px-3 py-1 text-xs font-medium ${
+                reviewMode === mode
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-line text-ink-dim hover:text-ink'
+              }`}
+            >
+              {mode === 'grid' ? 'grid' : 'judge deck'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {(phase === 'diverge' || phase === 'expand') && reviewMode === 'deck' && (
+        <JudgeDeck
+          board={board}
+          verdicts={deckVerdicts}
+          ranking={deckRanking}
+          onVerdict={deckVerdict}
+          onRanking={setDeckRanking}
+          onDuel={(duel) => setDuelResults((prev) => [...prev, duel])}
+          onRestart={restartDeck}
+          onPreview={onPreview}
+        />
+      )}
+
+      {(phase === 'diverge' || phase === 'expand') && reviewMode === 'grid' && (
         <div className={`grid grid-cols-1 gap-4 ${cols}`}>
           {board.options.map((option) => {
             const isSelected = selected.has(option.id);
@@ -230,13 +381,21 @@ export function BoardSurvey({
               >
                 <button
                   type="button"
-                  onClick={() => toggleSelect(option.id)}
-                  className="block w-full text-left"
-                  aria-pressed={isSelected}
+                  onClick={() => onPreview(option)}
+                  className="block w-full cursor-zoom-in rounded-xl"
+                  title="Click for full-screen view (zoom, pan, notes)"
                 >
                   <div className="aspect-square w-full rounded-xl bg-surface-2 p-6 text-ink">
                     <SvgPane svg={option.svg} className="h-full w-full" />
                   </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSelect(option.id)}
+                  className="block w-full text-left"
+                  aria-pressed={isSelected}
+                  title={isSelected ? 'Deselect' : 'Select'}
+                >
                   <div className="mt-3 flex items-start justify-between gap-2">
                     <div>
                       <div className="text-sm font-semibold">{option.label}</div>
@@ -255,14 +414,6 @@ export function BoardSurvey({
                 </button>
 
                 <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onPreview({ svg: option.svg, label: option.label })}
-                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-dim hover:text-ink"
-                    title="Full-screen preview (zoom & pan)"
-                  >
-                    ⛶
-                  </button>
                   {board.survey.allowPerOptionNotes && (
                     <button
                       type="button"
@@ -271,7 +422,7 @@ export function BoardSurvey({
                         notes[option.id]?.trim() ? 'text-accent' : 'text-ink-dim'
                       } hover:text-ink`}
                     >
-                      ✎ note
+                      note
                     </button>
                   )}
                   {board.survey.allowRemix && (
@@ -283,9 +434,9 @@ export function BoardSurvey({
                           ? 'border-accent text-accent'
                           : 'border-line text-ink-dim hover:text-ink'
                       }`}
-                      title="Mark for remix — marked options are mashed up in pairs next round"
+                      title="Mark for remix. Marked options are combined in pairs next round."
                     >
-                      ⚡ remix{remixIndex >= 0 ? ` #${Math.floor(remixIndex / 2) + 1}` : ''}
+                      remix{remixIndex >= 0 ? ` #${Math.floor(remixIndex / 2) + 1}` : ''}
                     </button>
                   )}
                   {option.tags.map((tag) => (
@@ -300,7 +451,7 @@ export function BoardSurvey({
                     autoFocus
                     value={notes[option.id] ?? ''}
                     onChange={(e) => setNotes({ ...notes, [option.id]: e.target.value })}
-                    placeholder={`What works / doesn't about “${option.label}”?`}
+                    placeholder={`What works or doesn't about "${option.label}"?`}
                     className="mt-2 w-full resize-none rounded-lg border border-line bg-surface-2 p-2 text-xs outline-none focus:border-accent"
                     rows={2}
                   />
@@ -329,7 +480,7 @@ export function BoardSurvey({
                     {axisValues[axis.id] ?? axis.defaultValue}
                   </span>
                   {(axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue && (
-                    <span className="text-accent" title="Moved — this alone will steer the next round">
+                    <span className="text-accent" title="Moved. This alone will steer the next round.">
                       {' '}●
                     </span>
                   )}
@@ -360,16 +511,24 @@ export function BoardSurvey({
           rows={3}
           className="w-full resize-y rounded-xl border border-line bg-surface-2 p-3 text-sm outline-none focus:border-accent"
         />
-        {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
+        {voice.listening && (
+          <div className="mt-1 text-[11px] text-accent shimmer">listening, speak your reply...</div>
+        )}
+        {voice.error && <div className="mt-1 text-[11px] text-red-500">{voice.error}</div>}
+        <AttachmentChips attachments={intake.attachments} onRemove={intake.remove} />
+        {(error ?? intake.error) && (
+          <div className="mt-2 text-xs text-red-500">{error ?? intake.error}</div>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          <MicButton voice={voice} hint="Dictate your reply. The transcript lands in the box." />
           <button
             type="button"
             disabled={sending}
             onClick={() => send('back')}
-            title="This round's options don't work — go back and re-answer the previous board"
+            title="This round's options don't work. Go back and re-answer the previous board."
             className="rounded-xl border border-line px-3 py-2 text-sm text-ink-dim hover:border-accent hover:text-ink disabled:opacity-50"
           >
-            ↩ Back
+            Back
           </button>
           <button
             type="button"
@@ -378,7 +537,7 @@ export function BoardSurvey({
             title={gate.ok ? '' : gate.reason}
             className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-105 disabled:opacity-50"
           >
-            Send & iterate →
+            Send & iterate
           </button>
           <button
             type="button"
@@ -386,48 +545,178 @@ export function BoardSurvey({
             onClick={() => send('accept')}
             className="rounded-xl border border-line px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-50"
           >
-            ✓ Accept
+            Accept
           </button>
-          <button
-            type="button"
-            disabled={sending}
-            onClick={() => send('park')}
-            className="rounded-xl px-3 py-2 text-sm text-ink-dim hover:text-ink disabled:opacity-50"
-          >
-            Park
-          </button>
+          <TargetRepoPicker targetRepo={targetRepo} />
           {phase === 'converge' && finalId && (
             <button
               type="button"
               disabled={sending || !gate.ok}
               onClick={() => send('finalize')}
-              title="Capture the crowned option and run plan closeout — this ends the brainstorm"
+              title="Save the final option and run plan closeout. This ends the brainstorm."
               className="rounded-xl border-2 border-accent bg-accent/15 px-4 py-2 text-sm font-bold text-accent hover:bg-accent/25 disabled:opacity-50"
             >
-              🏁 Finalize & close out
+              Finalize & close out
             </button>
           )}
-          {models.length > 0 && (
-            <label className="flex items-center gap-1.5 text-xs text-ink-dim">
-              model
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
-                title="The orchestrator delegates the next round's generation to this model"
-              >
-                {models.map((m) => (
-                  <option key={m} value={m}>
-                    {m.replace(/^claude-/, '')}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="More Tools"
+              title="More Tools"
+              className="rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink-dim hover:border-accent hover:text-ink"
+            >
+              +
+            </button>
+            {menuOpen && (
+              <div className="absolute bottom-full left-0 z-40 mb-2 w-72 rounded-xl border border-line bg-surface p-2 shadow-xl">
+                <label
+                  title="Attach a file. It is saved with your response for Claude to read."
+                  className="block cursor-pointer rounded-lg px-2 py-1.5 text-sm hover:bg-surface-2"
+                >
+                  Attach file
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        intake.attach(file);
+                        setMenuOpen(false);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {cameraAvailable() ? (
+                  <button
+                    type="button"
+                    title="Take a photo with your device camera. It is saved with your response."
+                    className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface-2"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setCameraOpen(true);
+                    }}
+                  >
+                    Take a photo
+                  </button>
+                ) : (
+                  <label
+                    title="No camera access in this browser; picks an image file instead."
+                    className="block cursor-pointer rounded-lg px-2 py-1.5 text-sm hover:bg-surface-2"
+                  >
+                    Take a photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          intake.attach(file);
+                          setMenuOpen(false);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+                {themes.length > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      title="Pick named colors from the theme palettes; the next round's SVGs use only these."
+                      className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface-2"
+                      onClick={() => setColorsOpen(!colorsOpen)}
+                    >
+                      Colors{paletteColors.length > 0 ? ` (${paletteColors.length} picked)` : ''}
+                    </button>
+                    {colorsOpen && (
+                      <div className="max-h-64 overflow-y-auto rounded-lg border border-line p-2">
+                        <PalettePicker
+                          themes={themes}
+                          selectedTheme={genTheme}
+                          linkSession
+                          onSelect={(theme, colors) => {
+                            setGenTheme(theme?.name ?? null);
+                            setPaletteColors(colors);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {models.length > 0 && (
+                  <label className="block px-2 py-1.5 text-xs text-ink-dim">
+                    Model for the next round
+                    <select
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
+                      title="The orchestrator delegates the next round's generation to this model"
+                    >
+                      {models.map((m) => (
+                        <option key={m} value={m}>
+                          {m.replace(/^claude-/, '')}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void send('park');
+                  }}
+                  title="Pause this thread without a verdict. Resume it any time."
+                  className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface-2 disabled:opacity-50"
+                >
+                  Park
+                </button>
+                {onCommand && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onCommand('discover-skills');
+                    }}
+                    title="Match local skills to the task, or find and ingest new techniques from the web"
+                    className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface-2"
+                  >
+                    Discover skills
+                  </button>
+                )}
+                {onCommand && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Run plan closeout? Claude will harvest learnings, improve the slash commands, update the wiki, and archive this discussion.')) {
+                        setMenuOpen(false);
+                        onCommand('plan-closeout');
+                      }
+                    }}
+                    title="Harvest learnings, improve commands, archive the thread"
+                    className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface-2"
+                  >
+                    Plan closeout
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <span className="ml-auto text-xs text-ink-dim">
             {dialsMoved > 0 && (
               <span className="mr-2 text-accent">
-                {dialsMoved} dial{dialsMoved > 1 ? 's' : ''} moved — steers next round
+                {dialsMoved} dial{dialsMoved > 1 ? 's' : ''} moved, steers the next round
+              </span>
+            )}
+            {proposal && gate.ok && touched && localPhase === board.phase && (
+              <span className="mr-2" title={proposal.reason}>
+                Enter sends &amp; asks for {proposal.phase}
               </span>
             )}
             {!gate.ok
@@ -442,6 +731,25 @@ export function BoardSurvey({
           </span>
         </div>
       </div>
+
+      {cameraOpen && (
+        <CameraModal onCapture={intake.addDataUri} onClose={() => setCameraOpen(false)} />
+      )}
+
+      {previewOption && (
+        <PreviewModal
+          svg={previewOption.svg}
+          label={previewOption.label}
+          tags={previewOption.tags}
+          note={notes[previewOption.id] ?? ''}
+          onNoteChange={
+            board.survey.allowPerOptionNotes
+              ? (value) => setNotes({ ...notes, [previewOption.id]: value })
+              : undefined
+          }
+          onClose={() => setPreviewId(null)}
+        />
+      )}
     </div>
   );
 }

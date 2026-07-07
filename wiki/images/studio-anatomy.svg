@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 540" font-family="system-ui, -apple-system, sans-serif">
+  <!-- window -->
+  <rect x="20" y="20" width="840" height="470" rx="14" fill="none" stroke="#8a8a94" stroke-width="2"/>
+
+  <!-- left nav -->
+  <line x1="185" y1="20" x2="185" y2="490" stroke="#8a8a94" stroke-width="1.5"/>
+
+  <!-- nav brand block: identity + New Discussion -->
+  <rect x="32" y="34" width="22" height="22" rx="7" fill="#a855f7" opacity="0.18" stroke="none"/>
+  <circle cx="43" cy="43" r="4.5" fill="none" stroke="#a855f7" stroke-width="1.8"/>
+  <rect x="41" y="48" width="4" height="4" rx="1" fill="#a855f7" stroke="none"/>
+  <text x="60" y="43" font-size="10.5" font-weight="700" fill="#a855f7">Visual Brainstorm</text>
+  <text x="60" y="55" font-size="8.5" fill="#8a8a94">thread title</text>
+  <circle cx="112" cy="52" r="2.5" fill="#22c55e" stroke="none"/>
+  <rect x="32" y="63" width="140" height="20" rx="6" fill="#a855f7" opacity="0.85" stroke="none"/>
+  <text x="102" y="76" text-anchor="middle" font-size="9.5" font-weight="600" fill="#ffffff">New Discussion</text>
+  <line x1="20" y1="92" x2="185" y2="92" stroke="#8a8a94" stroke-width="1"/>
+
+  <text x="34" y="110" font-size="11" font-weight="700" fill="#a855f7">DISCUSSIONS</text>
+  <g fill="none" stroke="#8a8a94" stroke-width="1.5">
+    <rect x="32" y="118" width="140" height="24" rx="6" stroke="#a855f7"/>
+    <rect x="32" y="148" width="140" height="24" rx="6"/>
+    <rect x="32" y="178" width="140" height="24" rx="6"/>
+  </g>
+  <circle cx="42" cy="130" r="3" fill="#22c55e" stroke="none"/>
+  <text x="50" y="134" font-size="10" fill="#8a8a94">live session</text>
+  <text x="40" y="164" font-size="10" fill="#8a8a94">cached thread</text>
+  <text x="40" y="194" font-size="10" fill="#8a8a94">cached thread</text>
+  <text x="34" y="226" font-size="11" font-weight="700" fill="#8a8a94">&#9656; ARCHIVE (3)</text>
+  <text x="34" y="242" font-size="9.5" fill="#8a8a94">closed-out &#38; finalized</text>
+  <text x="34" y="254" font-size="9.5" fill="#8a8a94">threads live here</text>
+
+  <!-- nav footer: Logs bottom-left, theme picker bottom-right -->
+  <line x1="20" y1="450" x2="185" y2="450" stroke="#8a8a94" stroke-width="1"/>
+  <rect x="30" y="458" width="42" height="20" rx="6" fill="none" stroke="#8a8a94"/>
+  <text x="51" y="471" text-anchor="middle" font-size="9.5" fill="#8a8a94">Logs</text>
+  <rect x="124" y="458" width="50" height="20" rx="6" fill="none" stroke="#8a8a94"/>
+  <circle cx="136" cy="468" r="4" fill="#a855f7" stroke="none"/>
+  <text x="156" y="471" text-anchor="middle" font-size="9" fill="#8a8a94">theme</text>
+
+  <!-- phase tabs: left-aligned, sized to labels, flush against the guide bubble -->
+  <g font-size="9.5" text-anchor="middle">
+    <rect x="215" y="40" width="66" height="26" rx="5" fill="#a855f7" stroke="none"/>
+    <text x="248" y="57" fill="#ffffff" font-weight="700">DIVERGE</text>
+    <rect x="285" y="46" width="58" height="20" rx="5" fill="none" stroke="#8a8a94"/>
+    <text x="314" y="59" fill="#8a8a94">EXPAND</text>
+    <rect x="347" y="46" width="56" height="20" rx="5" fill="none" stroke="#8a8a94"/>
+    <text x="375" y="59" fill="#8a8a94">MUTATE</text>
+    <rect x="407" y="46" width="52" height="20" rx="5" fill="none" stroke="#8a8a94"/>
+    <text x="433" y="59" fill="#8a8a94">WRECK</text>
+    <rect x="463" y="46" width="60" height="20" rx="5" fill="none" stroke="#8a8a94"/>
+    <text x="493" y="59" fill="#8a8a94">CLUSTER</text>
+    <rect x="527" y="46" width="70" height="20" rx="5" fill="none" stroke="#8a8a94"/>
+    <text x="562" y="59" fill="#8a8a94">CONVERGE</text>
+  </g>
+  <!-- full-width guide bubble attached below the tabs -->
+  <rect x="215" y="66" width="560" height="42" rx="8" fill="#8a8a94" opacity="0.12" stroke="none"/>
+  <text x="227" y="82" font-size="9.5" font-weight="600" fill="#8a8a94">Pick what to build on</text>
+  <text x="227" y="96" font-size="9" fill="#8a8a94">1. Click the cards you like  2. Remix marks two to combine  3. Move a dial to steer  4. Send</text>
+
+  <!-- option cards -->
+  <g>
+    <rect x="215" y="118" width="180" height="142" rx="10" fill="none" stroke="#a855f7" stroke-width="2"/>
+    <rect x="227" y="128" width="156" height="78" rx="6" fill="#8a8a94" opacity="0.12" stroke="none"/>
+    <circle cx="305" cy="167" r="26" fill="none" stroke="#a855f7" stroke-width="2.5"/>
+    <text x="231" y="222" font-size="10.5" font-weight="600" fill="#a855f7">Option label &#10003;</text>
+    <text x="231" y="234" font-size="9" fill="#8a8a94">one-line intent</text>
+    <g font-size="9" fill="#8a8a94">
+      <rect x="227" y="240" width="32" height="13" rx="3" fill="none" stroke="#8a8a94"/><text x="243" y="250" text-anchor="middle">note</text>
+      <rect x="263" y="240" width="38" height="13" rx="3" fill="none" stroke="#8a8a94"/><text x="282" y="250" text-anchor="middle">remix</text>
+    </g>
+
+    <rect x="405" y="118" width="180" height="142" rx="10" fill="none" stroke="#8a8a94" stroke-width="1.5"/>
+    <rect x="417" y="128" width="156" height="78" rx="6" fill="#8a8a94" opacity="0.12" stroke="none"/>
+    <rect x="467" y="139" width="56" height="56" rx="8" fill="none" stroke="#8a8a94" stroke-width="2.5"/>
+    <text x="421" y="222" font-size="10.5" font-weight="600" fill="#8a8a94">Option label</text>
+
+    <rect x="595" y="118" width="180" height="142" rx="10" fill="none" stroke="#8a8a94" stroke-width="1.5"/>
+    <rect x="607" y="128" width="156" height="78" rx="6" fill="#8a8a94" opacity="0.12" stroke="none"/>
+    <path d="M683 141 L711 193 H655 Z" fill="none" stroke="#8a8a94" stroke-width="2.5"/>
+    <text x="611" y="222" font-size="10.5" font-weight="600" fill="#8a8a94">Option label</text>
+  </g>
+
+  <!-- dials -->
+  <rect x="215" y="272" width="560" height="56" rx="10" fill="none" stroke="#8a8a94" stroke-width="1.5"/>
+  <g font-size="9" fill="#8a8a94">
+    <text x="231" y="291">Playful</text><text x="360" y="291" text-anchor="end">Serious</text>
+    <line x1="231" y1="301" x2="360" y2="301" stroke="#8a8a94" stroke-width="2"/>
+    <circle cx="270" cy="301" r="5" fill="#a855f7" stroke="none"/>
+    <text x="400" y="291">Minimal</text><text x="530" y="291" text-anchor="end">Detailed</text>
+    <line x1="400" y1="301" x2="530" y2="301" stroke="#8a8a94" stroke-width="2"/>
+    <circle cx="495" cy="301" r="5" fill="#a855f7" stroke="none"/>
+    <text x="570" y="291">Flat</text><text x="700" y="291" text-anchor="end">Full glow</text>
+    <line x1="570" y1="301" x2="700" y2="301" stroke="#8a8a94" stroke-width="2"/>
+    <circle cx="635" cy="301" r="5" fill="#8a8a94" stroke="none"/>
+    <text x="231" y="321" fill="#a855f7">&#9679; 2 dials moved, steers the next round (a dial alone is a complete instruction)</text>
+  </g>
+
+  <!-- composer -->
+  <rect x="215" y="340" width="560" height="94" rx="10" fill="none" stroke="#8a8a94" stroke-width="1.5"/>
+  <rect x="227" y="350" width="536" height="28" rx="6" fill="#8a8a94" opacity="0.12" stroke="none"/>
+  <text x="235" y="368" font-size="9.5" fill="#8a8a94">elaboration, optional; your gestures already speak</text>
+  <g font-size="9.5" text-anchor="middle">
+    <rect x="227" y="390" width="28" height="24" rx="6" fill="none" stroke="#8a8a94"/>
+    <rect x="238" y="395" width="6" height="9" rx="3" fill="#a855f7" stroke="none"/>
+    <path d="M236 402a5 5 0 0 0 10 0M241 407v3" fill="none" stroke="#8a8a94" stroke-width="1.3" stroke-linecap="round"/>
+    <rect x="261" y="390" width="46" height="24" rx="6" fill="none" stroke="#8a8a94"/><text x="284" y="406" fill="#8a8a94">Back</text>
+    <rect x="313" y="390" width="100" height="24" rx="6" fill="#a855f7" stroke="none"/><text x="363" y="406" fill="#ffffff" font-weight="600">Send &#38; iterate</text>
+    <rect x="419" y="390" width="58" height="24" rx="6" fill="none" stroke="#8a8a94"/><text x="448" y="406" fill="#8a8a94">Accept</text>
+    <rect x="483" y="390" width="88" height="24" rx="6" fill="none" stroke="#8a8a94"/><text x="527" y="406" fill="#8a8a94">Target Folder</text>
+    <rect x="577" y="390" width="132" height="24" rx="6" fill="none" stroke="#a855f7" stroke-width="2"/><text x="643" y="406" fill="#a855f7" font-weight="700">Finalize &#38; close out</text>
+    <rect x="715" y="390" width="28" height="24" rx="6" fill="none" stroke="#8a8a94"/><text x="729" y="407" fill="#8a8a94" font-weight="700">+</text>
+  </g>
+  <text x="227" y="450" font-size="9" fill="#8a8a94">mic = voice input &#183; More Tools (+): Attach file &#183; Take a photo &#183; Colors &#183; model &#183; Park &#183; Discover skills &#183; Plan closeout</text>
+  <line x1="729" y1="418" x2="700" y2="446" stroke="#8a8a94" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <!-- command status toast -->
+  <rect x="640" y="452" width="135" height="22" rx="6" fill="#8a8a94" opacity="0.15" stroke="none"/>
+  <text x="707" y="466" text-anchor="middle" font-size="9" fill="#8a8a94">command status toast</text>
+
+  <!-- callouts -->
+  <g font-size="10" fill="#8a8a94">
+    <text x="798" y="150">click the image:</text>
+    <text x="798" y="163">full-screen</text>
+    <text x="798" y="176">zoom &#38; pan</text>
+    <line x1="795" y1="155" x2="778" y2="162" stroke="#8a8a94" stroke-width="1" stroke-dasharray="3 3"/>
+  </g>
+
+  <text x="440" y="516" text-anchor="middle" font-size="11" fill="#8a8a94">every control feeds the response, nothing you touch is ever dropped (the feedback-packaging contract)</text>
+</svg>

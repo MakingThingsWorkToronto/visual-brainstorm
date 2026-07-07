@@ -20,10 +20,10 @@
 | Studio/bridge/MCP "seems broken" | **agent `devops-diagnostician`** or `.claude/commands/diagnose-studio.md`; evidence: `GET /api/health`, `GET /api/logs`, `discussion/.logs/` |
 | Verify work | `.claude/commands/build-check.md` → `npm run build` + `npm test` (unit / smoke / ui-smoke — `wiki/System/testing-observability.md`) |
 | Write/extend tests | **agent `test-engineer`** (three layers, frameworkless, no mocks) |
-| Close a plan or thread | `.claude/commands/plan-closeout.md` (also Plan closeout in the studio composer's More menu, and Finalize & close out) |
+| Close a plan or thread | `.claude/commands/plan-closeout.md` (also Plan closeout in the studio composer's More Tools (+) menu, and Finalize & close out) |
 | Turn an accepted idea/brainstorm into a loopable build plan | `.claude/commands/create-dispatch-command.md` — plan.md carries phases + progress; run via `/loop /dispatch-<slug>-next-phase` |
 | Capture facts/guardrails | **agent `wiki-librarian`** → `wiki/` + one line in `wiki/log.md` per edit |
-| Find or ingest craft | `.claude/commands/discover-skills.md` (also Discover skills in the studio composer's More menu; web branch ingests new skills) |
+| Find or ingest craft | `.claude/commands/discover-skills.md` (also Discover skills in the studio composer's More Tools (+) menu; web branch ingests new skills) |
 | Recurring task with no procedure | `.claude/commands/new-command.md` — asked twice = failure |
 | Add a UI theme | `.claude/commands/add-theme.md` |
 | Explain the tool to a human | `wiki/user-guide.md` (with its SVG diagrams) |

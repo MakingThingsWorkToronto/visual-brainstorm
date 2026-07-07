@@ -163,6 +163,7 @@ export class Bridge {
       defaultModel: this.options.defaultModel,
       targetRepo: this.store.info.targetRepo ?? this.options.defaultTargetRepo?.() ?? null,
       progress: this.store.progress.slice(-200),
+      tokens: this.store.tokenTotals(),
     };
   }
 
@@ -378,6 +379,7 @@ export class Bridge {
               session: thread.info,
               rounds: thread.rounds,
               artifacts: thread.artifacts,
+              tokens: thread.tokenTotals(),
             }),
           );
         } catch (err) {

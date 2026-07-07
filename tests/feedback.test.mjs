@@ -41,6 +41,30 @@ test('the digest speaks in labels, never bare ids', () => {
   assert.ok(text.includes('mash up "Alpha" × "Gamma"'));
 });
 
+test('palette picks become an only-these-colors instruction', () => {
+  const text = digestText({
+    paletteColors: [
+      { name: 'Neon Purple accent', value: '#a855f7' },
+      { name: 'Ember ink', value: '#1c1726' },
+    ],
+  });
+  assert.ok(text.includes('ONLY these colors'));
+  assert.ok(text.includes('Neon Purple accent (#a855f7)'));
+  assert.ok(text.includes('Ember ink (#1c1726)'));
+});
+
+test('attachments surface as Read instructions; failures are honest', () => {
+  const text = digestText({
+    attachments: [
+      { name: 'ref.png', dataUri: '', savedPath: 'C:/t/attachments/ref.png' },
+      { name: 'broken.bin', dataUri: '' },
+    ],
+  });
+  assert.ok(text.includes('Attachment "ref.png" saved at C:/t/attachments/ref.png'));
+  assert.ok(text.includes('Read it'));
+  assert.ok(text.includes('Attachment "broken.bin" FAILED to persist'));
+});
+
 test('dial deltas carry direction and are declared a complete instruction', () => {
   const text = digestText({ axisValues: { tone: 80, glow: 50 } });
   assert.ok(text.includes('Tone: 40→80 (toward "Serious")'));
@@ -69,6 +93,35 @@ test('finalize names THE one and orders plan-closeout', () => {
   const text = digestText({ action: 'finalize', finalOptionId: 'b' });
   assert.ok(text.includes('FINAL: "Beta"'));
   assert.ok(text.includes('plan-closeout'));
+  assert.ok(text.includes('compose_poster'), 'finalize orders the decision poster');
+  assert.ok(!text.includes('sudden-death bracket'), 'no bracket claim without duels');
+});
+
+test('deck ranking speaks in labels, strongest first', () => {
+  const text = digestText({ ranking: ['c', 'a'] });
+  assert.ok(text.includes('Deck ranking (strongest pull first): Gamma > Alpha'));
+  assert.ok(text.includes('top ranks lead the synthesis vector'));
+});
+
+test('deck kills are dropped for good; keeps are not listed as kills', () => {
+  const text = digestText({ deckVerdicts: { a: 'keep', b: 'kill', c: 'kill' } });
+  assert.ok(text.includes('Deck KILL (flicked away — drop these directions for good): Beta, Gamma.'));
+  assert.ok(!text.includes('Deck KILL (flicked away — drop these directions for good): Alpha'));
+});
+
+test('duels are direct preferences, winner named against the loser', () => {
+  const text = digestText({ duelResults: [{ pair: ['a', 'b'], winner: 'b' }] });
+  assert.ok(text.includes('Duel: "Beta" beat "Alpha" head-to-head — a direct preference.'));
+});
+
+test('finalize after duels credits the sudden-death bracket', () => {
+  const text = digestText({
+    action: 'finalize',
+    finalOptionId: 'a',
+    duelResults: [{ pair: ['a', 'b'], winner: 'a' }],
+  });
+  assert.ok(text.includes('FINAL: "Alpha"'));
+  assert.ok(text.includes('It won the sudden-death bracket.'));
 });
 
 test('back short-circuits: re-present previous board, ignore other signals', () => {

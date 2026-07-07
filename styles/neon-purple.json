@@ -1,0 +1,52 @@
+{
+  "name": "neon-purple",
+  "label": "Neon Purple",
+  "light": {
+    "canvas": "#f8f7fb",
+    "surface": "#ffffff",
+    "surface2": "#f1eef8",
+    "line": "#e4dff0",
+    "ink": "#1c1726",
+    "inkDim": "#6f6883",
+    "accent": "#a855f7"
+  },
+  "dark": {
+    "canvas": "#100c17",
+    "surface": "#1a1424",
+    "surface2": "#241c31",
+    "line": "#372c4a",
+    "ink": "#f2edfa",
+    "inkDim": "#a79fc0",
+    "accent": "#b975ff"
+  },
+  "palette": [
+    {
+      "name": "Plum Noir",
+      "value": "#3b2141"
+    },
+    {
+      "name": "Ultraviolet",
+      "value": "#a855f7"
+    },
+    {
+      "name": "Orchid",
+      "value": "#c084fc"
+    },
+    {
+      "name": "pink bright",
+      "value": "#e75af2"
+    },
+    {
+      "name": "Cloud Dancer",
+      "value": "#f0efeb"
+    },
+    {
+      "name": "Black",
+      "value": "#000000"
+    },
+    {
+      "name": "White",
+      "value": "#ffffff"
+    }
+  ]
+}

@@ -35,10 +35,67 @@ Every round is persisted before the user ever responds — a closed browser lose
 |---|---|---|
 | `present_board` | yes (timeout → `pending`) | push a board, await the survey response; `discussionId` resumes a cached thread |
 | `peek_response` | no | recover a response after a client-side timeout |
-| `capture_artifact` | no | persist an accepted SVG with provenance (+ copy to `targetRepo` if configured); appears on the studio's artifact shelf |
-| `list_discussions` | no | enumerate the thread cache (`.docs/discussion`) |
+| `capture_artifact` | no | persist an accepted SVG with provenance (+ copy to the EFFECTIVE targetRepo's `brainstorm-artifacts/` — thread override ?? config default); appears on the studio's artifact shelf |
+| `list_discussions` | no | enumerate the thread cache (`discussion`) |
 | `load_discussion` | no | reload a full cached thread so a chat reinitializes without regenerating anything |
-| `session_status` | no | thread dir, round count, artifact list |
+| `session_status` | no | thread dir, round count, artifact list, effective targetRepo, pendingUiCommands |
+| `open_studio` | yes (timeout → `waiting`) | open the studio with NO board — the New Discussion landing panel — and block until the panel submits a brief (arrives as a new-brainstorm command with prompt/seed notes) or timeout returns `{status:"waiting"}` (the studio stays open; call again or check `session_status.pendingUiCommands`). For a bare `/run-brainstorm` (its step 0): land the user on the panel and build AskUserQuestion clarifications on the submission. The placeholder "New discussion" thread is retitled by the first `present_board` (`SessionStore.retitle` — display title only, directory slug unchanged) |
+| `compose_poster` | no | DETERMINISTIC (no model) decision-poster composition: winner embedded large + lineage tree (parents/grandparents from cached rounds) + the notes that decided it (lineage perOptionNotes + elaborations) as ONE self-contained SVG; captured via the normal artifact path (rule 7 provenance) and copied to the effective targetRepo like any artifact; throws honestly if the optionId is in no cached round |
+
+## Seed intake — open with anything
+
+`SeedIntakeSchema` (packages/protocol) is a discriminated union on `kind`:
+`text` (string) | `sketch` (self-contained SVG markup) | `image` (uploaded raster) |
+`voice` (speech-recognition transcript — only sent when recognition actually ran). A seed
+rides `POST /api/command` (see system-architecture endpoints); non-text seeds are persisted
+by the bridge and reach the orchestrator as a digest note pointing at the saved file. A bad
+or oversized image yields an honest failure note in the digest — never fake success (rule 6).
+
+## Attachments — files ride the response
+
+`ResponseAttachmentSchema` (packages/protocol): `{ name, dataUri, savedPath? }`;
+`BoardResponse.attachments` (zod default `[]` — cached threads reload). The composer's
+More Tools (+) menu offers **Attach file** (any file) and **Take a photo** (device camera);
+attached files show as removable chips under the reply box and ship as data URIs (8 MB cap
+in the studio). Before recording/broadcasting the response, the bridge
+(`persistAttachment`) decodes each URI to `<thread dir>/attachments/`, blanks `dataUri`,
+and sets `savedPath`; a malformed data URI or a payload over 10 MB gets NO `savedPath`.
+The `feedbackDigest` then emits per file either
+`Attachment "name" saved at <path> — Read it and fold it into the next round.` or an honest
+`FAILED to persist` line (rule 6) — both land in `brainstorm.md` via recordResponse.
+
+## Generation palettes — named colors constrain the SVGs
+
+`PaletteColorSchema` (packages/protocol): `{ name, value }` (CSS color);
+`BoardResponse.paletteColors` (zod default `[]`); `ThemeSchema.palette` (optional
+`PaletteColor[]`). Each theme supplies one named 5-color palette in the studio's picker
+(`themePalettes` in `PalettePicker.tsx`): the CURATED `Theme.palette` when present — every
+built-in theme carries one in `apps/mcp/src/themes.ts`, anchored on the theme accent with
+the composition rule *dark anchor + accent + supporting mid + contrast pop + grounding
+neutral* (any subset still hangs together), tuned to 2026 color forecasts (sources: Pantone
+Color of the Year 2026 "Cloud Dancer", pantone.com; Pinterest 2026 Palette,
+newsroom.pinterest.com; Benjamin Moore COTY 2026 "Silhouette", benjaminmoore.com; LUXE 2026
+interior color trends, luxesource.com) — else a derived light-variant fallback (accent,
+ink, dim ink, surface, canvas; named "<Theme label> accent" etc.; `resolvePalette()` in
+`PalettePicker.tsx`).
+
+**Selection is BY THEME** (no individual multi-color picking): clicking a theme's NAME
+makes its whole resolved palette the generation palette; clicking it again clears.
+`BoardResponse.paletteColors` carries the resolved colors (board composer: **Colors** entry
+inside the More Tools (+) menu — there the pick ALSO binds the theme to the live discussion
+via `POST /api/session-theme`); the new-brainstorm `palette` field carries them from the
+panel's inline Colors card. **Palettes are editable:** clicking any swatch opens a
+color-edit dialog (HTML color picker + name field — every color keeps a name the user can
+refer to in conversation); each row's **+** adds a new named color. Edits persist via
+`POST /api/themes` as a drop-in theme JSON (`saveThemeFile` → `<stylesDir>/<name>.json`;
+an edited built-in is shadowed by its saved copy from then on).
+
+**Digest lines:** the `feedbackDigest` emits
+`Palette: generate the next round's SVGs using ONLY these colors: Name (#hex), …` (the
+new-brainstorm seed note carries the equivalent line). Additionally, when the thread has a
+theme (`SessionInfo.theme`, optional — rule-5 shape), every `present_board` digest appends
+`Discussion theme: <label>. Generate SVGs with its palette: Name (#hex), … The studio is
+skinned with it; artifacts should harmonize.`
 
 ## Axes — minimum 5, tailored, never absolute
 
@@ -53,11 +110,12 @@ The point is to encourage multiple response signals per round beyond selection a
 
 ## Feedback packaging — the iterative-cycle contract
 
-Visual brainstorming IS the packaging of UI feedback into the next round. Three rules:
+Visual brainstorming IS the packaging of UI feedback into the next round. The rules:
 
 1. **Nothing is dropped.** Every gesture in the studio (selection, note, remix mark, dial
-   move, lens mark, flaw, drag position, cluster, gap note, phase-tab click, model pick,
-   command button) lands in `BoardResponse`. Mechanics the user touched ship their state
+   move, lens mark, flaw, drag position, cluster, gap note, deck flick, duel pick,
+   phase-tab click, model pick, file/photo attachment, palette-color pick, command button)
+   lands in `BoardResponse`. Mechanics the user touched ship their state
    even if a different phase tab is active at send time.
 2. **The tool result is executable.** `present_board` returns a `feedbackDigest`: labeled,
    imperative instructions compiled from the response (option labels not ids, dial DELTAS
@@ -72,10 +130,23 @@ Visual brainstorming IS the packaging of UI feedback into the next round. Three 
    both; one pick → spun variants). Unselected directions are dropped, never re-shown.
    `brainstorm.md` (auto-appended per round/response in the thread dir) is the text memory
    that makes re-synthesis provable across rounds and resumes.
+   Three deck/duel fields refine the vector without changing the law:
+   `deckVerdicts` (record optionId → keep|kill from the judge-deck flick — keeps join
+   `selectedOptionIds`), `duelResults` (array `{pair:[a,b], winner}` — pairwise preferences
+   from deck duels AND the converge sudden-death bracket), and `ranking` (the keeps ordered
+   strongest-first, refined by duels). When `ranking` is present it LEADS the synthesis
+   vector — weight the next round's syntheses toward the top of the order.
+5. **Finalize hands artifacts to the target repo.** On a `finalize` response (or a
+   plan-closeout command), the `feedbackDigest` appends the effective targetRepo and
+   instructs Claude to ASK the operator exactly where inside it the final artifacts go (its
+   wiki/, its discussion/, an app images folder, or custom) and to COPY — never move — the
+   .svg + provenance .json sidecars; the originals stay archived here (rule 7). Procedure:
+   step 6 of `.claude/commands/plan-closeout.md`.
 
 ## Model routing
 
-The studio composer carries a model picker (list from `visual-brainstorm.config.json`).
+The studio composer carries a model picker in its More Tools (+) menu (list from
+`visual-brainstorm.config.json`).
 `BoardResponse.model` returns the choice; the orchestrator (Claude Code) MUST delegate the
 next round's generation to that model — e.g. spawn a subagent with the model override — and
 may keep orchestrating in its own model.
@@ -86,6 +157,13 @@ Humans think slowly; brainstorming is the point. Default `present_board` timeout
 On timeout the tool returns `{ status: "pending", boardId }` — the board stays live in the
 studio, the eventual response is persisted, and `peek_response` retrieves it. Claude should
 treat `pending` as "check back", never as failure.
+
+## Board-id uniqueness (response dedup)
+
+The bridge keeps responses keyed by `boardId`, first-response-wins: a second response for a
+known id is IGNORED. Therefore every `present_board` call must mint a fresh board id — even
+when re-presenting "the same" board (Back, resume). Reusing an id silently swallows the
+user's new answer.
 
 ## Authoring guidance for Claude (the intelligence layer)
 

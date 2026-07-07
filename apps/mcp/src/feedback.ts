@@ -31,12 +31,45 @@ export function buildFeedbackDigest(board: Board, response: BoardResponse): stri
     digest.push(`Elaboration: "${response.elaboration.trim()}"`);
   }
 
+  if (response.paletteColors.length > 0) {
+    digest.push(
+      `Palette: generate the next round's SVGs using ONLY these colors: ${response.paletteColors
+        .map((c) => `${c.name} (${c.value})`)
+        .join(', ')}.`,
+    );
+  }
+
+  for (const attachment of response.attachments) {
+    const name = attachment.name || 'unnamed file';
+    digest.push(
+      attachment.savedPath
+        ? `Attachment "${name}" saved at ${attachment.savedPath} — Read it and fold it into the next round.`
+        : `Attachment "${name}" FAILED to persist (bad data URI or over 10MB) — tell the user honestly and ask them to retry.`,
+    );
+  }
+
   for (const [id, note] of Object.entries(response.perOptionNotes)) {
     digest.push(`Note on "${label(id)}": ${note}`);
   }
 
   for (const [a, b] of response.remixPairs) {
     digest.push(`Remix: mash up "${label(a)}" × "${label(b)}" — next round must show offspring of BOTH.`);
+  }
+
+  if (response.ranking.length > 0) {
+    digest.push(
+      `Deck ranking (strongest pull first): ${response.ranking.map(label).join(' > ')} — top ranks lead the synthesis vector.`,
+    );
+  }
+  const deckKills = Object.entries(response.deckVerdicts)
+    .filter(([, v]) => v === 'kill')
+    .map(([id]) => label(id));
+  if (deckKills.length > 0) {
+    digest.push(`Deck KILL (flicked away — drop these directions for good): ${deckKills.join(', ')}.`);
+  }
+  for (const duel of response.duelResults) {
+    const loser = duel.pair.find((id) => id !== duel.winner) ?? duel.pair[1];
+    digest.push(`Duel: "${label(duel.winner)}" beat "${label(loser)}" head-to-head — a direct preference.`);
   }
 
   const dialLines = board.survey.axes
@@ -82,8 +115,11 @@ export function buildFeedbackDigest(board: Board, response: BoardResponse): stri
   if (triageGroups.merge.length) digest.push(`Triage MERGE (produce ONE synthesis of): ${triageGroups.merge.join(', ')}.`);
 
   if (response.action === 'finalize' && response.finalOptionId) {
+    const viaBracket = response.duelResults.length > 0 ? ' It won the sudden-death bracket.' : '';
     digest.push(
-      `FINAL: "${label(response.finalOptionId)}" is THE one. capture_artifact it now, then run .claude/commands/plan-closeout.md — finality triggers closeout; the thread is done.`,
+      `FINAL: "${label(response.finalOptionId)}" is THE one.${viaBracket} capture_artifact it now, ` +
+        'compose_poster to build the shareable contact sheet, then run .claude/commands/plan-closeout.md — ' +
+        'finality triggers closeout; the thread is done.',
     );
   }
 

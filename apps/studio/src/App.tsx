@@ -371,7 +371,7 @@ export default function App() {
             />
           )}
 
-          {viewingLive && <SessionActivity events={state.progress} />}
+          {viewingLive && <SessionActivity events={state.progress} tokens={state.tokens} />}
             </>
           )}
           <div ref={bottomRef} />

@@ -3,11 +3,27 @@ import path from 'node:path';
 import { ThemeSchema, type Theme } from '@visual-brainstorm/protocol';
 import type { VibrConfig } from './config.js';
 
-/** Built-in themes. Default accent is neon purple. */
+/**
+ * Built-in themes. Default accent is neon purple.
+ *
+ * Each theme carries a curated 5-color generation palette anchored on its
+ * accent and tuned to 2026 palette forecasts (Pantone "Cloud Dancer" off-white
+ * ground; Pinterest's Cool Blue / Jade / Plum Noir / Wasabi; the earth-tone
+ * clay / sage / wheat layering; floral purples with juicy orange highlights).
+ * Rule: a dark anchor, the accent, one supporting mid, one contrast pop, one
+ * grounding neutral — so any subset still hangs together.
+ */
 export const BUILTIN_THEMES: Theme[] = [
   {
     name: 'neon-purple',
     label: 'Neon Purple',
+    palette: [
+      { name: 'Plum Noir', value: '#3b2141' },
+      { name: 'Ultraviolet', value: '#a855f7' },
+      { name: 'Orchid', value: '#c084fc' },
+      { name: 'Muskmelon', value: '#f2a65a' },
+      { name: 'Cloud Dancer', value: '#f0efeb' },
+    ],
     light: {
       canvas: '#f8f7fb',
       surface: '#ffffff',
@@ -30,6 +46,13 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     name: 'amber-classic',
     label: 'Amber Classic',
+    palette: [
+      { name: 'Burnt Umber', value: '#6b4423' },
+      { name: 'Amber', value: '#f59e0b' },
+      { name: 'Terracotta', value: '#c65d3b' },
+      { name: 'Dusty Sage', value: '#a3b18a' },
+      { name: 'Wheat', value: '#f5deb3' },
+    ],
     light: {
       canvas: '#f7f6f3',
       surface: '#ffffff',
@@ -52,6 +75,13 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     name: 'ocean',
     label: 'Ocean',
+    palette: [
+      { name: 'Deep Navy', value: '#1b4965' },
+      { name: 'Cool Blue', value: '#0ea5e9' },
+      { name: 'Jade', value: '#00a878' },
+      { name: 'Wasabi', value: '#a8bf5a' },
+      { name: 'Sea Ice', value: '#e7f3f6' },
+    ],
     light: {
       canvas: '#f3f7fa',
       surface: '#ffffff',
@@ -74,6 +104,13 @@ export const BUILTIN_THEMES: Theme[] = [
   {
     name: 'mono',
     label: 'Mono',
+    palette: [
+      { name: 'Ink', value: '#171717' },
+      { name: 'Charcoal', value: '#4b4b4b' },
+      { name: 'Greige', value: '#8a8378' },
+      { name: 'Silver', value: '#c8c8c4' },
+      { name: 'Paper', value: '#f4f4f2' },
+    ],
     light: {
       canvas: '#fafafa',
       surface: '#ffffff',
@@ -94,6 +131,19 @@ export const BUILTIN_THEMES: Theme[] = [
     },
   },
 ];
+
+/**
+ * Persist a theme (e.g. after a palette edit in the studio) as a drop-in JSON
+ * under <cwd>/<stylesDir>/ — the same files loadThemes ingests, so an edited
+ * built-in is shadowed by its saved copy from then on. Returns the file path.
+ */
+export function saveThemeFile(theme: Theme, config: VibrConfig, cwd = process.cwd()): string {
+  const dir = path.resolve(cwd, config.stylesDir);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${theme.name.replace(/[^\w.-]+/g, '_')}.json`);
+  fs.writeFileSync(file, JSON.stringify(theme, null, 2) + '\n');
+  return file;
+}
 
 /** Ingest user themes from <cwd>/<stylesDir>/*.json; user themes shadow built-ins by name. */
 export function loadThemes(config: VibrConfig, cwd = process.cwd()): Theme[] {

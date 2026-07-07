@@ -12,7 +12,7 @@ test('config defaults without a file', () => {
   const config = loadConfig(tmp());
   assert.equal(config.theme, 'neon-purple');
   assert.equal(config.stylesDir, 'styles');
-  assert.equal(config.discussionDir, '.docs/discussion');
+  assert.equal(config.discussionDir, 'discussion');
   assert.equal(config.defaultModel, 'claude-fable-5');
   assert.ok(config.models.includes('claude-opus-4-8'));
 });
@@ -40,6 +40,24 @@ test('built-in themes: neon-purple default, all vars present in both schemes', (
     for (const key of ['canvas', 'surface', 'surface2', 'line', 'ink', 'inkDim', 'accent']) {
       assert.ok(neon[scheme][key], `${scheme}.${key}`);
     }
+  }
+});
+
+test('built-in themes carry curated 5-color palettes with names and unique values', () => {
+  const seen = new Set();
+  for (const theme of BUILTIN_THEMES) {
+    assert.equal(theme.palette.length, 5, `${theme.name} palette has 5 colors`);
+    for (const color of theme.palette) {
+      assert.ok(color.name.length > 0, `${theme.name} color has a name`);
+      assert.match(color.value, /^#[0-9a-f]{6}$/i, `${color.name} is a hex color`);
+      assert.ok(!seen.has(color.value), `${color.value} unique across palettes`);
+      seen.add(color.value);
+    }
+    // Anchored on the theme: the original accent is in its palette.
+    assert.ok(
+      theme.palette.some((c) => c.value.toLowerCase() === theme.light.accent.toLowerCase()),
+      `${theme.name} palette keeps the theme accent`,
+    );
   }
 });
 

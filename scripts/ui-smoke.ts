@@ -12,7 +12,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>');
 
 const { createElement } = await import('react');
 const { renderToString } = await import('react-dom/server');
-const { BoardSchema, ProgressEventSchema } = await import('@visual-brainstorm/protocol');
+const { BoardSchema, ProgressEventSchema, DiscussionSummarySchema } = await import('@visual-brainstorm/protocol');
 const { BoardSurvey } = await import('../apps/studio/src/components/BoardSurvey.js');
 
 const EXPECT: Record<string, string[]> = {
@@ -142,6 +142,15 @@ assert.equal(proposeNextPhase([mkRound('cluster', 1, 3)], null)?.phase, 'converg
 assert.equal(proposeNextPhase([mkRound('diverge', 1, 8)], null)?.phase, 'cluster', 'full pool in diverge → cluster');
 console.log('LIB wayfinder proposeNextPhase ✓ (empty, converge, cluster, full-pool diverge)');
 
+// --- Pure helpers: token-meter compact formatting ---
+const { compactCount } = await import('../apps/studio/src/lib/format.js');
+assert.equal(compactCount(0), '0');
+assert.equal(compactCount(999), '999');
+assert.equal(compactCount(1000), '1k', 'trailing .0 trimmed');
+assert.equal(compactCount(12300), '12.3k');
+assert.equal(compactCount(3400000), '3.4M');
+console.log('LIB compactCount ✓ (0, 999, 1k, 12.3k, 3.4M)');
+
 // --- Judge deck surface (flick triage + duels) ---
 const { JudgeDeck } = await import('../apps/studio/src/components/phases/JudgeDeck.js');
 const deckBoard = mkRound('diverge', 9, 3).board;
@@ -264,5 +273,52 @@ assert.ok(
   '[session-activity] must render null for empty events',
 );
 console.log('UI session activity renders ✓ (feed with latest note, empty → null)');
+
+// Token badge: the contract puts 'Σ <compact> tok' in ONE text node (renderToString
+// comment nodes — see learnings 2026-07-06), so the full string is safe to assert…
+const activityTokens = renderToString(
+  createElement(SessionActivity, {
+    events: progressEvents,
+    tokens: { input: 12000, output: 300 },
+  }),
+);
+assert.ok(activityTokens.includes('Σ 12.3k tok'), '[session-activity] token badge missing');
+// …and without the tokens prop there is no badge at all.
+assert.ok(!activity.includes('Σ '), '[session-activity] badge must not render without tokens prop');
+console.log('UI session activity token badge ✓ (Σ 12.3k tok, absent without prop)');
+
+// --- Sidebar rows: compact token count when summary.tokens > 0, hidden at 0 ---
+// Fixtures go through the schema like every production path (defaults stay in sync).
+const { Sidebar } = await import('../apps/studio/src/components/Sidebar.js');
+const summaryCounted = DiscussionSummarySchema.parse({
+  id: 'thread-counted',
+  title: 'Counted thread',
+  startedAt: '2026-07-06T10:00:00.000Z',
+  dir: 'x',
+  rounds: 2,
+  artifacts: 1,
+  tokens: 12300,
+});
+const summaryQuiet = DiscussionSummarySchema.parse({
+  id: 'thread-quiet',
+  title: 'Quiet thread',
+  startedAt: '2026-07-06T10:00:00.000Z',
+  dir: 'y',
+  rounds: 1,
+  artifacts: 0,
+});
+const sidebarProps = { archive: [], liveId: null, selectedId: null, onSelect: () => {} };
+const sidebarCounted = renderToString(
+  createElement(Sidebar, { ...sidebarProps, discussions: [summaryCounted] }),
+);
+// '12.3k' and 'tok' asserted separately — the row may join count and unit across
+// adjacent JSX expressions, where a spanning marker never matches (learnings 2026-07-06).
+assert.ok(sidebarCounted.includes('12.3k'), '[sidebar] compact token count missing');
+assert.ok(sidebarCounted.includes('tok'), '[sidebar] token unit missing');
+const sidebarQuiet = renderToString(
+  createElement(Sidebar, { ...sidebarProps, discussions: [summaryQuiet] }),
+);
+assert.ok(!sidebarQuiet.includes('tok'), '[sidebar] zero-token row must not show a token count');
+console.log('UI sidebar renders ✓ (token count at >0, hidden at 0)');
 
 console.log(`UI SMOKE PASS — all ${Object.keys(EXPECT).length} phase surfaces render with their mechanics`);

@@ -8,10 +8,17 @@ import { SvgPane } from './primitives';
 export function PreviewModal({
   svg,
   label,
+  tags = [],
+  note,
+  onNoteChange,
   onClose,
 }: {
   svg: string;
   label: string;
+  tags?: string[];
+  /** Current per-option note; editable when onNoteChange is provided (live board only). */
+  note?: string;
+  onNoteChange?: (note: string) => void;
   onClose: () => void;
 }) {
   const [scale, setScale] = useState(1);
@@ -35,6 +42,14 @@ export function PreviewModal({
     <div className="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-sm">
       <div className="flex items-center gap-2 p-3 text-white">
         <span className="truncate text-sm font-medium">{label}</span>
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/70"
+          >
+            {tag}
+          </span>
+        ))}
         <span className="ml-2 rounded bg-white/10 px-2 py-0.5 text-xs tabular-nums">
           {Math.round(scale * 100)}%
         </span>
@@ -108,6 +123,17 @@ export function PreviewModal({
           </div>
         </div>
       </div>
+      {onNoteChange && (
+        <div className="p-3">
+          <textarea
+            value={note ?? ''}
+            onChange={(e) => onNoteChange(e.target.value)}
+            placeholder={`Notes on "${label}", sent with your response`}
+            rows={2}
+            className="w-full resize-none rounded-xl border border-white/20 bg-white/10 p-2.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/50"
+          />
+        </div>
+      )}
     </div>
   );
 }

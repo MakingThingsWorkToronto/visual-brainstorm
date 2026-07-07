@@ -13,9 +13,28 @@ spark notes; selections REPLACE the pool with syntheses (the synthesis vector). 
 the amplifier: select what resonates (gate: ≥1) and the pool GROWS with multiple new
 syntheses — nothing is removed. `converge` is the threshold mechanic: generation is over,
 the **Triage Gate** demands a keep/kill/merge verdict on EVERY option before send unlocks,
-and one keep can be crowned **🏁 Final** — finalizing captures THE answer and automatically
+and one keep can be crowned **Final** — the **Finalize & close out** button then captures
+THE answer and automatically
 triggers `/plan-closeout` (the thread archives to the Archive nav). Finality is a first-class
 action, not a convention.
+
+**Judge deck** (diverge + expand): a grid-ALTERNATIVE review mode — flick each option
+keep/kill (`deckVerdicts`); keeps join `selectedOptionIds`, so the synthesis-vector law
+holds unchanged. One adjacent-pair duel pass then refines `ranking` (duel picks land in
+`duelResults`).
+
+**Sudden death** (converge, inside the Triage Gate): with 2–4 keeps, a king-of-the-hill
+bracket resolves pairwise duels (`duelResults`) and auto-crowns the winner into
+`finalOptionId` — the finalize contract above then applies.
+
+**Wayfinder strip**: orientation only — derives ENTIRELY from existing StudioState
+(rounds + artifacts); deliberately NO new protocol shape. Its next-phase proposal is a pure
+client heuristic (`apps/studio/src/lib/wayfinder.ts`, mirroring the brainstorm-phases
+transition table) and is ADVISORY — the orchestrator still decides the phase. Enter in the
+composer sends AND requests the proposed phase only when the gate is open and the user
+touched something. Deviation from plan, kept deliberately: the strip did NOT absorb the
+PhaseBar — the PhaseBar remains the steering control inside the survey; the strip is
+orientation / keeps / next-phase.
 
 ### 2. Deconstruction-Mutation (SCAMPER) → `mutate` / Mutation Lab
 The big picture is hidden on purpose: ONE option fills the stage (‹ › to move). Distortion
@@ -46,12 +65,18 @@ accretes in the background without ever interrupting a drag.
 
 | phase | fields Claude must honor |
 |---|---|
-| diverge | selectedOptionIds (→ pool REPLACED by syntheses), perOptionNotes, remixPairs, axisValues |
-| expand | selectedOptionIds (→ pool GROWS with syntheses; nothing removed) |
+| diverge | selectedOptionIds (→ pool REPLACED by syntheses), perOptionNotes, remixPairs, axisValues; deck mode: deckVerdicts, duelResults, ranking (ranking leads the synthesis vector) |
+| expand | selectedOptionIds (→ pool GROWS with syntheses; nothing removed); deck mode: deckVerdicts, duelResults, ranking |
 | mutate | mutations (lens ids per option) |
 | wreck | flaws (→ fix candidates next round) |
 | cluster | positions, clusters, gapNotes |
-| converge | triage (keep → capture; kill → never again; merge → one synthesis); action `finalize` + finalOptionId → capture THE one, then run plan-closeout |
+| converge | triage (keep → capture; kill → never again; merge → one synthesis); sudden-death duelResults; action `finalize` + finalOptionId → capture THE one, then run plan-closeout |
 
-All phases: elaboration, axisValues (persistent taste calibration), model (delegate),
-commands (run `.claude/commands/<command>.md` immediately).
+All phases: elaboration, perOptionNotes (editable in the fullscreen preview — click any
+option's SVG on any surface — when `survey.allowPerOptionNotes`), axisValues (persistent
+taste calibration), model (delegate), attachments (composer files/photos, persisted by the
+bridge to the thread's `attachments/` and pointed at by the digest —
+`Requirements/interaction-protocol.md` §Attachments), paletteColors (the selected theme's
+RESOLVED palette — selection is by theme, and on a live board it also sets the discussion
+theme; the digest instructs ONLY-these-colors — same page, §Generation palettes), commands
+(run `.claude/commands/<command>.md` immediately).

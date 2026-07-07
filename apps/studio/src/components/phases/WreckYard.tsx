@@ -1,4 +1,4 @@
-import type { Board } from '@visual-brainstorm/protocol';
+import type { Board, BoardOption } from '@visual-brainstorm/protocol';
 import { SvgPane } from '../primitives';
 
 /**
@@ -11,10 +11,12 @@ export function WreckYard({
   board,
   flaws,
   onFlaws,
+  onPreview,
 }: {
   board: Board;
   flaws: Record<string, string>;
   onFlaws: (flaws: Record<string, string>) => void;
+  onPreview: (option: BoardOption) => void;
 }) {
   const found = Object.values(flaws).filter((f) => f.trim() !== '').length;
   const needed = Math.min(3, board.options.length);
@@ -23,8 +25,8 @@ export function WreckYard({
       <div className="mb-4 text-center">
         <div className="text-sm font-semibold text-red-500">Wreckage mode</div>
         <div className="text-xs text-ink-dim">
-          Nothing here is precious. Find the cracks, the lies, the ugliness — breaking is how we
-          get unstuck. {found}/{needed} flaws found{found >= needed ? ' — gate open' : ''}.
+          Nothing here is precious. Find the cracks, the lies, the ugliness. Breaking is how we
+          get unstuck. {found}/{needed} flaws found{found >= needed ? ', gate open' : ''}.
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -38,12 +40,16 @@ export function WreckYard({
               }`}
               style={{ transform: `rotate(${((i % 3) - 1) * 1.6}deg)` }}
             >
-              <div className={`aspect-square rounded-xl bg-surface-2 p-5 text-ink ${flawed ? 'opacity-60' : ''}`}>
+              <div
+                className={`aspect-square cursor-zoom-in rounded-xl bg-surface-2 p-5 text-ink ${flawed ? 'opacity-60' : ''}`}
+                onClick={() => onPreview(option)}
+                title="Click for full-screen view (zoom, pan, notes)"
+              >
                 <SvgPane svg={option.svg} className="h-full w-full" />
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-sm font-semibold">{option.label}</span>
-                {flawed && <span className="text-xs text-red-500">✗ flawed</span>}
+                {flawed && <span className="text-xs text-red-500">flawed</span>}
               </div>
               <textarea
                 value={flaws[option.id] ?? ''}

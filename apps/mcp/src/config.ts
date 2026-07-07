@@ -18,8 +18,8 @@ export const ConfigSchema = z.object({
     .array(z.string())
     .default(['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5']),
   defaultModel: z.string().default('claude-fable-5'),
-  /** Thread cache root (cwd-relative). The donor-style discussion folder. */
-  discussionDir: z.string().default('.docs/discussion'),
+  /** Thread cache root (cwd-relative). Top-level discussion folder. */
+  discussionDir: z.string().default('discussion'),
 });
 export type VibrConfig = z.infer<typeof ConfigSchema>;
 
@@ -45,4 +45,27 @@ export function loadConfig(cwd = process.cwd()): VibrConfig {
 
 export function discussionRoot(config: VibrConfig, cwd = process.cwd()): string {
   return process.env.VIBR_HOME ?? path.resolve(cwd, config.discussionDir);
+}
+
+/**
+ * Persist the default targetRepo to visual-brainstorm.config.json, preserving
+ * every other key (including unknown ones and $comment). null removes the key.
+ */
+export function saveTargetRepo(targetRepo: string | null, cwd = process.cwd()): void {
+  const file = path.join(cwd, CONFIG_FILENAME);
+  let raw: Record<string, unknown> = {};
+  if (fs.existsSync(file)) {
+    try {
+      raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+    } catch (err) {
+      console.error(`[config] ${CONFIG_FILENAME} unreadable while saving targetRepo, rewriting: ${String(err)}`);
+      raw = {};
+    }
+  }
+  if (targetRepo === null) {
+    delete raw.targetRepo;
+  } else {
+    raw.targetRepo = targetRepo;
+  }
+  fs.writeFileSync(file, JSON.stringify(raw, null, 2) + '\n');
 }

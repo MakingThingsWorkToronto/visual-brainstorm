@@ -15,15 +15,23 @@ verdict. Most reports are a port-conflict ghost, not a failure.
    `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'preview\.js|apps/mcp/dist/index.js' } | Select-Object ProcessId, CommandLine`
    - More than one instance → kill the stale ones: `Stop-Process -Id <pid> -Force`. Killing an
      `npm run` wrapper orphans its node child — always kill the node.exe pid itself.
-3. **Read the log.** `.docs/discussion/.logs/preview-<yyyy-mm-dd>.log` (real engine: `mcp-<date>.log`).
+3. **Read the log.** `discussion/.logs/preview-<yyyy-mm-dd>.log` (real engine: `mcp-<date>.log`).
    Every line is pid-tagged. Look for:
    - `PORT CONFLICT` lines — they name the holder's pid and the real URL of this instance.
    - `presenting board-…` with `0 client(s) connected` — no browser tab is on THIS instance.
    - `FATAL uncaught…` — an actual crash, with stack. Fix the code, don't restart-loop.
    - `studio … MISSING` — run `npm run build -w apps/studio`.
 4. **Is the studio stale?** Hard-refresh the tab (Ctrl+Shift+R) — an old tab keeps old JS;
-   the WS auto-reconnects but the bundle doesn't self-update.
-5. **Report** the verdict with evidence (health JSON, log lines, pids killed).
+   the WS auto-reconnects but the bundle doesn't self-update. Know the split: the bridge
+   streams `apps/studio/dist` per-request, so a STUDIO rebuild only needs a refresh — but
+   themes, config, and endpoints load at process start, so an `apps/mcp` or
+   `packages/protocol` change needs a server RESTART (a "missing endpoint/theme" symptom
+   with a fresh bundle means the server predates the change).
+5. **Did paths/config change since the server started?** Config loads ONCE at process
+   start — a server predating a `discussionDir` (or other config) change keeps writing to
+   the OLD location. `/api/health` → `session.dir` shows the root it ACTUALLY uses; expect
+   stray writes there until the server restarts, and migrate them.
+6. **Report** the verdict with evidence (health JSON, log lines, pids killed).
 
 ## Failure table
 
@@ -36,5 +44,10 @@ verdict. Most reports are a port-conflict ghost, not a failure.
 | process gone, no output | crash — see FATAL in log | fix root cause |
 
 ## Changelog
+- 2026-07-06 — step 4: refresh-vs-restart split — dist streams per-request (refresh
+  suffices) but themes/config/endpoints load at process start (restart needed) (from
+  ui-changes)
+- 2026-07-06 — step 5: config loads once at start — a pre-path-change server writes to the
+  OLD discussionDir; check health session.dir, migrate strays (from studio-journey-ux-2026-07-06)
 - 2026-07-06 — created (from operator report "demo failed"; root cause was an orphaned old-build instance holding 5199)
 - 2026-07-06 — renamed diagnose-demo → diagnose-studio; demo orchestrator de-slopped into the fixtures-only preview harness (operator: hardcoded "demo" is slop)
