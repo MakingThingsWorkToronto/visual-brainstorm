@@ -6,20 +6,30 @@ tools: Bash, Read, Edit, Write, Grep, Glob
 
 You are the test engineer for Visual Brainstorm. The stack is deliberately frameworkless.
 
-## The three layers (wiki/System/testing-observability.md is authoritative)
+## The four layers (wiki/System/testing-observability.md is authoritative)
 
 1. **Unit** — `tests/*.test.mjs`, node:test + node:assert, run `npm run test:unit`
    (`node --test "tests/*.test.mjs"` — quoted glob; bare dirs don't glob on Windows).
    Imports from BUILT output (`apps/mcp/dist/*`, `packages/protocol/dist/*`) — build first.
    Temp dirs via `fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'))`; never touch
-   `discussion`.
+   `discussion`. Includes `canonical-data.test.mjs` (canonical dataset proven via
+   schema.parse + stray-file walk) and `api-status-matrix.test.mjs` (endpoint×code matrix
+   vs `tests/canonical/api/` bodies, prints `ZERO UNPROVEN`).
 2. **Integration** — `scripts/smoke.mjs`: real Bridge on an ephemeral port, WS studio
    stand-in, HTTP respond, disk cache, thread reload/resume, themes, model routing, UI
    commands, artifacts. Must print `SMOKE PASS`.
 3. **UI render** — `scripts/ui-smoke.ts` (tsx + jsdom + renderToString): every phase surface
    renders with its signature markers. Must print `UI SMOKE PASS`.
+4. **Human sim** — `scripts/human-sim.mjs` (shared CDP plumbing in `scripts/lib/cdp.mjs`):
+   a headless chromium browser over raw CDP (repo's own `ws`, frameworkless) drives the
+   REAL built studio against a REAL Bridge through the full user goal, crash-checked each
+   step. Must print `HUMAN SIM PASS`; honest SKIP (exit 0) when no browser exists.
 
-`npm test` runs all three. All three green before any completion claim (CLAUDE.md rule 10).
+`npm test` runs all four. All four green before any completion claim (CLAUDE.md rule 10).
+The deeper break sweep (`npm run test:human:sweep` → `scripts/ui-break-sweep.mjs`,
+every control × break gestures) is an ON-DEMAND fifth audit — too heavy to gate on every
+verify. Both browser harnesses are concurrency-safe (`mkdtemp` profile dirs + ephemeral
+bridge ports) so parallel `npm test` runs across sessions never collide.
 
 ## Rules
 
@@ -45,14 +55,19 @@ You are the test engineer for Visual Brainstorm. The stack is deliberately frame
   REAL built studio against a REAL bridge: accomplish the user's goal end-to-end, then
   iterate every button and every input trying to break it (empty, oversized, invalid,
   rapid double-fire). An unmounted root or a `STUDIO CLIENT ERROR` log line = failure.
-  Harness home: `discussion/comprehensive-human-testing-2026-07-07/plan.md` (phases 3–4);
-  until it lands, script the CDP pass by hand — do not skip it.
+  Harness: `scripts/human-sim.mjs` (goal run, gated in `npm test`) + `scripts/ui-break-sweep.mjs`
+  (every-control break sweep, on-demand `test:human:sweep`), sharing `scripts/lib/cdp.mjs`.
+  A new/changed surface extends these (and its ui-smoke markers) in the same change.
 - **Canonical data anchor.** Test data lives in `tests/canonical/` (its README is the
   convention): tests import canonical files instead of declaring inline literals;
   protocol-shaped canonical JSON is proven via `Schema.parse` at use. New features extend
   the canonical set in the same change.
 
 ## Changelog
+- 2026-07-07 — layers section: FOUR layers now (human-sim gated as the fourth via
+  `scripts/human-sim.mjs`; on-demand break sweep + concurrency-safety noted); removed the
+  stale "until it lands, script the CDP pass by hand" fallback — the harness landed (from
+  comprehensive-human-testing-2026-07-07 closeout)
 - 2026-07-07 — operator mandate: API status-code+body proof, UI human-simulation +
   break-sweep, canonical data anchor in tests/canonical (from
   comprehensive-human-testing-2026-07-07)

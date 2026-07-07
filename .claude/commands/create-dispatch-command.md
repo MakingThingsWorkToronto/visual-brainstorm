@@ -83,7 +83,9 @@ trust the file, not memory or a prior tick's claim.
    out independent subagents (core / UI / tests / docs) concurrently, giving each the
    EXACT contract — schema literals, props signatures, endpoint bodies, literal test
    markers — and disjoint file ownership; exact contracts merge mechanically, vague ones
-   need a reconcile pass.
+   need a reconcile pass. If a delegated agent dies mid-task (model/session limit), its
+   files are usually COMPLETE on disk — `node --check` / Read them and run the verify
+   yourself; re-delegate only if genuinely half-written.
 3. **Verify** — `npm run build` + `npm test`. Failure = the row STAYS `in-progress` with
    the honest reason appended to the Progress log; fix or mark `blocked: <reason>`.
 4. **Ship** — first `git log --oneline -3`: a concurrent session's commit may have already
@@ -109,6 +111,9 @@ repo ever runs concurrent dispatchers, steal those pieces back from
 `c:\code\tp\.claude\commands\create-dispatch-command.md` rather than reinventing them.
 
 ## Changelog
+- 2026-07-07 — dispatcher template Build step: delegated-agent-death recovery — a subagent
+  killed by a model/session limit usually leaves complete files; verify them yourself
+  rather than re-delegating (from comprehensive-human-testing-2026-07-07)
 - 2026-07-07 — scaffold-new: mandatory human-verification phase (API = all status codes +
   canonical body assertions; UI = human-sim goal run + every-control break-sweep; anchored
   to tests/canonical) (operator mandate, from comprehensive-human-testing-2026-07-07)

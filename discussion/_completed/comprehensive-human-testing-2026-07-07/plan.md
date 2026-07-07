@@ -1,5 +1,5 @@
 # Comprehensive Human Testing — canonical data, API status matrix, UI human-simulation
-**Status:** open
+**Status:** closed 2026-07-07
 **Goal:** every API endpoint has every reachable status code tested and proven with its
 response body asserted against canonical expectations; every UI surface survives a
 simulated human accomplishing their goal AND a break-sweep iterating every button and

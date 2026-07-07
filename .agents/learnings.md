@@ -1,5 +1,23 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — comprehensive-human-testing closeout (multi-loop working tree)
+
+- **A delegated agent killed mid-task by a model/session limit usually leaves its files
+  COMPLETE on disk — recover by verifying, not re-delegating.** The phase-4 test-engineer
+  hit the Fable 5 limit during its own verify pass; the code it had written was whole. The
+  cheap recovery: `node --check` each JS file, Read the new files for structural
+  completeness, then run the phase's verification YOURSELF (build + the harness) rather
+  than re-spawning an agent that would duplicate work or clobber finished files. Re-delegate
+  only if the artifacts are genuinely half-written.
+- **For SHARED append-only files (`wiki/*`, `.agents/learnings.md`) entangled with a
+  concurrent session's uncommitted hunks, don't fight the tree — leave your edits
+  uncommitted and let them ride that session's next natural commit.** Across phases 2–5 my
+  wiki + learnings edits sat uncommitted (foreign hunks at the top); the ui-changes closeout
+  commit (`1feb781`) swept them all in cleanly. `git commit --only <file>` can't split
+  hunks, so committing shared files yourself rides THEIR work — the inverse violation.
+  Verify your content actually landed with `git show <hash> -- <file>` and record BOTH
+  hashes in the progress log. Commit only files you solely own (here: `package.json`).
+
 ## 2026-07-07 — ui-break-sweep harness (phase 4)
 
 - **On Windows `proc.kill()` terminates only the browser ROOT — renderer/GPU/network
