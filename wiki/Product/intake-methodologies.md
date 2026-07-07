@@ -1,29 +1,67 @@
-# Concierge → Living Gallery — methodology-driven intake (DECIDED, not yet built)
+# Concierge → Living Gallery — methodology-driven intake (BUILT)
 
-**Status: accepted direction, open plan.** Finalized 2026-07-07 by brainstorm
+**Status: built (phases 1–5); plan OPEN.** Finalized 2026-07-07 by brainstorm
 `discussion/2026-07-06-2358-methodology-driven-intake-mind-map-board/brainstorm.md` (round-4
-crown: `concierge-living-gallery`); build plan
-`discussion/concierge-living-gallery-2026-07-07/plan.md`. This page states INTENT — the code
-does not implement it yet. When the plan closes, reconcile this page to as-built.
+crown: `concierge-living-gallery`); plan `discussion/concierge-living-gallery-2026-07-07/plan.md`
+still open — phases 6 (human-verification, real-bridge e2e) and 7 (docs) remain, and the plan
+closes only via `/plan-closeout`. Implementation built: phases 1–5 of the concierge-living-gallery plan (mind-tree board
+payload + editedTree; live mind-elixir MindmapCanvas; adaptive concierge ConciergeIntake surface;
+Living Gallery LivingGallery surface with method cards, recommended ribbon + reason chip; Claude
+Code → studio handoff `open_studio` brief pre-fills the New Discussion panel; routing rules wired
+in `.claude/commands/run-brainstorm.md` step 0, `.claude/agents/brainstorm-orchestrator.md`, and
+`.claude/skills/brainstorm-phases/SKILL.md`). This page documents WHAT IS SHIPPED.
 
-## The decided intake flow
+## The intake flow (four moves)
 
-1. **Brief** — exactly as today. The Living Gallery is a response surface AFTER the
-   concierge; it does NOT replace the New Discussion panel.
-2. **Adaptive concierge** — asks AS MANY clarifying questions as it takes. No
-   single-question cap: comprehensiveness rewards the brainstorm.
-3. **Living Gallery** — the response: multiple method cards seeded LIVE from brief+answers.
-   The recommended card is ribboned, with a reason chip quoting the user's answers.
-4. **Pick a method** → that methodology's session opens.
+1. **Hand off the brief via `open_studio`** — lands the user on the New Discussion panel (brief
+   + voice, chips, colors, scribble, attachments, model, target folder) and blocks until they
+   submit. If the human already described the purpose in Claude Code, pass it as `brief`
+   (pre-fills the panel; no rework). Submission arrives as a new-brainstorm command.
 
-## Mind map = a NEW methodology (beside, never the centerpiece)
+2. **Adaptive concierge — call `ask_concierge` as many times as it takes** (no fixed-count cap;
+   comprehensiveness rewards the brainstorm). Each question is presented in the studio
+   (ConciergeIntake surface) with tappable suggestion chips + free text; answers return and
+   append to the thread's `brainstorm.md` digest. Domain-tailored questions: audience,
+   constraints, what "good" looks like, scope, liveness.
 
-- Sits BESIDE funnel/wreck/cluster as a peer methodology — never the default or centerpiece.
-- Implemented as a live co-edited **mind-elixir** canvas (evaluation and verdict:
-  `Research/visualization-engines.md`).
-- Protocol: board gains a `tree` payload, response gains `editedTree` — `packages/protocol`
-  FIRST (rule 5), then both consumers, tests, and this wiki.
-- SVG export preserves the artifact ledger (rule 7); sanitize-on-render still applies (rule 8).
+3. **Living Gallery — call `present_gallery`** with the roster as method cards, each carrying a
+   LIVE mini SVG genuinely seeded from the brief + answers (delegate the 4 minis to `svg-artisan`
+   — never generic icons). Mark exactly ONE `recommended:true` with a `reason` quoting the
+   user's answers. The studio's LivingGallery surface ribbons the recommended card and collects
+   the pick.
+
+4. **Route the pick** — `present_gallery` returns the chosen `method` (routing key); start there:
+   - **mindmap** → `present_board` with a `tree` (kind `"mindmap"`, no options); user co-edits
+     live on the mind-elixir MindmapCanvas; edits return in `response.editedTree`.
+   - **funnel** → proceed to the diverge funnel (steps 1–3 of run-brainstorm) as usual.
+   - **wreck** → `present_board` at `phase:"wreck"` on the seeded option(s).
+   - **cluster** → `present_board` at `phase:"cluster"` on the seeded options.
+
+   Non-mindmap picks still flow through run-brainstorm's pre-phrase (step 1) and the funnel — the
+   gallery only chose the STARTING mechanic.
+
+## Mind map: a peer methodology (not the default or centerpiece)
+
+- Sits BESIDE funnel/wreck/cluster as an equally recommended choice — never the default.
+- Implemented as a live co-edited **mind-elixir** canvas. User edits flow through the UI, then
+  return in `response.editedTree` as the feedback for the next round (structure IS the response).
+- Protocol (packages/protocol, rule 5): `Board.tree` (MindTreeSchema, optional), `BoardResponse.editedTree`
+  (MindTreeSchema, optional), `MindNode` (id, topic, children, expanded, tags, style).
+- SVG export via the normal artifact path preserves the artifact ledger (rule 7); SVG render is
+  always sanitized (rule 8).
+
+## Routing rules
+
+The decision (which method to recommend, how to route a pick) is PURE ORCHESTRATION, never
+hardcoded. Rules live in three `.claude` files (rule 11):
+
+- `.claude/commands/run-brainstorm.md` **step 0** — the procedure: hand off brief, concierge
+  loop, present gallery, route the pick.
+- `.claude/agents/brainstorm-orchestrator.md` **What you keep vs. delegate** — concierge intake is
+  orchestration (never delegate), including the call-count and comprehensiveness heuristic.
+- `.claude/skills/brainstorm-phases/SKILL.md** **Intake & methodology routing** — recommendation
+  heuristics (which method to mark `recommended` + reason quoting the answers); the table routing
+  each pick to a starting mechanic.
 
 ## Killed directions (guardrail — do not resurrect)
 
