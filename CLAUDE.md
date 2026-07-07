@@ -8,7 +8,7 @@
    flywheel: `wiki/Meta/agentic-loop.md`.
 3. **The skill for your task type** — brainstorming: `.claude/skills/brainstorm-phases` +
    `.claude/skills/svg-authoring`. Skills are binding craft, not suggestions.
-4. **Open plans** — newest folders in `.docs/discussion/` (not `_completed/`) with `plan.md`.
+4. **Open plans** — newest folders in `discussion/` (not `_completed/`) with `plan.md`.
 5. **`.agents/learnings.md`** — hard-won gotchas; do not re-learn them.
 
 ### Quick map — "I need to…" → use
@@ -17,22 +17,23 @@
 |---|---|
 | Run/resume a visual brainstorm | `.claude/commands/run-brainstorm.md` + the two skills; resume via `list_discussions` → `discussionId`; thread memory = its `brainstorm.md` |
 | Generate board options (esp. when `response.model` routes a round) | **agent `svg-artisan`** (with the model override) |
-| Studio/bridge/MCP "seems broken" | **agent `devops-diagnostician`** or `.claude/commands/diagnose-studio.md`; evidence: `GET /api/health`, `GET /api/logs`, `.docs/discussion/.logs/` |
+| Studio/bridge/MCP "seems broken" | **agent `devops-diagnostician`** or `.claude/commands/diagnose-studio.md`; evidence: `GET /api/health`, `GET /api/logs`, `discussion/.logs/` |
 | Verify work | `.claude/commands/build-check.md` → `npm run build` + `npm test` (unit / smoke / ui-smoke — `wiki/System/testing-observability.md`) |
 | Write/extend tests | **agent `test-engineer`** (three layers, frameworkless, no mocks) |
-| Close a plan or thread | `.claude/commands/plan-closeout.md` (also the studio 📦 button and 🏁 finalize) |
+| Close a plan or thread | `.claude/commands/plan-closeout.md` (also Plan closeout in the studio composer's More menu, and Finalize & close out) |
+| Turn an accepted idea/brainstorm into a loopable build plan | `.claude/commands/create-dispatch-command.md` — plan.md carries phases + progress; run via `/loop /dispatch-<slug>-next-phase` |
 | Capture facts/guardrails | **agent `wiki-librarian`** → `wiki/` + one line in `wiki/log.md` per edit |
-| Find or ingest craft | `.claude/commands/discover-skills.md` (also the studio ✨ button; web branch ingests new skills) |
+| Find or ingest craft | `.claude/commands/discover-skills.md` (also Discover skills in the studio composer's More menu; web branch ingests new skills) |
 | Recurring task with no procedure | `.claude/commands/new-command.md` — asked twice = failure |
 | Add a UI theme | `.claude/commands/add-theme.md` |
-| Explain the tool to a human | `.docs/user-guide.md` (with its SVG diagrams) |
+| Explain the tool to a human | `wiki/user-guide.md` (with its SVG diagrams) |
 
 ## The 12 universal rules
 
 1. **The wiki at `wiki/` is authoritative.** Facts and guardrails live there, not in chat
    history. When code and wiki disagree, stop and reconcile — never silently drift.
 2. **Every wiki edit is logged** — append one line to `wiki/log.md` (date, page, what, why).
-3. **Plans live in `.docs/discussion/<slug>-<yyyy-mm-dd>/plan.md`.** Any multi-step task gets
+3. **Plans live in `discussion/<slug>-<yyyy-mm-dd>/plan.md`.** Any multi-step task gets
    one before implementation. Plans close ONLY via `/plan-closeout`: verify → harvest
    learnings → **improve the commands/skills the learnings implicate** → wiki update →
    archive to `_completed/`.
@@ -60,7 +61,7 @@
     only). Delegated generation goes to `svg-artisan`; diagnosis to `devops-diagnostician`;
     orchestration is never delegated.
 12. **Docs move with the product.** A change to what humans see or do updates
-    `.docs/user-guide.md` (and its diagrams) in the same change; a change to facts or
+    `wiki/user-guide.md` (and its diagrams) in the same change; a change to facts or
     contracts updates the wiki (rule 2 applies).
 
 ## Appendix — workspace structure
@@ -71,8 +72,8 @@ apps/mcp/              stdio MCP server + bridge (http/WS) + session persistence
 apps/studio/           Vite + React + Tailwind survey UI (six phase surfaces)
 wiki/                  AUTHORITATIVE facts & guardrails (log.md discipline; System/, Product/,
                        Requirements/, Research/, Meta/)
-.docs/user-guide.md    human documentation (SVG-illustrated)
-.docs/discussion/      plans + brainstorm thread cache (dirs with session.json);
+wiki/user-guide.md    human documentation (SVG-illustrated)
+discussion/      plans + brainstorm thread cache (dirs with session.json);
                        _completed/ archive; .logs/ runtime logs
 .agents/learnings.md   hard-won gotchas (newest first)
 .claude/commands/      repeatable procedures — living documents improved on every closeout

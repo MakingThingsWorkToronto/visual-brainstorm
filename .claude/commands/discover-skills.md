@@ -47,7 +47,10 @@ web — the goal is that brainstorm quality compounds every turn.
 | Studio/preview/bridge "seems broken" | `diagnose-studio.md` |
 | Add or ingest a UI theme | `add-theme.md` |
 | Codify recurring work | `new-command.md` |
+| Turn an accepted idea/brainstorm into a loopable build plan | `create-dispatch-command.md` (emits `/dispatch-<slug>-next-phase`; run via `/loop`) |
 
 ## Changelog
+- 2026-07-06 — task map: registered `create-dispatch-command.md` (from
+  ship-discipline-loopable-plans)
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)
 - 2026-07-05 — made interactive; added web-discovery branch that ingests findings as new `.claude/skills/` so quality compounds every turn (operator directive)
