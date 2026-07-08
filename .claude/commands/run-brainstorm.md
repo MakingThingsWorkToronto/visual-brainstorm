@@ -31,7 +31,12 @@ top to bottom; each numbered step below dispatches the next UI stage.
    dispatches, strictly in sequence — do not skip, do not reorder:
    - **a. Hand off the brief.** Call **`open_studio`** — it lands the user on the New
      Discussion panel (brief + voice, chips, colors, scribble, attachments, model, target
-     folder) and blocks until they submit. **If the human ALREADY described the purpose in
+     folder) and blocks until they submit. **The panel's tappable questions and the concierge
+     are complementary, not competing (survey-intake reconciliation):** the panel gathers a
+     STRUCTURED brief (audience/vibe/constraints) in one pass; the concierge (0b) then does the
+     ADAPTIVE deep-dive on top of it. The panel is step 0a of the ONE front door, never a second
+     intake — after submit the studio holds a "preparing your questions" veil (never the bare
+     panel again) until the concierge arrives. **If the human ALREADY described the purpose in
      THIS Claude Code session, pass it as `open_studio`'s `brief`** — it pre-fills the panel
      so they refine instead of retyping (the handoff; no rework). Omit `brief` ONLY when they
      truly said nothing about what to make. The submission arrives as a new-brainstorm command
@@ -89,7 +94,12 @@ top to bottom; each numbered step below dispatches the next UI stage.
    ↩ back) silently swallows the user's new answer.
 4. **Interpret every response field** before generating the next round — selections, notes,
    remix pairs, axis values, and the phase fields (triage/mutations/flaws/positions/clusters/
-   gapNotes) per the phase skill. If `response.model` is set, DELEGATE generation of the next
+   gapNotes) per the phase skill. **Mind-map rounds:** honor `response.editedTree` (the final
+   SHAPE, incl. per-node `note`) AND `response.treeOps` (the INTENT log). An `explode` op means
+   expand that node into **≥5 children relevant to its topic AND its note** and append them under
+   it in the next tree (a different note → a different explosion); `delete` drops that branch for
+   good; `add` seeded blank ideas to help fill; `note` sets steering for a future explode.
+   If `response.model` is set, DELEGATE generation of the next
    round's SVGs to that model via a subagent; you keep orchestrating.
    `response.attachments`: each entry's `savedPath` is a file the user attached mid-round —
    **Read it** (vision for images) and fold it in; an entry without `savedPath` failed to
@@ -149,3 +159,6 @@ top to bottom; each numbered step below dispatches the next UI stage.
   anything); step 7 adds compose_poster to the finalize sequence
 - 2026-07-07 — step 4: post real progress over the session pipe while generating; step 7:
   artifact-chat commands are a detour-and-resume, routed to /artifact-chat (from askaquestion)
+- 2026-07-08 — step 4: interpret mind-map `response.treeOps` (explode → expand node into ≥5
+  children relevant to its topic+note; delete/add/note) + per-node `editedTree.note` steering
+  (from mindmap-explode-decision-tree-2026-07-07)

@@ -2,6 +2,8 @@
 
 **Started:** 2026-07-07 · **Owner:** Matt / brainstorm-orchestrator lineage
 **Slug:** `mindmap-explode-decision-tree-2026-07-07`
+**Status:** closed 2026-07-08 — feature built, proven (unit+smoke+ui-smoke+human-sim all green),
+committed (`6f992c3`, `8806a8d`), documented (wiki + journeys + learnings), commands improved.
 
 ## The ask (verbatim intent)
 
@@ -111,9 +113,15 @@ Notes are folded into `editedTree` on send (walk tree, attach `node.note`) so th
   into editedTree), DecisionTreeView overlay + WayfinderStrip 🌳 toggle. **Build green.**
 - [x] **P4 — Human-pathway tests** — ui-smoke (node bar + toggle markers), **human-sim 16 steps
   live**: +5 creates 5 real nodes, note+explode ride back, decision-tree overlay opens. All green.
-- [ ] **P5 — Docs + wiki + learnings** (+ tests/journeys.md registry — new CLAUDE.md rule 10).
-- [ ] **P6 — `/run-brainstorm` live validation** of explode/delete/+/notes/decision-tree.
-- [ ] **P7 — `/plan-closeout`.**
+- [x] **P5 — Docs + wiki + learnings** — wiki-librarian updated board-modes, visualization-engines,
+  system-architecture, user-guide (+ log.md); tests/journeys.md rows 5–6 (node controls, decision
+  tree); .agents/learnings.md (mind-elixir selection binding + notes-out-of-band).
+- [~] **P6 — `/run-brainstorm` live validation** — DECLINED by operator (skipped the live studio
+  session). The real-path proof stands on `npm run test:human` (16 steps, live Chrome), which
+  exercises +5 / note / explode / decision-tree end-to-end.
+- [x] **P7 — `/plan-closeout`** — verify (build+smoke green) → learnings → commands improved
+  (run-brainstorm step 4 + brainstorm-phases skill now interpret treeOps; .github inherits via
+  its pointer) → wiki (P5) → archive → commit/push.
 
 ## Verification log
 - unit: `npm run test:unit` → 145+ pass incl. 8 decision-tree tests.

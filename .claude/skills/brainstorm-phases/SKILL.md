@@ -32,7 +32,13 @@ options" is not a bypass — it routes to the **funnel** card, still surfaced th
 and picked there. After a
 non-mindmap pick, the funnel below applies as usual; the pick only chose the STARTING mechanic.
 A **mindmap** thread iterates on the tree: read `response.editedTree` as the user's new
-structure and present the next tree (or route into the funnel once the structure is settled).
+structure AND `response.treeOps` as the ordered node decisions — `editedTree` is the final
+SHAPE, `treeOps` the INTENT. Honor them: an `explode` op (with the node's `topic` + `note`)
+means expand THAT node into ≥5 children **relevant to its topic and note** and append them under
+it in the next tree — a different note yields a different explosion; `delete` means drop that
+branch for good; `add` means the user seeded blank child ideas to help fill; `note` sets steering
+for a future explode. Per-node `note` fields on `editedTree` nodes carry the same steering. Then
+present the next tree (or route into the funnel once the structure is settled).
 
 ## Phase table
 
@@ -115,3 +121,4 @@ structure and present the next tree (or route into the funnel once the structure
 - 2026-07-06 — synthesis-by-MEANING law (never overlay parent SVGs; system-map = merge architectures) + back action contract (operator: "expand overlays both images — expand from the meaning in each image")
 - 2026-07-06 — back re-present mints a fresh board id (bridge first-response-wins dedup) (from phase-funnel-ux-2026-07-05)
 - 2026-07-06 — journey-UX build (studio-journey-ux plan): judge-deck fields (ranking/deckVerdicts/duelResults) interpretation rule; finalize contract now includes compose_poster; sudden-death bracket duels arrive in duelResults
+- 2026-07-08 — mindmap iteration: interpret `response.treeOps` (explode→≥5 topic+note-relevant children, delete/add/note) + per-node `editedTree.note` steering (from mindmap-explode-decision-tree-2026-07-07)
