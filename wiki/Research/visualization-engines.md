@@ -22,3 +22,10 @@ second engine into the bundle; export fidelity to be verified.
 
 **Verdict:** adopt as a phase-2 mechanic behind a new board kind payload — plan it as its
 own `discussion/` session (protocol change → rule: update packages/protocol first).
+
+**SHIPPED 2026-07-07** (`discussion/_completed/concierge-living-gallery-2026-07-07/`): mind-elixir
+5.13.0 is the `mindmap` methodology — `Board.tree` (mind-elixir-compatible) + `BoardResponse.editedTree`
+in `packages/protocol`, the live co-edited `MindmapCanvas` (dynamically imported inside the mount
+effect so ui-smoke's esbuild never touches its `.less`), and a deterministic server-side
+`apps/mcp/src/tree-svg.ts` snapshot for the rule-7 artifact ledger (the browser export path is not
+relied on for capture). Proven end-to-end in a real browser by the human-sim.

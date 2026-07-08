@@ -58,7 +58,16 @@ Progress persists to the plan itself — no separate progress file, no state in 
      clicking through to accomplish the goal PLUS a break-sweep iterating every button and
      every input. Both anchor to `tests/canonical/` (its README is the convention) and
      both exit criteria must be a runnable command with observable output. Owner:
-     `test-engineer`.
+     `test-engineer`. **Prove the REAL path, never the preview harness** (operator mandate
+     2026-07-07 — "if it only works in preview the app is a brick"): the human-sim runs a real
+     `Bridge` with `engine:'claude'`; a feature green only in `npm run preview`'s fixture player
+     is NOT proven. Preview is a demo, not acceptance.
+     **Mandatory agentic-wiring phase for any plan that adds an MCP tool or a studio surface**
+     (from concierge-living-gallery-2026-07-07): building the surface + tool + tests is NOT
+     enough to make it work in a real brainstorm — a phase must WIRE the `.claude` skills/commands
+     (run-brainstorm / brainstorm-orchestrator / brainstorm-phases) to CALL the new tool, because
+     the prompt→tool routing is a heuristic that lives there, not in harness code (rule 11). A
+     surface Claude is never told to invoke is dead in real sessions no matter how green its tests.
    - *wrap-existing*: Read the plan, present the rows back for confirmation (no regex
      parsing), add the Status column and Progress log section if missing.
 3. **Emit the dispatcher** — fill the inline template below (plain `<placeholder>`
@@ -115,6 +124,10 @@ repo ever runs concurrent dispatchers, steal those pieces back from
 `c:\code\tp\.claude\commands\create-dispatch-command.md` rather than reinventing them.
 
 ## Changelog
+- 2026-07-07 — scaffold-new: human-verification must prove the REAL path (engine:'claude'/
+  human-sim), never the preview fixture player ("preview ≠ acceptance"); + mandatory
+  agentic-wiring phase for any plan adding an MCP tool/studio surface (wire the .claude skills
+  to CALL it or it's a brick in real sessions, rule 11) (from concierge-living-gallery-2026-07-07)
 - 2026-07-07 — dispatcher template Build step: delegated-agent-death recovery — a subagent
   killed by a model/session limit usually leaves complete files; verify them yourself
   rather than re-delegating (from comprehensive-human-testing-2026-07-07)

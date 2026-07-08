@@ -1,10 +1,11 @@
-# Concierge → Living Gallery — methodology-driven intake (BUILT)
+# Concierge → Living Gallery — methodology-driven intake (SHIPPED)
 
-**Status: built (phases 1–5); plan OPEN.** Finalized 2026-07-07 by brainstorm
-`discussion/2026-07-06-2358-methodology-driven-intake-mind-map-board/brainstorm.md` (round-4
-crown: `concierge-living-gallery`); plan `discussion/concierge-living-gallery-2026-07-07/plan.md`
-still open — phases 6 (human-verification, real-bridge e2e) and 7 (docs) remain, and the plan
-closes only via `/plan-closeout`. Implementation built: phases 1–5 of the concierge-living-gallery plan (mind-tree board
+**Status: shipped; plan closed 2026-07-07.** Finalized by brainstorm
+`discussion/_completed/2026-07-06-2358-methodology-driven-intake-mind-map-board/brainstorm.md`
+(round-4 crown: `concierge-living-gallery`); build plan
+`discussion/_completed/concierge-living-gallery-2026-07-07/plan.md` — all 7 phases done
+(incl. phase 6 real-bridge human-sim proof + break-sweep, and phase 7 user-guide docs).
+Implementation: (mind-tree board
 payload + editedTree; live mind-elixir MindmapCanvas; adaptive concierge ConciergeIntake surface;
 Living Gallery LivingGallery surface with method cards, recommended ribbon + reason chip; Claude
 Code → studio handoff `open_studio` brief pre-fills the New Discussion panel; routing rules wired

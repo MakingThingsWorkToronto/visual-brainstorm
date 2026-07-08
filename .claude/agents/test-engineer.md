@@ -63,8 +63,27 @@ bridge ports) so parallel `npm test` runs across sessions never collide.
   convention): tests import canonical files instead of declaring inline literals;
   protocol-shaped canonical JSON is proven via `Schema.parse` at use. New features extend
   the canonical set in the same change.
+- **A new `StudioState` field breaks the canonical body tests — that's the contract working.**
+  `api-status-matrix` asserts `GET /api/state` (and the WS hello, which references it) key-for-key
+  against `tests/canonical/api/state-200.json`. Adding a field means appending its fresh-thread
+  value to that file in the SAME order `bridge.state()` emits it. Expect this on every StudioState
+  growth; it is not a regression.
+- **A new studio channel is a 5-part change; miss one and it breaks silently.** A blocking
+  server→studio channel (like `askConcierge`/`presentGallery`, mirroring `presentAndWait`) = a
+  protocol field + `ServerToStudio` case + `bridge.state()`/broadcast + a `useBridge` reducer case
+  (no case → the app blanks) + an endpoint with 200/404/400 in the matrix. When you test one,
+  verify all five exist.
+- **A live-DOM engine (mind-elixir) is only exercised in the REAL browser (human-sim), never
+  `renderToString`/ui-smoke** — its mount happens in a `useEffect` the server renderer never runs.
+  ui-smoke proves the static wrapper markers; the human-sim asserts the engine actually mounted
+  (`[data-testid="…-engine"].childElementCount > 0`) and drives a real edit through the exposed
+  instance handle (never a fabricated response).
 
 ## Changelog
+- 2026-07-07 — studio-channel test rules: a new StudioState field breaks state-200.json (append
+  in bridge.state() order); a studio channel is a 5-part change (protocol/envelope/state/useBridge/
+  endpoint); a live-DOM engine is only exercised in the human-sim, not renderToString (from
+  concierge-living-gallery-2026-07-07)
 - 2026-07-07 — layers section: FOUR layers now (human-sim gated as the fourth via
   `scripts/human-sim.mjs`; on-demand break sweep + concurrency-safety noted); removed the
   stale "until it lands, script the CDP pass by hand" fallback — the harness landed (from
