@@ -52,6 +52,10 @@ tests. Skipping a stage is a process failure, not a shortcut.
 - **Agents are the muscle memory** (`System/agents.md`): diagnosis, delegated generation,
   testing, and wiki-keeping each have an owner with the procedure embedded — a fresh chat
   doesn't improvise, it routes (CLAUDE.md rule 11 + the quick map).
+- **Weekly maintenance.** `/compress-learnings` (sonnet) compacts `.agents/learnings.md`
+  weekly: recent entries (14-day window) stay verbatim; older entries distill to durable
+  one-liners; full originals archive to `.agents/learnings-archive.md` (rule 6 — nothing lost).
+  Run manually or via `/loop` — not auto-fired by hooks.
 - **Long-lived subagents replay stale context.** Resuming one agent across a work stream
   (e.g. the wiki-librarian across many UI waves) keeps its context and works well, but its
   repeated "standing flags" come from its OWN old transcript, not the current tree — the
@@ -67,7 +71,8 @@ tests. Skipping a stage is a process failure, not a shortcut.
 wiki/                  facts & guardrails (authoritative; every edit logged)
 discussion/      plans + brainstorm threads (boards, SVGs, responses, brainstorm.md)
 wiki/user-guide.md    how humans use the tool (SVG-illustrated)
-.agents/learnings.md   hard-won gotchas
+.agents/learnings.md   hard-won gotchas (recent 14-day window, verbatim)
+.agents/learnings-archive.md   full original entries (moved by /compress-learnings; rule 6)
 .claude/commands/      repeatable procedures (self-improving)
 .claude/skills/        binding craft
 .claude/agents/        specialized roles (brainstorm-orchestrator also carries its living ## Orchestration learnings section)

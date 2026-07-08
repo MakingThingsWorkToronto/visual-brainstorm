@@ -1,5 +1,29 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-08 — porting the donor wiki-mcp: ESM/SDK rewrite + dependency-free + granular read
+
+- **The donor `apps/wiki-mcp` (`C:\Code\tp`) is CommonJS + a hand-rolled JSON-RPC stdio loop +
+  `fuse.js`/`express`/`helmet`/`cors`.** This repo is ESM/NodeNext and already depends on
+  `@modelcontextprotocol/sdk`, so the faithful port is a REWRITE, not a copy: `McpServer` +
+  `StdioServerTransport` (matching `apps/mcp`), a dependency-free relevance scorer (title-weighted
+  term coverage, content frequency saturating at 3), and stdio-only (no HTTP mirror — the client
+  is Claude Code). Fewer deps than the donor, same tools.
+- **A new workspace under `apps/*` must be `npm install`-linked BEFORE `tsc`** — adding the dir +
+  package.json isn't enough; the build script (`-w apps/wiki-mcp`) and any `tests/*.mjs` importing
+  its `dist/` fail until `npm install` registers the workspace. Sequence: write package.json →
+  `npm install` → build → test.
+- **`WIKI_PATH` resolves module-relative, not cwd-relative.** MCP servers launch with cwd = the
+  invoking project, so cwd is unreliable for finding THIS repo's `wiki/`. Resolve from the module:
+  `path.resolve(dirname(fileURLToPath(import.meta.url)), '..','..','..','wiki')` (three `..` from
+  `apps/wiki-mcp/dist/`), env `WIKI_PATH` overrides. ESM has no `__dirname`.
+- **Context-shaping is the whole point of a read MCP.** Two levers: (1) SEARCH returns one bounded
+  ~200-char snippet + metadata per hit, never page bodies, default limit 8 / max 25; (2) GRANULAR
+  READ — `wiki_outline` (heading tree only) → `wiki_read(path, heading)` returns ONLY that
+  heading's subsection (proven: 1467 chars vs a ~4KB full page), and a full read over the char cap
+  truncates WITH the outline attached so the caller can pull one heading. Prove the stdio path with
+  a scratchpad JSON-RPC probe (initialize → tools/list → tools/call), not just unit-testing the
+  pure functions.
+
 ## 2026-07-07 — mind-elixir: a per-node action bar must bind to the engine's OWN selection, not the bus
 
 - **`mind-elixir`'s `selectNode(el)` called PROGRAMMATICALLY does NOT fire the `selectNode` bus

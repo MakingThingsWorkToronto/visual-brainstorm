@@ -3,6 +3,10 @@
     "visual-brainstorm": {
       "command": "node",
       "args": ["apps/mcp/dist/index.js"]
+    },
+    "visual-brainstorm-wiki": {
+      "command": "node",
+      "args": ["apps/wiki-mcp/dist/index.js"]
     }
   }
 }

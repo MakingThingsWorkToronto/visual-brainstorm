@@ -83,6 +83,140 @@ body {
     0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+/* ── liquid chrome, aurora, and edge-glow effects ─────────────────────────────
+   All motion below is theme-driven: it reads --accent / --surface(-2) so it
+   re-skins with the picked theme, and it is disabled under prefers-reduced-motion
+   (see the bottom of this file). */
+
+/* Rotating angle used by every conic "spinning star" border (nav ring + the
+   Send & iterate prompt reveal). Registered so the conic gradient can animate. */
+@property --chrome-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes chrome-spin {
+  to { --chrome-angle: 360deg; }
+}
+
+/* app-aurora — a slow, non-repeating drift of theme-tinted radial blooms that
+   sits behind the whole app so the liquid-chrome surfaces have moving light to
+   catch. The two bloom layers animate on mutually-prime durations, so their
+   combined motion never visibly loops ("radiating unpredictably"). */
+.app-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--canvas);
+}
+.app-aurora::before,
+.app-aurora::after {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  filter: blur(48px);
+  will-change: transform;
+  background:
+    radial-gradient(38% 42% at 24% 30%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
+    radial-gradient(30% 38% at 78% 22%, color-mix(in srgb, var(--accent) 18%, var(--surface-2)), transparent 72%),
+    radial-gradient(44% 48% at 62% 80%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 74%);
+}
+.app-aurora::before { animation: aurora-drift-a 31s ease-in-out infinite; }
+.app-aurora::after  { animation: aurora-drift-b 43s ease-in-out infinite; opacity: 0.65; }
+@keyframes aurora-drift-a {
+  0%   { transform: translate3d(-5%, -2%, 0) rotate(0deg) scale(1.05); }
+  33%  { transform: translate3d(6%, 5%, 0) rotate(5deg) scale(1.18); }
+  66%  { transform: translate3d(-4%, 6%, 0) rotate(-4deg) scale(1.1); }
+  100% { transform: translate3d(-5%, -2%, 0) rotate(0deg) scale(1.05); }
+}
+@keyframes aurora-drift-b {
+  0%   { transform: translate3d(4%, 3%, 0) rotate(0deg) scale(1.12); }
+  50%  { transform: translate3d(-7%, -6%, 0) rotate(-6deg) scale(1.22); }
+  100% { transform: translate3d(4%, 3%, 0) rotate(0deg) scale(1.12); }
+}
+
+/* Liquid chrome on EVERY surface — a glassy top-gloss layered over the surface
+   fill so the aurora behind reads as light sliding across chrome. Only
+   background-image is set (never box-shadow) so it composes with, and never
+   clobbers, the Tailwind `shadow` utilities some surfaces already carry. */
+.bg-surface,
+.bg-surface-2 {
+  background-image:
+    linear-gradient(180deg, color-mix(in srgb, white 12%, transparent) 0%, transparent 46%),
+    linear-gradient(120deg, transparent 55%, color-mix(in srgb, var(--accent) 7%, transparent) 100%);
+}
+
+/* Left-nav edge glow — a bright point traverses the nav's border like a star
+   circling it, using the same conic ring technique as the prompt reveal. */
+.nav-edge-glow { position: relative; }
+.nav-edge-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--chrome-angle),
+    transparent 0deg,
+    transparent 250deg,
+    color-mix(in srgb, var(--accent) 55%, transparent) 300deg,
+    color-mix(in srgb, var(--accent) 95%, white 30%) 340deg,
+    #fff 350deg,
+    color-mix(in srgb, var(--accent) 95%, white 30%) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 70%, transparent));
+  animation: chrome-spin 7s linear infinite;
+}
+
+/* Send & iterate prompt reveal — the generated prompt framed by a gradient
+   liquid-chrome border with a bright star spinning fast around its edge. */
+.chrome-spin-border { position: relative; }
+.chrome-spin-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--chrome-angle),
+    color-mix(in srgb, var(--accent) 28%, transparent) 0deg,
+    color-mix(in srgb, var(--accent) 10%, transparent) 210deg,
+    color-mix(in srgb, var(--accent) 90%, white 40%) 320deg,
+    #fff 346deg,
+    color-mix(in srgb, var(--accent) 90%, white 40%) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent));
+  animation: chrome-spin 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-aurora::before,
+  .app-aurora::after,
+  .nav-edge-glow::after,
+  .chrome-spin-border::before {
+    animation: none;
+  }
+}
+
 /* scroll-fade — after shadcn's chat `scroll-fade` utility */
 .scroll-fade {
   mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);

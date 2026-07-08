@@ -8,7 +8,6 @@ import { WebSocketServer, WebSocket } from 'ws';
 import {
   ArtifactChatMessageSchema,
   BoardResponseSchema,
-  ModelCatalogEntrySchema,
   PaletteColorSchema,
   ProgressEventSchema,
   ResponseAttachmentSchema,
@@ -31,6 +30,7 @@ import {
 } from '@visual-brainstorm/protocol';
 import { SessionStore } from './session-store.js';
 import { buildDecisionTree, decisionTreeToSvg } from './decision-tree.js';
+import { createEngineAdapter, type EngineAdapter } from './engine-adapter.js';
 
 export interface CommandRequest {
   command: string;
@@ -43,6 +43,8 @@ export interface CommandRequest {
 export interface BridgeOptions {
   /** Discussion root scanned for reloadable threads. */
   discussionRoot: string;
+  /** Runtime adapter over the shared bridge/session backbone. */
+  engine?: EngineAdapter;
   runtime?: RuntimeEngine;
   themes: Theme[];
   theme: string;
@@ -76,28 +78,6 @@ const MIME: Record<string, string> = {
   '.map': 'application/json',
   '.woff2': 'font/woff2',
 };
-
-function normalizeBridgeModel(model: ModelCatalogEntry | string): ModelCatalogEntry {
-  if (typeof model !== 'string') return ModelCatalogEntrySchema.parse(model);
-  const slug = model.replace(/^claude-/, '');
-  const words = slug
-    .split('-')
-    .filter(Boolean)
-    .map((part) => (/^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
-    .join(' ');
-  return {
-    id: model,
-    label: model.startsWith('claude-') ? `Claude ${words}` : words || model,
-    provider: model.startsWith('claude-') ? 'Anthropic' : 'Unknown',
-    engineIds: ['claude'],
-    capabilities: { orchestrate: false, delegate: true },
-  };
-}
-
-function normalizeRuntime(runtime?: RuntimeEngine): RuntimeEngine {
-  if (!runtime) return { id: 'claude', label: 'Claude Code', provider: 'Anthropic' };
-  return runtime;
-}
 
 function studioDist(): string {
   if (process.env.VIBR_STUDIO_DIST) return process.env.VIBR_STUDIO_DIST;
@@ -141,9 +121,11 @@ export class Bridge {
   private themesList: Theme[];
   /** Structured model catalog served to the studio, even from legacy callers. */
   private readonly modelsList: ModelCatalogEntry[];
+  /** Runtime adapter that owns orchestration-facing metadata/copy. */
+  private readonly engine: EngineAdapter;
   /** Live orchestration runtime metadata served to the studio. */
   private readonly runtime: RuntimeEngine;
-  /** Claude Code → studio handoff: the purpose the human already described. */
+  /** Orchestrator → studio handoff: the purpose the human already described. */
   private seedBrief: string | null = null;
   /** Pending concierge question + its answer resolver (adaptive intake). */
   private concierge: ConciergeExchange | null = null;
@@ -152,6 +134,14 @@ export class Bridge {
   /** Pending Living Gallery + its pick resolver (methodology chooser). */
   private gallery: LivingGallery | null = null;
   private galleryResolve: ((method: string | null) => void) | null = null;
+  /**
+   * Intake gate (structural lock, run-brainstorm.md step 0): true once a Living
+   * Gallery pick has been made for THIS thread, i.e. the mandatory concierge→
+   * gallery front door has been walked. The present_board tool refuses the FIRST
+   * board of a fresh thread until this is true — the crowned methodology cannot
+   * be skipped à la carte. Resumed/non-empty threads are already past intake.
+   */
+  private galleryPicked = false;
   port = 0;
 
   /** Invoked when a UI command is queued (no board waiting) — demo orchestrator hook. */
@@ -162,9 +152,19 @@ export class Bridge {
     private store: SessionStore,
     private readonly options: BridgeOptions,
   ) {
+    this.engine = options.engine ?? createEngineAdapter(options.runtime);
     this.themesList = options.themes;
-    this.modelsList = options.models.map((model) => normalizeBridgeModel(model));
-    this.runtime = normalizeRuntime(options.runtime);
+    this.modelsList = options.models.map((model) => this.engine.normalizeModel(model));
+    this.runtime = this.engine.runtime;
+  }
+
+  /**
+   * True once the mandatory concierge→gallery intake has been walked for this
+   * thread (a gallery pick was made). The present_board tool gates the first
+   * board on it (structural lock — run-brainstorm.md step 0).
+   */
+  get intakeComplete(): boolean {
+    return this.galleryPicked;
   }
 
   private log(message: string): void {
@@ -180,6 +180,7 @@ export class Bridge {
     // (Orphaned waits resolve as null via their own timeouts.)
     this.responses.clear();
     this.pending.clear();
+    this.galleryPicked = false; // a fresh thread must walk the intake front door again
     this.log(`attached new thread "${store.info.id}" — response state cleared`);
     this.broadcast({ type: 'hello', state: this.state() });
   }
@@ -452,9 +453,14 @@ export class Bridge {
       }
       const decisionMatch = url.pathname.match(/^\/api\/decision-tree\/([^/]+)$/);
       if (req.method === 'GET' && decisionMatch) {
-        const id = decodeURIComponent(decisionMatch[1]);
-        const dir = SessionStore.resolveDir(this.options.discussionRoot, id);
         try {
+          // decodeURIComponent + resolveDir MUST be inside the try: a throw here
+          // (malformed id, unresolvable dir) previously escaped the handler with
+          // NO response written, hanging the client fetch forever — the studio
+          // overlay stuck on "building the decision tree…" (caught by human-sim's
+          // canonical-content assertion, 2026-07-08).
+          const id = decodeURIComponent(decisionMatch[1]);
+          const dir = SessionStore.resolveDir(this.options.discussionRoot, id);
           const thread = SessionStore.open(dir);
           const tree = buildDecisionTree(thread.info.title, thread.rounds);
           res.writeHead(200, { 'content-type': 'application/json' });
@@ -822,7 +828,7 @@ export class Bridge {
     this.store.recordResponse(response);
     if (this.activeBoard?.id === response.boardId) {
       this.activeBoard = null;
-      this.thinking = 'Claude is processing your selection…';
+      this.thinking = this.engine.processingSelectionNote();
     }
     this.broadcast({ type: 'responded', boardId: response.boardId, response });
     this.broadcast({ type: 'thinking', note: this.thinking });
@@ -855,7 +861,7 @@ export class Bridge {
     this.broadcast({ type: 'responded', boardId: response.boardId, response });
     const active = this.activeBoard;
     const resolve = active ? this.pending.get(active.id) : undefined;
-    this.thinking = `Claude is rewinding to round ${board.round}…`;
+    this.thinking = this.engine.rewindNote(board.round);
     if (active && resolve) {
       this.pending.delete(active.id);
       this.activeBoard = null;
@@ -1008,6 +1014,7 @@ export class Bridge {
       const timer = setTimeout(() => finish(null), timeoutMs);
       this.galleryResolve = (method) => {
         clearTimeout(timer);
+        this.galleryPicked = true; // intake gate satisfied — boards may now present
         this.store.recordGalleryPick(method, methods);
         finish(method);
       };

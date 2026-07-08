@@ -35,6 +35,29 @@ test('config file overrides defaults; invalid JSON falls back safely', () => {
   assert.equal(loadConfig(broken).theme, 'neon-purple');
 });
 
+test('config normalizes string models against the configured runtime', () => {
+  const dir = tmp();
+  fs.writeFileSync(
+    path.join(dir, CONFIG_FILENAME),
+    JSON.stringify({
+      runtime: { id: 'codex', label: 'Codex CLI', provider: 'OpenAI' },
+      models: ['codex-mini'],
+      defaultModel: 'codex-mini',
+    }),
+  );
+  const config = loadConfig(dir);
+  assert.deepEqual(config.runtime, { id: 'codex', label: 'Codex CLI', provider: 'OpenAI' });
+  assert.deepEqual(config.models, [
+    {
+      id: 'codex-mini',
+      label: 'Codex Mini',
+      provider: 'OpenAI',
+      engineIds: ['codex'],
+      capabilities: { orchestrate: false, delegate: true },
+    },
+  ]);
+});
+
 test('built-in themes: neon-purple default, all vars present in both schemes', () => {
   assert.ok(BUILTIN_THEMES.length >= 4);
   const neon = BUILTIN_THEMES.find((t) => t.name === 'neon-purple');

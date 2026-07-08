@@ -13,7 +13,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build -w packages/protocol && npm run build -w apps/studio && npm run build -w apps/mcp",
+    "build": "npm run build -w packages/protocol && npm run build -w apps/studio && npm run build -w apps/mcp && npm run build -w apps/wiki-mcp",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "smoke": "node scripts/smoke.mjs",
     "smoke:ui": "tsx scripts/ui-smoke.ts",

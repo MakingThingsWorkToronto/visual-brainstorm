@@ -101,6 +101,9 @@ export function BoardSurvey({
   const [genTheme, setGenTheme] = useState<string | null>(null);
   const [paletteColors, setPaletteColors] = useState<PaletteColor[]>([]);
   const [sending, setSending] = useState(false);
+  // The composed prompt shown (framed by the spinning-star chrome border) while
+  // a Send & iterate is in flight. Cleared on failure; unmounts on the new board.
+  const [iterationPreview, setIterationPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const voice = useVoice((heard) =>
     setElaboration((prev) => (prev.trim() ? `${prev.trim()} ${heard}` : heard)),
@@ -279,6 +282,30 @@ export function BoardSurvey({
         ? board.options.filter((o) => triage[o.id] === 'keep' || triage[o.id] === 'merge').map((o) => o.id)
         : [...selected];
     setError(null);
+    // Show the assembled prompt (behind the spinning-star chrome border) while
+    // the iteration is in flight — the human sees exactly what steers the round.
+    if (action === 'iterate') {
+      const labelFor = (id: string) => board.options.find((o) => o.id === id)?.label ?? id;
+      const movedDials = board.survey.axes.filter(
+        (a) => (axisValues[a.id] ?? a.defaultValue) !== a.defaultValue,
+      );
+      const flawEntries = Object.entries(flaws).filter(([, v]) => v.trim() !== '');
+      const noteEntries = Object.entries(notes).filter(([, v]) => v.trim() !== '');
+      const lines = [
+        `Phase: ${steeredPhase}${steeredPhase !== board.phase ? ` (switched from ${board.phase})` : ''}`,
+      ];
+      if (selectedIds.length > 0)
+        lines.push(`Growing from: ${selectedIds.map(labelFor).join(', ')}`);
+      if (movedDials.length > 0)
+        lines.push(`Dials: ${movedDials.map((a) => `${a.label}=${axisValues[a.id]}`).join(', ')}`);
+      if (flawEntries.length > 0)
+        lines.push(`Flaws: ${flawEntries.map(([id, v]) => `${labelFor(id)} — ${v.trim()}`).join('; ')}`);
+      if (noteEntries.length > 0)
+        lines.push(`Notes: ${noteEntries.map(([id, v]) => `${labelFor(id)} — ${v.trim()}`).join('; ')}`);
+      if (elaboration.trim()) lines.push(`Direction: ${elaboration.trim()}`);
+      lines.push(`Model: ${model}`);
+      setIterationPreview(lines.join('\n'));
+    }
     setSending(true);
     try {
       await onRespond({
@@ -317,6 +344,7 @@ export function BoardSurvey({
       });
     } catch (err) {
       setError(String(err));
+      setIterationPreview(null);
       setSending(false);
     }
   };
@@ -569,6 +597,21 @@ export function BoardSurvey({
         </div>
       )}
         </>
+      )}
+
+      {iterationPreview && (
+        <div
+          data-testid="iteration-prompt"
+          className="chrome-spin-border rounded-2xl border border-line bg-surface p-4"
+        >
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide">
+            <span className="shimmer">Generated prompt</span>
+            <span className="text-ink-dim">· sending &amp; iterating…</span>
+          </div>
+          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-ink">
+            {iterationPreview}
+          </pre>
+        </div>
       )}
 
       <div className="rounded-2xl border border-line bg-surface p-4">

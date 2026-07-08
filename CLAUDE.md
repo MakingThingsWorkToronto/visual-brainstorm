@@ -25,6 +25,8 @@
 | Close a plan or thread | `.claude/commands/plan-closeout.md` (also Plan closeout in the studio composer's More Tools (+) menu, and Finalize & close out) |
 | Turn an accepted idea/brainstorm into a loopable build plan | `.claude/commands/create-dispatch-command.md` — plan.md carries phases + progress; run via `/loop /dispatch-<slug>-next-phase` |
 | Capture facts/guardrails | **agent `wiki-librarian`** → `wiki/` + one line in `wiki/log.md` per edit |
+| Read the wiki cheaply (agent context) | MCP **`visual-brainstorm-wiki`** (`apps/wiki-mcp`): `wiki_search` → `wiki_outline` → `wiki_read(path, heading)` — shaped output + granular per-heading reads so context stays small |
+| Weekly: compact the agentic learnings log | `.claude/commands/compress-learnings.md` (recent verbatim, older distilled; full originals to `.agents/learnings-archive.md`) |
 | Find or ingest craft | `.claude/commands/discover-skills.md` (also Discover skills in the studio composer's More Tools (+) menu; web branch ingests new skills) |
 | Recurring task with no procedure | `.claude/commands/new-command.md` — asked twice = failure |
 | Add a UI theme | `.claude/commands/add-theme.md` |
@@ -84,6 +86,8 @@
 ```
 packages/protocol/     zod schemas + types — THE message shapes (rule 5)
 apps/mcp/              stdio MCP server + bridge (http/WS) + session persistence
+apps/wiki-mcp/         SEPARATE read-only stdio MCP over wiki/ (search + granular per-heading
+                       read; dependency-free; no write tools) — agent context, not the product
 apps/studio/           Vite + React + Tailwind survey UI (six phase surfaces)
 wiki/                  AUTHORITATIVE facts & guardrails (log.md discipline; System/, Product/,
                        Requirements/, Research/, Meta/)
@@ -98,7 +102,8 @@ discussion/      plans + brainstorm thread cache (dirs with session.json);
 .github/               workspace-local GitHub Copilot adapters over the authoritative
                        `.claude/` layer (prompts/agents/instructions, no workflow SSOT)
 tests/ + scripts/      unit tests (node:test) + smoke.mjs + ui-smoke.ts
-.mcp.json              registers this repo's own MCP server (dogfooding)
+.mcp.json              registers this repo's own MCP servers (dogfooding): product
+                       `visual-brainstorm` + read-only `visual-brainstorm-wiki` (apps/wiki-mcp)
 visual-brainstorm.config.json   targetRepo / styles / theme / models / discussionDir
 ```
 

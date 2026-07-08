@@ -62,12 +62,15 @@ Use with GitHub Copilot in this workspace:
 
 - Open the repo in VS Code with GitHub Copilot Chat enabled.
 - Let the workspace load its `.github/` prompts and agents.
-- Type `/` and run `run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`,
+- Type `/` and VS Code should surface `run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`,
    `diagnose-studio`, `artifact-chat`, `reopen`, `new-command`, or
    `create-dispatch-command`.
 - These prompt files are thin adapters over the provider-neutral `.claude/agentic-surface-registry.json`
    and the referenced `.claude/commands`, `.claude/skills`, and `.claude/agents`; the repo's
    behavior still lives there.
+- Repo verification proves the registry → adapter-map → prompt/agent wrapper chain and the shared
+   MCP/runtime path; whether Copilot Chat shows those slash entries in the `/` menu is still a VS Code
+   host behavior, so spot-check it after VS Code or Copilot upgrades.
 
 ## MCP tools
 

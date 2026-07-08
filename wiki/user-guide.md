@@ -24,13 +24,16 @@ claude mcp add visual-brainstorm -- node C:/Code/svgbrainstorm/apps/mcp/dist/ind
 Tip: raise the tool timeout so boards can wait for humans: `MCP_TOOL_TIMEOUT=1800000`.
 
 **Use GitHub Copilot in this workspace.** This repo now ships workspace-local Copilot prompt
-files and custom agents under `.github/`. In VS Code, open Copilot Chat, type `/`, and run
+files and custom agents under `.github/`. In VS Code, open Copilot Chat, type `/`, and VS Code
+should surface
 `run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`, `diagnose-studio`,
 `artifact-chat`, `reopen`, `new-command`, or `create-dispatch-command`. These are thin
 adapters over the authoritative `.claude/` workflows and the same local MCP/studio stack.
 The studio now renders runtime-aware action copy and structured model labels from bridge
 metadata, but the only implemented live orchestration runtime is still Claude Code; the
-adapter layer does not change thread or artifact semantics.
+adapter layer does not change thread or artifact semantics. Repo tests prove the registry →
+adapter-map → prompt/agent chain stays aligned; whether those slash entries are shown in the
+Copilot `/` menu itself is still a VS Code host behavior and should be spot-checked after host upgrades.
 
 ## 2. Starting a brainstorm, step by step
 
@@ -139,7 +142,13 @@ picking a theme also binds it to the live discussion, so every discussion keeps 
 look (an archived thread reopens in ITS theme; without a discussion theme your local pick
 applies, then the config default). On
 small screens the nav is hidden behind a floating hamburger button at the top-left; command
-status messages appear as a toast at the bottom-right.
+status messages appear as a toast at the bottom-right. A glow point continually traverses
+the nav's edge like a star circling it.
+
+**Look & feel** — every surface is finished in *liquid chrome* (a glassy gloss over the
+theme fill), and a slow, theme-tinted **aurora** drifts unpredictably behind the app so the
+chrome catches moving light. All of it re-skins with the picked theme and honours
+`prefers-reduced-motion` (the motion stops; the surfaces stay).
 
 **Intake surfaces** (New Discussion, ConciergeIntake, LivingGallery) — the three-stage
 intake that seeds every brainstorm. **New Discussion** collects your brief (§2, Stage 1).
@@ -250,7 +259,10 @@ total.
   anything and **Send & iterate** to rewind the brainstorm to that round. Later rounds stay
   visible as history (nothing is erased); Claude rebuilds the funnel from your new steering.
 - **Send & iterate / Accept**: continue, or capture and wrap up; **Park** (More Tools menu)
-  pauses (the thread stays resumable).
+  pauses (the thread stays resumable). On **Send & iterate**, the assembled prompt — the
+  options you're growing from, moved dials, flaws/notes, your typed direction, and the model —
+  is shown for the moment it's in flight, framed by a liquid-chrome border with a bright star
+  spinning around its edge, so you see exactly what steers the next round.
 
 **Composer button row** (beneath the reply box on the active board): **Mic** (voice input)
 · **Back** · **Send & iterate** · **Accept** · **Target Folder** (folder icon; any plain

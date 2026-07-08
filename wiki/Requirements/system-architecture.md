@@ -15,6 +15,13 @@ apps/mcp             @visual-brainstorm/mcp — stdio MCP server launched BY Cla
 apps/studio          @visual-brainstorm/studio — Vite + React + Tailwind v4 SPA. Built to
                      apps/studio/dist and served statically by the bridge. Never talks MCP;
                      only WS push (boards in) + HTTP POST (responses out).
+apps/wiki-mcp        @visual-brainstorm/wiki-mcp — read-only stdio MCP server over the repo's
+                     authoritative `wiki/` folder. Exposes seven tools (search, outline, read,
+                     list, toc, related, reload) for context-shaped wiki access — no write tools
+                     (edits stay plain-file via wiki-librarian). ESM/NodeNext + @modelcontextprotocol/sdk,
+                     dependency-free search, stdio-only. Registered in `.mcp.json` as
+                     `visual-brainstorm-wiki` (node apps/wiki-mcp/dist/index.js). Built by the
+                     root npm run build; tested by tests/wiki-mcp.test.mjs.
 .github/             workspace-local GitHub Copilot instructions, prompts, and agents — thin
                      adapters over `.claude/`, `.claude/agentic-surface-registry.json`, and the
                      MCP tool surface. They improve command discovery but do not own workflow

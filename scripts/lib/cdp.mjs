@@ -66,8 +66,8 @@ export function launchBrowser(exe, profileDir, extraArgs = []) {
   let stderrBuf = '';
   const devtoolsPort = new Promise((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error(`no DevTools endpoint within 20s; stderr:\n${stderrBuf || '(empty)'}`)),
-      20_000,
+      () => reject(new Error(`no DevTools endpoint within 40s; stderr:\n${stderrBuf || '(empty)'}`)),
+      40_000,
     );
     proc.stderr.on('data', (chunk) => {
       stderrBuf += String(chunk);

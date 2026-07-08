@@ -42,6 +42,9 @@ import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
 import { BoardSchema, LivingGallerySchema, ThemeSchema } from '../packages/protocol/dist/index.js';
+// Visual-honesty (CLAUDE.md rule 10): a rendered surface / testid is not proof —
+// assert the SPECIFIC canonical data is visibly in frame; reject false-greens.
+import { assertShowsCanonical, assertSurfaceShowsCanonical } from './lib/visual-honesty.mjs';
 // Shared CDP plumbing (extracted verbatim to scripts/lib/cdp.mjs for the
 // ui-break-sweep driver — one proven implementation, two harnesses).
 import {
@@ -95,8 +98,19 @@ if (browsers.length === 0) {
     const base = `http://127.0.0.1:${bridge.port}`;
     console.log(`human-sim: bridge up at ${base} (thread ${store.info.id})`);
 
-    // --- headless browser: try each installed candidate until one serves CDP ---
-    const launched = await launchAnyBrowser(browsers, profileDir);
+    // One retry: on a machine loaded with concurrent sessions, a cold launch can
+    // miss the 20s DevTools window once without anything being wrong.
+    let launched;
+    try {
+      launched = await launchAnyBrowser(browsers, profileDir);
+    } catch (firstErr) {
+      console.log(`human-sim: first launch pass failed (${firstErr.message.split('\n')[0]}…) — retrying once`);
+      killProfileStragglers(profileDir);
+      await sleep(3_000);
+      const retryProfile = path.join(profileDir, 'retry');
+      fs.mkdirSync(retryProfile, { recursive: true });
+      launched = await launchAnyBrowser(browsers, retryProfile);
+    }
     browser = launched.proc;
     browserName = launched.name;
     if (launched.failures.length > 0) {
@@ -156,12 +170,21 @@ if (browsers.length === 0) {
     // The human goal.
     // =========================================================================
     await step('studio loads over the real bridge (root mounted, session titled)', async () => {
-      await cdp.send('Page.navigate', { url: `${base}/` });
-      await waitInPage(
-        'the mounted root',
-        `document.getElementById('root') && document.getElementById('root').childElementCount > 0`,
-        30_000,
-      );
+      const loadStudio = async () => {
+        await cdp.send('Page.navigate', { url: `${base}/` });
+        await waitInPage(
+          'the mounted root',
+          `document.getElementById('root') && document.getElementById('root').childElementCount > 0`,
+          30_000,
+        );
+      };
+      try {
+        await loadStudio();
+      } catch (firstErr) {
+        console.log(`human-sim: first studio load pass failed (${firstErr.message}) — retrying once`);
+        await sleep(2_000);
+        await loadStudio();
+      }
       // The hello envelope arrived when the sidebar names the live session.
       await waitInPage(
         'the hello state (session title in the sidebar)',
@@ -180,7 +203,18 @@ if (browsers.length === 0) {
         `the "a logo" chip`,
         `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'a logo')`,
       );
+      await waitInPage(
+        'the selected a logo survey chip',
+        `(() => {
+          const chip = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'a logo');
+          return chip?.getAttribute('aria-checked') === 'true';
+        })()`,
+      );
       await typeInto('the brief textarea', `document.querySelector('textarea')`, brief);
+      await waitInPage(
+        'the controlled brief textarea value',
+        `document.querySelector('textarea')?.value === ${JSON.stringify(brief)}`,
+      );
       const value = await evaluate(`document.querySelector('textarea').value`);
       assert.equal(value, brief, 'typed brief landed in the controlled textarea');
     });
@@ -203,6 +237,14 @@ if (browsers.length === 0) {
       await waitInPage(
         'the queued-command toast',
         `document.body.textContent.includes("new-brainstorm queued for Claude's next check-in")`,
+      );
+      // Intake lock #2: the human is NOT dropped back onto the New Discussion
+      // panel — the "preparing your questions" veil holds the surface until the
+      // concierge arrives (so the methodology never looks skipped).
+      await waitInPage(
+        'the intake-preparing veil (not the og New Discussion panel)',
+        `!!document.querySelector('[data-testid="intake-preparing"]') &&
+         !document.querySelector('textarea')`,
       );
     });
 
@@ -246,15 +288,26 @@ if (browsers.length === 0) {
 
     let picked;
     await step('gallery appears + human picks Mind map', async () => {
-      const gWait = bridge.presentGallery(
-        { ...loadCanonical('gallery/gallery.json', LivingGallerySchema), id: 'human-sim-gallery' },
-        60_000,
-      );
+      // NOTE (journeys.md, faked-orchestrator risk HIGH): the harness stands in for
+      // the orchestrator here — bridge.presentGallery is the exact call the real
+      // present_gallery tool makes, but a live model isn't in the loop. The
+      // STRUCTURAL guarantee that a real session reaches this surface is the intake
+      // gate (tests/intake-gate.test.mjs: present_board is refused before a pick).
+      const gallery = { ...loadCanonical('gallery/gallery.json', LivingGallerySchema), id: 'human-sim-gallery' };
+      const gWait = bridge.presentGallery(gallery, 60_000);
       await waitInPage(
         'the living gallery with its recommended ribbon (proves it renders live)',
         `!!document.querySelector('[data-testid="living-gallery"]') &&
          !!document.querySelector('[data-testid="recommended-ribbon"]')`,
       );
+      // Visual honesty (rule 10): the testids exist — now PROVE the real method
+      // cards + the recommended reason actually rendered (an empty/wrong gallery
+      // "renders" its shell just the same — that's the false-green class of bug).
+      const rec = gallery.cards.find((c) => c.recommended);
+      await assertSurfaceShowsCanonical(evaluate, 'living gallery', [
+        ...gallery.cards.map((c) => c.label),
+        rec?.reason ?? '',
+      ]);
       await click(
         'the Mind map method card',
         `document.querySelector('[data-testid="method-card-mindmap"]')`,
@@ -303,6 +356,13 @@ if (browsers.length === 0) {
         })()`,
         15_000,
       );
+      // Visual honesty (rule 10): the engine mounted — now PROVE the CANONICAL tree
+      // topics actually rendered in the canvas (a mounted-but-empty engine is a
+      // false-green; childElementCount>0 alone would pass on chrome-only DOM).
+      await assertShowsCanonical(evaluate, 'mindmap canvas', [
+        treeBoard.tree.nodeData.topic,
+        ...treeBoard.tree.nodeData.children.map((c) => c.topic),
+      ]);
     });
 
     await step('human edits the live tree via the real engine — editedTree returns', async () => {
@@ -412,13 +472,22 @@ if (browsers.length === 0) {
     // The decision tree is reachable from the wayfinder and renders the round record.
     await step('the decision-tree overlay opens and shows the mind-map round', async () => {
       await click('the decision-tree toggle', `document.querySelector('[data-testid="decision-tree-toggle"]')`);
+      // Visual honesty (journeys.md #6): a bare `querySelector('svg')` FALSE-PASSES —
+      // on a fetch failure App.tsx renders a fallback "decision tree unavailable"
+      // <svg>, which satisfies "an svg exists" just the same. Wait for the REAL
+      // round SVG by its CANONICAL content: the mind-map round's edited topic must
+      // be a rendered <text> label (the builder emits "edited: <root topic>").
       await waitInPage(
-        'the decision-tree overlay renders a real SVG',
+        'the decision-tree overlay renders the REAL round SVG (canonical content, not the error fallback)',
         `(() => {
-          const v = document.querySelector('[data-testid="decision-tree-view"]');
-          return !!v && !!v.querySelector('svg');
+          const svg = document.querySelector('[data-testid="decision-tree-view"] svg');
+          return !!svg && (svg.textContent || '').includes('Neon glyph');
         })()`,
-        15_000,
+        // 30s: the /api/decision-tree fetch reloads the thread from disk and can be
+        // CPU-starved on a machine running concurrent sessions; a tight 15s made
+        // this flake. The assertion still refuses the loading/error states — a real
+        // hang (endpoint never responds) still fails, just with more slack.
+        30_000,
       );
       // Close it so the timeline is clean for the following steps.
       await click('close the decision tree', `[...document.querySelectorAll('[data-testid="decision-tree-view"] button')].find((b) => b.textContent.trim() === 'Close')`);

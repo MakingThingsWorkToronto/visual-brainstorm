@@ -23,10 +23,12 @@ import { buildFeedbackDigest } from './feedback.js';
 import { composePoster } from './poster.js';
 import { SessionStore } from './session-store.js';
 import { discussionRoot, loadConfig, saveTargetRepo } from './config.js';
+import { createEngineAdapter } from './engine-adapter.js';
 import { FileLog, installCrashHandlers } from './log.js';
 import { loadThemes, saveThemeFile } from './themes.js';
 
 const config = loadConfig();
+const engine = createEngineAdapter(config.runtime);
 const root = discussionRoot(config);
 const logger = new FileLog(path.join(root, '.logs'), 'mcp');
 installCrashHandlers(logger);
@@ -43,7 +45,7 @@ function effectiveTargetRepo(): string | null {
 function bridgeOptions(): BridgeOptions {
   return {
     discussionRoot: root,
-    runtime: config.runtime,
+    engine,
     themes: loadThemes(config),
     theme: config.theme,
     models: config.models,
@@ -155,6 +157,20 @@ server.tool(
       }
     }
     const { store, bridge } = ensureSession(args.title, args.discussionId);
+    // Structural intake lock (run-brainstorm.md step 0): the concierge→gallery
+    // methodology is the mandatory front door. Refuse the FIRST board of a fresh
+    // thread until a gallery pick has been made — a board before the gallery is a
+    // SKIPPED procedure, not a shortcut. Resumed threads (discussionId) and
+    // threads that already have rounds are already past intake.
+    if (store.rounds.length === 0 && !args.discussionId && !bridge.intakeComplete) {
+      return text({
+        status: 'error',
+        error:
+          'Intake incomplete: the concierge→gallery methodology must precede the first board ' +
+          '(run-brainstorm.md step 0). Call ask_concierge (≥1 exchange) then present_gallery and ' +
+          'route the pick BEFORE present_board. To resume an existing thread, pass discussionId.',
+      });
+    }
     // A thread opened via open_studio has a placeholder title; the first real
     // board names it (display title only — the directory keeps its slug).
     if (store.rounds.length === 0 && !args.discussionId) store.retitle(args.title);

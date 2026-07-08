@@ -471,6 +471,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen">
+      {/* Theme-tinted aurora drifting behind everything so the liquid-chrome
+          surfaces have moving light to catch. */}
+      <div className="app-aurora" aria-hidden="true" />
       <button
         type="button"
         onClick={() => setNavOpen(true)}
@@ -480,7 +483,7 @@ export default function App() {
         ☰
       </button>
 
-      <div className={`${navOpen ? 'block' : 'hidden'} fixed inset-0 z-30 lg:static lg:block`}>
+      <div className={`${navOpen ? 'block' : 'hidden'} fixed inset-0 z-30 lg:static lg:relative lg:z-10 lg:block`}>
         <div
           className="absolute inset-0 bg-black/40 lg:hidden"
           onClick={() => setNavOpen(false)}
@@ -551,7 +554,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col pb-6 pl-4 pt-16 lg:pl-8 lg:pt-6">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col pb-6 pl-4 pt-16 lg:pl-8 lg:pt-6">
         {!newOpen && (
           <div className="pr-4 lg:pr-8">
             {/* Archived threads render the same strip so a captured keep stays

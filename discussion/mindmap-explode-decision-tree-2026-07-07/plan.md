@@ -2,8 +2,13 @@
 
 **Started:** 2026-07-07 · **Owner:** Matt / brainstorm-orchestrator lineage
 **Slug:** `mindmap-explode-decision-tree-2026-07-07`
-**Status:** closed 2026-07-08 — feature built, proven (unit+smoke+ui-smoke+human-sim all green),
-committed (`6f992c3`, `8806a8d`), documented (wiki + journeys + learnings), commands improved.
+**Status:** REOPENED 2026-07-08 — the studio/persistence/UI half is built + proven
+(unit+smoke+ui-smoke+human-sim green, committed `6f992c3`/`8806a8d`), BUT the real-world
+ORCHESTRATION loop is unproven: no live session ever took a real `explode` op and generated
+≥5 relevant children. `human-sim` fakes the orchestrator (fixtures), so Explode's usefulness is
+documentation-only until a live `/run-brainstorm` demonstrates it. P6 (real-path validation) is
+OWED, not "declined." Not closable until a live mind-map round exercises explode → real ≥5
+generation → decision-tree reflection.
 
 ## The ask (verbatim intent)
 

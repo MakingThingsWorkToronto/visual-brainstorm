@@ -52,8 +52,13 @@ web — the goal is that brainstorm quality compounds every turn.
 | Add or ingest a UI theme | `add-theme.md` |
 | Codify recurring work | `new-command.md` |
 | Turn an accepted idea/brainstorm into a loopable build plan | `create-dispatch-command.md` (emits `/dispatch-<slug>-next-phase`; run via `/loop`) |
+| Weekly: shrink the agentic learnings log without losing facts | `compress-learnings.md` |
+| Query the authoritative wiki cheaply (search + granular per-heading read) | MCP `visual-brainstorm-wiki` (apps/wiki-mcp): `wiki_search` → `wiki_outline` → `wiki_read(path, heading)` |
 
 ## Changelog
+- 2026-07-08 — task map: registered `compress-learnings.md` (weekly log compaction) and the
+  `visual-brainstorm-wiki` MCP (apps/wiki-mcp) for cheap wiki reads (from
+  wiki-mcp-and-learnings-compaction)
 - 2026-07-06 — task map: registered `create-dispatch-command.md` (from
   ship-discipline-loopable-plans)
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)
