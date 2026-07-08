@@ -94,7 +94,36 @@ straggler browser (see the leaked-browser rule below).
   Do NOT bake an auto-kill-all into the harness — it would murder a concurrent session's run
   (the harnesses are deliberately concurrency-safe). Full detail: `.agents/learnings.md` 2026-07-07.
 
+## Visual honesty & real-journey coverage
+
+Ported from the donor repo's frontend-tester "Screenshot Content Validation" (Rule 14 / L-152).
+A test-honesty gap once let a whole methodology ship unproven — encode these so it can't recur:
+
+1. **A 200/render/testid is NOT proof — assert the SPECIFIC canonical VALUE is visibly in frame.**
+   "N rows rendered" or "the testid exists" is a false-green; the surface must VISIBLY contain the
+   exact canonical DATA (labels, node topics, option names). Use `scripts/lib/visual-honesty.mjs`
+   (`assertShowsCanonical` / `assertNotFalseGreen` / `assertSurfaceShowsCanonical`; unit-proven by
+   `tests/visual-honesty.test.mjs`, 7/7 — reference, do not modify). Reject error/blank/spinner/
+   empty-data states as passes.
+2. **NO mocks, NO preview/fixture harness.** The preview harness was deleted — tests run against
+   the REAL bridge, REAL built studio, REAL browser, and the REAL MCP-tool pathways. If a surface
+   only appears under a fixture/preview, it is not proven (rule 10: "if it only works in preview
+   the app is a brick").
+3. **NEVER let a test FAKE the orchestrator to manufacture a surface.** The human-sim calling
+   `bridge.presentGallery(...)` itself is THE anti-pattern — it proved the studio CAN render a
+   gallery but never that a real orchestrated session PRODUCES one, which hid a real bug. A journey
+   test must assert the surface AROSE FROM THE REAL PATH (a session driving the MCP tools), not
+   from direct producer/state injection.
+4. **Every human journey is PREDICTED then audited ADDITIVELY.** The registry is `tests/journeys.md`
+   (append new journeys, never remove). Each journey names its surfaces, the canonical DATA asserted
+   at each, and the runnable real-path command — and carries a nav-discoverability check: the
+   surface must be reachable by REAL navigation, not just direct state injection. Mark each
+   journey's canonical-data assertion DONE or OWED; an OWED row is a known coverage debt, not a pass.
+
 ## Changelog
+- 2026-07-07 — visual-honesty & real-journey section: canonical-DATA-in-frame proof (cite
+  scripts/lib/visual-honesty.mjs), no mocks/preview, never fake the orchestrator (the
+  bridge.presentGallery anti-pattern), predicted-then-additive journeys (tests/journeys.md)
 - 2026-07-07 — iterated human-sim leaks headless browsers (token/time drain) — sweep between
   runs, never auto-kill-all (concurrency); broadened the canonical-body rule to SessionInfo
   fields + the SessionStore constructor; noted the second gated journey `test:human:archived`

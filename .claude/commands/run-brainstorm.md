@@ -49,8 +49,15 @@ The complete operator procedure. Follow it literally; the skills carry the craft
        - **wreck** → `present_board` at `phase:"wreck"` on the seeded option(s).
        - **cluster** → `present_board` at `phase:"cluster"` on the seeded options.
      A non-mindmap pick still flows through pre-phrase (step 1) and the funnel (steps 3+) — the
-     gallery only chose the STARTING mechanic. Skipping the concierge/gallery is allowed only
-     when the human explicitly wants to jump straight to boards; the default is to run intake.
+     gallery only chose the STARTING mechanic.
+   - **The intake is MANDATORY — never skip it (operator: "the methodology is locked into the
+     final artifact").** Every real run goes brief → `ask_concierge` (≥1 exchange) → `present_gallery`
+     → route the pick, BEFORE the first `present_board`. There is no "jump straight to boards"
+     shortcut: a session that presents a board without a preceding `present_gallery` pick has
+     skipped the crowned methodology and is a BUG, not a shortcut. If the human says "just give
+     me options," that IS the `funnel` methodology — still surface the gallery (recommend funnel)
+     and let them pick it; do not bypass the front door. The studio's New Discussion panel is
+     step 0a only (the brief hand-off); the concierge surface MUST follow the brief submit.
 1. **Pre-phrase** with AskUserQuestion (never skip): domain (icons? system? palette? flow?),
    style references/colors, constraints, and how divergent to go. The consensus — not the raw
    request — seeds the first board. If this run was triggered by the studio's ✚ New

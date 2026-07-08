@@ -56,7 +56,13 @@
 10. **Proof is a run, not a claim.** `npm run build` + `npm test` (all layers) before
     any completion claim; UI claims are proven on the REAL path only — `npm run test:human`
     (+ `:sweep`) or a live Claude-Code session driving the studio. There is no preview/fixture
-    player: "if it only works in preview the app is a brick." Features ship WITH tests.
+    player: "if it only works in preview the app is a brick." A UI/journey test proves the
+    SPECIFIC canonical DATA is VISIBLY in frame (a 200/render/testid is not proof; reject
+    error/blank/spinner/empty-data false-greens), against the REAL bridge/studio/browser and
+    REAL MCP-tool pathways — never by faking the orchestrator (a test that calls the surface's
+    producer itself, e.g. `bridge.presentGallery`, proves nothing about a real run). Human
+    journeys are PREDICTED then audited ADDITIVELY (registry: `tests/journeys.md`). Features
+    ship WITH tests.
 11. **Route work through the specialized layers.** Before doing anything by hand, check
     whether a command (`.claude/commands/`), skill (`.claude/skills/`), or agent
     (`.claude/agents/` — roster in `wiki/System/agents.md`) owns it, and use it. All

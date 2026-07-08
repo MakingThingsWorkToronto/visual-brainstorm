@@ -13,9 +13,11 @@ a narrowing phase. Theories: wiki/Product/phase-funnel.md.
 ## Intake & methodology routing (before the funnel)
 
 Before round 1, the concierge → Living Gallery intake (run-brainstorm step 0,
-wiki/Product/intake-methodologies.md) lets the human PICK the methodology to start with. The
-roster is a set of PEER methodologies — **mind map is one of them, never the default or the
-centerpiece.** `present_gallery` returns the pick; route it to a starting mechanic:
+wiki/Product/intake-methodologies.md) lets the human PICK the methodology to start with. This
+intake is **MANDATORY and precedes the funnel** — every real run does brief → `ask_concierge`
+(≥1) → `present_gallery` → route BEFORE any `present_board`; there is no jump-straight-to-boards
+shortcut. The roster is a set of PEER methodologies — **mind map is one of them, never the
+default or the centerpiece.** `present_gallery` returns the pick; route it to a starting mechanic:
 
 | pick | starting mechanic | recommend it when |
 |---|---|---|
@@ -25,7 +27,9 @@ centerpiece.** `present_gallery` returns the pick; route it to a starting mechan
 | `cluster` | `present_board` at `phase:"cluster"` on the seeded options | many ideas already exist; find structure by grouping |
 
 The recommendation heuristics (which method to mark `recommended` + a reason quoting the
-answers) live HERE and in run-brainstorm — never in harness code (rule 11). After a
+answers) live HERE and in run-brainstorm — never in harness code (rule 11). "Just give me
+options" is not a bypass — it routes to the **funnel** card, still surfaced through the gallery
+and picked there. After a
 non-mindmap pick, the funnel below applies as usual; the pick only chose the STARTING mechanic.
 A **mindmap** thread iterates on the tree: read `response.editedTree` as the user's new
 structure and present the next tree (or route into the funnel once the structure is settled).
@@ -98,6 +102,8 @@ structure and present the next tree (or route into the funnel once the structure
   on rounds 1..N; when resuming a thread it is the first thing to read.
 
 ## Changelog
+- 2026-07-07 — intake noted MANDATORY and preceding the funnel; "just give me options" routes
+  to the funnel card via the gallery, not a bypass (orchestration-gated intake honesty)
 - 2026-07-07 — intake & methodology-routing section: the concierge→gallery pick routes to a
   starting mechanic (mindmap→tree board, funnel/wreck/cluster→their phase); mind map is a
   peer methodology, never the default; recommendation heuristics live here (concierge-living-gallery phase 5)

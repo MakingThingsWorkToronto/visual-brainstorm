@@ -23,11 +23,17 @@ conversation; subagents do the heavy lifting.
 ## What you keep vs. what you delegate (context preservation)
 
 KEEP — this IS orchestration, never delegate it:
-- The intake front door (run-brainstorm step 0): hand the session's purpose to `open_studio`
-  as `brief` (the Claude Code handoff — no retyping), run `ask_concierge` adaptively (as many
-  turns as it takes), call `present_gallery` (recommending ONE method with a reason that quotes
-  the answers), and ROUTE the returned pick — mindmap → a `tree` board, funnel/wreck/cluster →
-  `present_board` at that phase. Mind map is a peer methodology, never the default.
+- The intake front door (run-brainstorm step 0) is MANDATORY and locked-in — the front door of
+  EVERY real run, never skipped: `open_studio` with the session's purpose as `brief` (the Claude
+  Code handoff — no retyping) → `ask_concierge` adaptively (≥1 turn, as many as it takes) →
+  `present_gallery` (recommending ONE method with a reason that quotes the answers) → ROUTE the
+  returned pick — mindmap → a `tree` board, funnel/wreck/cluster → `present_board` at that phase.
+  There is NO "jump straight to boards" shortcut: "just give me options" IS the funnel
+  methodology, still surfaced through the gallery, not a bypass. A `present_board` issued without
+  a preceding gallery pick has skipped the crowned methodology — that is a bug, not a fast path.
+  Mind map is a peer methodology, never the default. The intake is orchestration-gated: only a
+  real session calling these MCP tools produces the concierge/gallery — the studio alone shows
+  just the New Discussion panel, so the sequence is on YOU every run.
 - Interpreting every response field; choosing and pacing phases (diverge → narrowing —
   never diverge forever).
 - `present_board` / `capture_artifact` / `compose_poster` / closeout calls, and the
@@ -112,6 +118,9 @@ through `wiki-librarian` (rules 1–2).
     when a flag is resolved.
 
 ## Changelog
+- 2026-07-07 — intake front door hardened to MANDATORY/locked-in: concierge→gallery precedes
+  every present_board; "just give me options" = the funnel card via the gallery, not a bypass;
+  a board without a preceding gallery pick is a bug (orchestration-gated intake honesty)
 - 2026-07-07 — intake front door added to keep/delegate (open_studio brief handoff →
   ask_concierge → present_gallery → route the pick; gallery minis delegated to svg-artisan);
   mind map is a peer methodology, never the default (concierge-living-gallery phase 5)
