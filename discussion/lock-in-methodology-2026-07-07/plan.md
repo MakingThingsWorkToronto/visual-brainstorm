@@ -37,6 +37,13 @@ Each lock ships WITH its real-journey assertion. Final: `npm test` + a real huma
   2. New Discussion **brief submit transitions the studio into a `concierge-expected` state** (a "clarifying…" surface), so the user is never stranded on the panel while the orchestrator catches up — the studio DISPATCHES the procedure forward, not only the orchestrator.
   3. Optionally collapse the à-la-carte tool surface: the stage tools stay, but their doc/registration frames them as run-brainstorm-internal dispatch steps (not general-purpose).
 
+## Status: all three locks landed (2026-07-08)
+- **#1 structural gate** — `present_board` refuses a first board before a Living Gallery pick (`bridge.intakeComplete`); `tests/intake-gate.test.mjs`. In `bridge-server.ts`/`index.ts` (entangled with a concurrent engine-adapter refactor) → rides that commit; green in the working tree.
+- **#2 intake-preparing veil** — `App.tsx`: a brief submit holds a "preparing your questions…" surface (never the bare panel) until concierge/gallery/board arrives. COMMITTED (a8896e4). Human-sim asserts the veil (`intake-preparing` testid, no textarea).
+- **#3 survey/concierge reconciliation** — `run-brainstorm.md`: the panel's tappable questions (structured brief) and the concierge (adaptive) are complementary, one front door. In HEAD.
+- **Real-journey canonical-data assertions** — human-sim gallery step asserts the 4 card labels + recommended reason; mindmap step asserts the tree topics. HUMAN SIM PASS (16 steps). Rides the concurrent commit.
+- Verify: `npm run build` ✓, unit ✓ (intake-gate + visual-honesty), smoke ✓, human-sim 16 steps ✓.
+
 ## Progress log
 - 2026-07-07 — plan scaffolded; diagnosis recorded; visual-honesty helper+test delivered (7/7); orchestration lock (mandatory intake) + run-brainstorm-as-dispatch-abstraction reframe committed (15f1729, d58de6f); structural half BLOCKED on the concurrent uncommitted diff.
 - 2026-07-08 — REAL-JOURNEY canonical-data assertions wired into `scripts/human-sim.mjs` (visual-honesty): the gallery step now asserts the four method-card LABELS + the recommended REASON text are in frame (not just testids); the mindmap step asserts the canonical tree TOPICS render in the canvas. `npm run test:human` → HUMAN SIM PASS (16 steps) — the intake surfaces genuinely show the canonical data. Faked-orchestrator note left in-line (the harness still stands in for the orchestrator; the STRUCTURAL guarantee a real session reaches the surface is the intake gate, `tests/intake-gate.test.mjs`). human-sim.mjs is concurrent-dirty → uncommitted, rides their commit.
