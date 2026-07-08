@@ -246,9 +246,9 @@ export class Bridge {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            const { command, prompt, seed, attachments, model, palette } = z
+            const { command, prompt, seed, attachments, model, palette, discussionId, round } = z
               .object({
-                command: z.enum(['plan-closeout', 'discover-skills', 'new-brainstorm']),
+                command: z.enum(['plan-closeout', 'discover-skills', 'new-brainstorm', 'reopen']),
                 prompt: z.string().max(2000).optional(),
                 seed: SeedIntakeSchema.optional(),
                 /** New Discussion composer: files/photos seeding the brainstorm. */
@@ -257,22 +257,30 @@ export class Bridge {
                 model: z.string().max(200).optional(),
                 /** New Discussion composer: generation colors picked in the palette. */
                 palette: z.array(PaletteColorSchema).max(64).optional(),
+                /** reopen: the archived thread to bring back live. */
+                discussionId: z.string().max(200).optional(),
+                /** reopen: the round to resume the brainstorm at. */
+                round: z.number().int().min(1).optional(),
               })
               .parse(JSON.parse(body));
-            const notes = [
-              seed ? this.persistSeed(seed) : undefined,
-              ...(attachments ?? []).map((a) => {
-                const saved = this.persistAttachment(a);
-                return saved.savedPath
-                  ? `Seed file "${saved.name || 'unnamed'}" saved at ${saved.savedPath} — Read it (vision for images) and fold it into the brief.`
-                  : `Seed file "${a.name || 'unnamed'}" FAILED to persist (bad data URI or over 10MB) — tell the user honestly.`;
-              }),
-              model ? `Model routing: the user chose ${model} — delegate round generation to it.` : undefined,
-              palette && palette.length > 0
-                ? `Palette: generate ALL SVGs using ONLY these colors: ${palette.map((c) => `${c.name} (${c.value})`).join(', ')}.`
-                : undefined,
-            ].filter(Boolean);
-            const seedNote = notes.length > 0 ? notes.join('\n') : undefined;
+            const seedNote = command === 'reopen'
+              ? this.reopenSeedNote(discussionId, round)
+              : ((): string | undefined => {
+                  const notes = [
+                    seed ? this.persistSeed(seed) : undefined,
+                    ...(attachments ?? []).map((a) => {
+                      const saved = this.persistAttachment(a);
+                      return saved.savedPath
+                        ? `Seed file "${saved.name || 'unnamed'}" saved at ${saved.savedPath} — Read it (vision for images) and fold it into the brief.`
+                        : `Seed file "${a.name || 'unnamed'}" FAILED to persist (bad data URI or over 10MB) — tell the user honestly.`;
+                    }),
+                    model ? `Model routing: the user chose ${model} — delegate round generation to it.` : undefined,
+                    palette && palette.length > 0
+                      ? `Palette: generate ALL SVGs using ONLY these colors: ${palette.map((c) => `${c.name} (${c.value})`).join(', ')}.`
+                      : undefined,
+                  ].filter(Boolean);
+                  return notes.length > 0 ? notes.join('\n') : undefined;
+                })();
             const delivered = this.dispatchCommand(command, prompt, seedNote);
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, delivered }));
@@ -329,6 +337,29 @@ export class Bridge {
         });
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/api/pinned') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { slug } = z.object({ slug: z.string().max(200) }).parse(JSON.parse(body));
+            if (!this.store.artifacts.some((a) => a.slug === slug)) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `no artifact "${slug}" in the live thread` }));
+              return;
+            }
+            const pinned = this.store.togglePinned(slug);
+            this.log(`artifact "${slug}" ${pinned ? 'pinned' : 'unpinned'} for ${this.store.info.id}`);
+            this.broadcast({ type: 'hello', state: this.state() });
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, pinned }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/api/target-repo') {
         let body = '';
         req.on('data', (chunk) => (body += chunk));
@@ -375,13 +406,13 @@ export class Bridge {
       const artifactMatch = url.pathname.match(/^\/api\/artifact-svg\/([^/]+)\.svg$/);
       if (req.method === 'GET' && artifactMatch) {
         const slug = decodeURIComponent(artifactMatch[1]);
-        const artifact = this.store.artifacts.find((a) => a.slug === slug);
-        if (artifact && fs.existsSync(artifact.svgPath)) {
+        const svgPath = this.resolveArtifactSvgPath(slug);
+        if (svgPath) {
           res.writeHead(200, { 'content-type': MIME['.svg'] });
-          fs.createReadStream(artifact.svgPath).pipe(res);
+          fs.createReadStream(svgPath).pipe(res);
         } else {
           res.writeHead(404, { 'content-type': 'application/json' });
-          res.end(JSON.stringify({ error: `no artifact "${slug}" in the live thread` }));
+          res.end(JSON.stringify({ error: `no artifact "${slug}" in any cached thread` }));
         }
         return;
       }
@@ -924,10 +955,56 @@ export class Bridge {
   }
 
   /**
-   * UI command button pressed (plan-closeout / discover-skills). If a board is
-   * awaiting a response, resolve the wait NOW with a synthetic park response
-   * carrying the command — Claude stops brainstorming and runs the procedure.
-   * Otherwise queue it; it drains into the next present_board tool result.
+   * Resolve a captured artifact's on-disk SVG by slug. Live thread first (fast
+   * path), then any cached thread — live root AND _completed/ — so an archived
+   * thread's keeps render in the read-only fullscreen viewer. `path.basename`
+   * guards against traversal from a decoded slug (mirrors resolveDir).
+   */
+  private resolveArtifactSvgPath(slug: string): string | null {
+    const live = this.store.artifacts.find((a) => a.slug === slug);
+    if (live && fs.existsSync(live.svgPath)) return live.svgPath;
+    const safe = path.basename(slug);
+    const roots = [this.options.discussionRoot, path.join(this.options.discussionRoot, '_completed')];
+    for (const root of roots) {
+      let entries: string[];
+      try {
+        entries = fs.readdirSync(root);
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        const candidate = path.join(root, entry, 'artifacts', `${safe}.svg`);
+        if (fs.existsSync(candidate)) return candidate;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Build the reopen command's seed note — names the archived thread, its
+   * current on-disk folder (under _completed/), and the round to resume at, so
+   * .claude/commands/reopen.md moves it back and resumes without guessing.
+   */
+  private reopenSeedNote(discussionId?: string, round?: number): string {
+    if (!discussionId) {
+      return 'REOPEN requested but no discussionId was supplied — ask the user which archived thread to reopen.';
+    }
+    const dir = SessionStore.resolveDir(this.options.discussionRoot, discussionId);
+    const at = round ? ` at round ${round}` : '';
+    return (
+      `REOPEN: the user asked to bring archived thread "${discussionId}" back live${at}. ` +
+      `Its folder is currently ${dir} (under _completed/). Run .claude/commands/reopen.md: move it back into ` +
+      `${this.options.discussionRoot} (git mv, keep the folder name), then resume the brainstorm live` +
+      `${round ? ` from round ${round}` : ''} by calling present_board with discussionId="${discussionId}". ` +
+      `Nothing is regenerated — the cached rounds/artifacts reload (rule 7).`
+    );
+  }
+
+  /**
+   * UI command button pressed (plan-closeout / discover-skills / reopen). If a
+   * board is awaiting a response, resolve the wait NOW with a synthetic park
+   * response carrying the command — Claude stops brainstorming and runs the
+   * procedure. Otherwise queue it; it drains into the next present_board result.
    */
   dispatchCommand(command: string, prompt?: string, seedNote?: string): 'via-board-response' | 'queued' {
     this.log(`UI command: ${command}${prompt ? ` (seed: "${prompt.slice(0, 60)}")` : ''}${seedNote ? ' (+seed payload)' : ''} (${this.activeBoard && this.pending.has(this.activeBoard.id) ? 'board waiting — delivering via response' : 'queueing'})`);

@@ -21,8 +21,9 @@
     "smoke:ui": "tsx scripts/ui-smoke.ts",
     "test:unit": "node --test \"tests/*.test.mjs\"",
     "test:human": "node scripts/human-sim.mjs",
+    "test:human:archived": "node scripts/human-sim-archived.mjs",
     "test:human:sweep": "node scripts/ui-break-sweep.mjs",
-    "test": "npm run test:unit && npm run smoke && npm run smoke:ui && npm run test:human"
+    "test": "npm run test:unit && npm run smoke && npm run smoke:ui && npm run test:human && npm run test:human:archived"
   },
   "devDependencies": {
     "jsdom": "^24.1.0",

@@ -9,6 +9,7 @@ import {
   ArtifactSchema,
   BoardResponseSchema,
   ProgressEventSchema,
+  SessionInfoSchema,
 } from '../packages/protocol/dist/index.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'));
@@ -237,6 +238,31 @@ test('artifacts capture with provenance and slug dedupe', () => {
   assert.equal(second.slug, 'winner-2');
   assert.ok(fs.existsSync(first.svgPath));
   assert.ok(fs.existsSync(path.join(store.info.dir, 'artifacts', 'winner-2.json')));
+});
+
+test('togglePinned adds then removes a slug, persists to session.json, and survives open()', () => {
+  const root = tmp();
+  const store = new SessionStore('Pin test', root);
+  const artifact = store.captureArtifact('Winner', '<svg/>', 'n', { optionIds: ['a'] });
+  assert.deepEqual(store.info.pinnedSlugs, [], 'fresh thread starts unpinned');
+
+  const pinnedOn = store.togglePinned(artifact.slug);
+  assert.equal(pinnedOn, true, 'toggle returns the new pinned state');
+  assert.deepEqual(store.info.pinnedSlugs, [artifact.slug]);
+  const sidecarOn = SessionInfoSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'session.json'), 'utf8')),
+  );
+  assert.deepEqual(sidecarOn.pinnedSlugs, [artifact.slug], 'session.json persists the pin');
+  assert.deepEqual(SessionStore.open(store.info.dir).info.pinnedSlugs, [artifact.slug], 'reload reflects the pin');
+
+  const pinnedOff = store.togglePinned(artifact.slug);
+  assert.equal(pinnedOff, false, 'toggling again unpins');
+  assert.deepEqual(store.info.pinnedSlugs, []);
+  const sidecarOff = SessionInfoSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'session.json'), 'utf8')),
+  );
+  assert.deepEqual(sidecarOff.pinnedSlugs, [], 'session.json persists the unpin');
+  assert.deepEqual(SessionStore.open(store.info.dir).info.pinnedSlugs, [], 'reload reflects the unpin');
 });
 
 test('list() spans live + _completed with archived flags; resolveDir falls back', () => {

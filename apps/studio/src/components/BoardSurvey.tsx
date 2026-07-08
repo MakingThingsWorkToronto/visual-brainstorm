@@ -10,7 +10,7 @@ import type {
   Theme,
 } from '@visual-brainstorm/protocol';
 import { SvgPane } from './primitives';
-import { PreviewModal } from './PreviewModal';
+import { ArtifactFullscreen } from './ArtifactFullscreen';
 import { TargetRepoPicker } from './TargetRepoPicker';
 import { PalettePicker } from './PalettePicker';
 import {
@@ -507,24 +507,26 @@ export function BoardSurvey({
         <div className="grid gap-4 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2">
           {board.survey.axes.map((axis) => (
             <label key={axis.id} className="block">
-              <div className="mb-1 flex justify-between text-xs text-ink-dim">
+              <div className="mb-1 flex items-center justify-between text-xs text-ink-dim">
                 <span>{axis.leftLabel}</span>
-                <span className="font-medium text-ink">
-                  {axis.label}{' '}
+                <span className="inline-flex items-center gap-1.5 font-medium text-ink">
+                  {axis.label}
+                  {/* Value in its own tag, right-aligned to the heading — reads as a
+                      value, not a postfix to the label. Turns accent when moved. */}
                   <span
-                    className={`tabular-nums ${
+                    className={`inline-block rounded-md border px-1.5 py-0.5 text-[10px] tabular-nums leading-none ${
                       (axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue
-                        ? 'font-semibold text-accent'
-                        : ''
+                        ? 'border-accent/50 bg-accent/10 font-semibold text-accent'
+                        : 'border-line bg-surface-2 text-ink-dim'
                     }`}
+                    title={
+                      (axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue
+                        ? 'Moved. This alone will steer the next round.'
+                        : undefined
+                    }
                   >
                     {axisValues[axis.id] ?? axis.defaultValue}
                   </span>
-                  {(axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue && (
-                    <span className="text-accent" title="Moved. This alone will steer the next round.">
-                      {' '}●
-                    </span>
-                  )}
                 </span>
                 <span>{axis.rightLabel}</span>
               </div>
@@ -780,16 +782,16 @@ export function BoardSurvey({
       )}
 
       {previewOption && (
-        <PreviewModal
-          svg={previewOption.svg}
-          label={previewOption.label}
+        <ArtifactFullscreen
+          title={previewOption.label}
           tags={previewOption.tags}
-          note={notes[previewOption.id] ?? ''}
-          onNoteChange={
-            board.survey.allowPerOptionNotes
+          svg={previewOption.svg}
+          notes={{
+            value: notes[previewOption.id] ?? '',
+            onChange: board.survey.allowPerOptionNotes
               ? (value) => setNotes({ ...notes, [previewOption.id]: value })
-              : undefined
-          }
+              : undefined,
+          }}
           onClose={() => setPreviewId(null)}
         />
       )}

@@ -33,6 +33,7 @@ const CENSUS = [
   ['POST /api/command', [200, 400]],
   ['POST /api/themes', [200, 400]],
   ['POST /api/session-theme', [200, 400]],
+  ['POST /api/pinned', [200, 404]],
   ['POST /api/target-repo', [200, 400]],
   ['GET /api/artifact-svg/:slug.svg', [200, 404]],
   ['GET /api/discussions/:id', [200, 404]],
@@ -380,6 +381,66 @@ test('POST /api/session-theme → 400 unknown theme + 400 zod-invalid', async ()
     assert.equal(invalid.status, 400);
     assertMatches(invalid.body, expectation('session-theme-400-invalid.json'));
     prove('POST /api/session-theme', 400);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/pinned — 200 (toggle on, toggle off), 404 (unknown slug)
+// ---------------------------------------------------------------------------
+test('POST /api/pinned → 200 toggles a live-thread artifact on then off', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    const artifact = store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: [board.options[0].id],
+    });
+    const on = await postJson(bridge, '/api/pinned', { slug: artifact.slug });
+    assert.equal(on.status, 200);
+    assertMatches(on.body, expectation('pinned-200-pinned.json'));
+    assert.deepEqual(store.info.pinnedSlugs, [artifact.slug]);
+    let state = await getJson(bridge, '/api/state');
+    assert.deepEqual(state.body.session.pinnedSlugs, [artifact.slug], '/api/state reflects the pin');
+
+    const off = await postJson(bridge, '/api/pinned', { slug: artifact.slug });
+    assert.equal(off.status, 200);
+    assertMatches(off.body, expectation('pinned-200-unpinned.json'));
+    assert.deepEqual(store.info.pinnedSlugs, []);
+    state = await getJson(bridge, '/api/state');
+    assert.deepEqual(state.body.session.pinnedSlugs, [], '/api/state reflects the unpin');
+    prove('POST /api/pinned', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/pinned → 404 for an unknown slug', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const { status, body } = await postJson(bridge, '/api/pinned', { slug: 'missing' });
+    assert.equal(status, 404);
+    assertMatches(body, expectation('pinned-404.json'));
+    assert.deepEqual(store.info.pinnedSlugs, [], 'nothing pinned for an unknown slug');
+    prove('POST /api/pinned', 404);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/pinned → pins survive a GET /api/discussions/:id disk reload', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    const artifact = store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: [board.options[0].id],
+    });
+    await postJson(bridge, '/api/pinned', { slug: artifact.slug });
+    const { status, body } = await getJson(bridge, `/api/discussions/${store.info.id}`);
+    assert.equal(status, 200);
+    assert.deepEqual(body.session.pinnedSlugs, [artifact.slug], 'pin persisted to session.json, survives reload');
   } finally {
     await bridge.stop();
   }

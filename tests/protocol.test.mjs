@@ -243,6 +243,13 @@ test('session info: theme and targetRepo overrides are optional', () => {
   assert.equal(SessionInfoSchema.parse({ ...base, theme: 'ocean' }).theme, 'ocean');
 });
 
+test('session info: pinnedSlugs defaults to [] and round-trips a populated list', () => {
+  const base = { id: 'i', slug: 's', title: 'T', startedAt: 'now', dir: '/d' };
+  assert.deepEqual(SessionInfoSchema.parse(base).pinnedSlugs, []);
+  const populated = SessionInfoSchema.parse({ ...base, pinnedSlugs: ['glow-mark', 'winner-2'] });
+  assert.deepEqual(populated.pinnedSlugs, ['glow-mark', 'winner-2']);
+});
+
 test('discussion summary defaults archived=false', () => {
   const summary = DiscussionSummarySchema.parse({
     id: 'x', title: 'T', startedAt: 'now', dir: '/d', rounds: 1, artifacts: 0,

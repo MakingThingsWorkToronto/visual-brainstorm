@@ -13,12 +13,11 @@ import { compactCount } from './lib/format';
 import { applyTheme, storedThemeName, storeThemeName } from './lib/theme';
 import { proposeNextPhase } from './lib/wayfinder';
 import { BulbIcon, Bubble, Marker, SvgPane } from './components/primitives';
-import { ArtifactChat } from './components/ArtifactChat';
+import { ArtifactFullscreen } from './components/ArtifactFullscreen';
 import { BoardSurvey } from './components/BoardSurvey';
 import { NewDiscussionPanel, type NewDiscussionExtras } from './components/NewDiscussionPanel';
 import { ConciergeIntake } from './components/ConciergeIntake';
 import { LivingGallery } from './components/LivingGallery';
-import { PreviewModal } from './components/PreviewModal';
 import { SessionActivity } from './components/SessionActivity';
 import { Sidebar } from './components/Sidebar';
 import { ThemePicker } from './components/ThemePicker';
@@ -34,15 +33,27 @@ interface Thread {
   tokens?: { input: number; output: number };
 }
 
-type Preview = {
+/** A previous-round option opened fullscreen — inline SVG, read-only note, option chat. */
+type OptionView = {
   svg: string;
   label: string;
   tags?: string[];
   /** Persisted per-option note from that round's response (read-only). */
   note?: string;
-  /** Chat subject key (option:<boardId>:<optionId>) — docks a chat panel. */
-  chatSlug?: string;
-} | null;
+  /** Chat subject key (option:<boardId>:<optionId>). */
+  chatSlug: string;
+};
+
+/**
+ * The single fullscreen target — every artifact/option click resolves to one of
+ * these and opens the one ArtifactFullscreen viewer (rule 9, no duplicate paths).
+ * `artifact`: a captured keep/pin (SVG fetched by slug; a revision swaps
+ * displaySlug). `option`: a previous-round board option (inline SVG).
+ */
+type Fullscreen =
+  | { kind: 'artifact'; slug: string; displaySlug: string }
+  | ({ kind: 'option' } & OptionView)
+  | null;
 
 /** Rotating progress strings — visible feedback while Claude works between rounds. */
 const PROGRESS = [
@@ -77,7 +88,7 @@ function RoundHistoryView({
   onPreview,
 }: {
   record: RoundRecord;
-  onPreview: (preview: NonNullable<Preview>) => void;
+  onPreview: (option: OptionView) => void;
 }) {
   const { board, response } = record;
   const selectedSet = new Set(response?.selectedOptionIds ?? []);
@@ -155,7 +166,6 @@ export default function App() {
   const { state, connected, respond, answerConcierge, pickMethod } = useBridge();
   const [discussions, setDiscussions] = useState<DiscussionSummary[]>([]);
   const [archived, setArchived] = useState<Thread | null>(null);
-  const [preview, setPreview] = useState<Preview>(null);
   const [themeName, setThemeName] = useState<string | null>(storedThemeName());
   const [navOpen, setNavOpen] = useState(false);
   const [commandStatus, setCommandStatus] = useState<string | null>(null);
@@ -164,11 +174,11 @@ export default function App() {
   const [logs, setLogs] = useState<{ file: string | null; lines: string[] } | null>(null);
   // Revisit: the previous round re-opened for re-answering (its board id).
   const [revisitId, setRevisitId] = useState<string | null>(null);
-  // Artifact chat: `slug` anchors the dialog (messages filter), `displaySlug`
-  // follows revisions — a Claude change is captured as a NEW artifact (rule 7)
-  // and the open modal switches its image to it while the conversation stays.
-  const [chat, setChat] = useState<{ slug: string; displaySlug: string } | null>(null);
-  // Claude-message count at the moment a send succeeded; busy until it grows.
+  // The one fullscreen viewer's target (null = closed). Set by every artifact/
+  // option click; a captured-artifact viewer follows revisions via displaySlug.
+  const [fullscreen, setFullscreen] = useState<Fullscreen>(null);
+  // Claude-message count at the moment a send succeeded; busy until it grows
+  // (one counter for whichever subject the fullscreen viewer has open).
   const [chatSentAt, setChatSentAt] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -199,41 +209,45 @@ export default function App() {
   }, []);
 
   const openArtifactChat = useCallback((artifact: Artifact) => {
-    setChat({ slug: artifact.slug, displaySlug: artifact.slug });
+    setFullscreen({ kind: 'artifact', slug: artifact.slug, displaySlug: artifact.slug });
     setChatSentAt(null);
   }, []);
 
-  // The open dialog's messages — filtered by the ORIGINAL artifact's slug.
-  const chatMessages = useMemo(
-    () => (chat ? state.artifactChat.filter((m) => m.artifactSlug === chat.slug) : []),
-    [chat, state.artifactChat],
+  // Reopen an archived thread: confirm, ask Claude to move it out of _completed
+  // and resume it live at `round`. Drop back to the live view so the resumed
+  // board (arriving over WS) takes over.
+  const reopenDiscussion = useCallback(
+    async (discussionId: string, round: number, title: string) => {
+      if (
+        !window.confirm(
+          `Reopen "${title}" at round ${round}? Claude will move it out of _completed back ` +
+            `into discussion and resume the brainstorm here — nothing is regenerated.`,
+        )
+      ) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/command', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ command: 'reopen', discussionId, round }),
+        });
+        const body = await res.json();
+        setCommandStatus(
+          body.ok
+            ? body.delivered === 'via-board-response'
+              ? 'reopen sent, Claude is on it'
+              : 'reopen queued for Claude’s next check-in'
+            : `failed: ${body.error}`,
+        );
+      } catch (err) {
+        setCommandStatus(`reopen failed: ${err instanceof Error ? err.message : err}`);
+      }
+      setTimeout(() => setCommandStatus(null), 5000);
+      setArchived(null); // return to live; the resumed thread arrives over WS
+    },
+    [],
   );
-  const chatClaudeCount = useMemo(
-    () => chatMessages.filter((m) => m.role === 'claude').length,
-    [chatMessages],
-  );
-  const chatBusy = chatSentAt !== null && chatClaudeCount <= chatSentAt;
-
-  // A Claude reply carrying revisedSlug switches the modal's image to the NEW
-  // artifact (it arrived via the `artifact` envelope); the dialog stays put.
-  useEffect(() => {
-    const revision = [...chatMessages]
-      .reverse()
-      .find((m) => m.role === 'claude' && m.revisedSlug);
-    if (revision?.revisedSlug) {
-      const slug = revision.revisedSlug;
-      setChat((c) => (c && c.displaySlug !== slug ? { ...c, displaySlug: slug } : c));
-    }
-  }, [chatMessages]);
-
-  const chatArtifact = useMemo(() => {
-    if (!chat) return null;
-    return (
-      state.artifacts.find((a) => a.slug === chat.displaySlug) ??
-      state.artifacts.find((a) => a.slug === chat.slug) ??
-      null
-    );
-  }, [chat, state.artifacts]);
 
   // One sender for every chat subject (captured artifact or option: slug).
   // Do NOT append locally — the message returns over WS from state, so
@@ -255,37 +269,75 @@ export default function App() {
     }
   }, []);
 
-  const sendArtifactChat = useCallback(
+  const openPreview = useCallback((next: OptionView) => {
+    setFullscreen({ kind: 'option', ...next });
+    setChatSentAt(null);
+  }, []);
+
+  // The open viewer's chat subject: an artifact's ORIGINAL slug, or an option: slug.
+  const fsChatSlug = fullscreen
+    ? fullscreen.kind === 'artifact'
+      ? fullscreen.slug
+      : fullscreen.chatSlug
+    : null;
+  // Its messages — an archived thread replays reloaded dialogs; live reads state.
+  const fsMessages = useMemo(() => {
+    if (!fsChatSlug) return [];
+    const source = archived ? archived.artifactChat ?? [] : state.artifactChat;
+    return source.filter((m) => m.artifactSlug === fsChatSlug);
+  }, [fsChatSlug, archived, state.artifactChat]);
+  const fsClaudeCount = useMemo(
+    () => fsMessages.filter((m) => m.role === 'claude').length,
+    [fsMessages],
+  );
+  const fsBusy = chatSentAt !== null && fsClaudeCount <= chatSentAt;
+
+  // A Claude reply carrying revisedSlug switches a captured-artifact viewer's
+  // image to the NEW artifact (rule 7 — original untouched); dialog stays put.
+  useEffect(() => {
+    const revision = [...fsMessages].reverse().find((m) => m.role === 'claude' && m.revisedSlug);
+    if (revision?.revisedSlug) {
+      const slug = revision.revisedSlug;
+      setFullscreen((f) =>
+        f && f.kind === 'artifact' && f.displaySlug !== slug ? { ...f, displaySlug: slug } : f,
+      );
+    }
+  }, [fsMessages]);
+
+  // The captured artifact an artifact-kind viewer shows (revision → displaySlug).
+  const fsArtifact = useMemo(() => {
+    if (fullscreen?.kind !== 'artifact') return null;
+    const source = archived ? archived.artifacts : state.artifacts;
+    return (
+      source.find((a) => a.slug === fullscreen.displaySlug) ??
+      source.find((a) => a.slug === fullscreen.slug) ??
+      null
+    );
+  }, [fullscreen, archived, state.artifacts]);
+
+  const sendFsChat = useCallback(
     async (text: string) => {
-      if (!chat) return;
-      if (await postChat(chat.slug, text)) setChatSentAt(chatClaudeCount);
+      if (!fsChatSlug) return;
+      if (await postChat(fsChatSlug, text)) setChatSentAt(fsClaudeCount);
     },
-    [chat, chatClaudeCount, postChat],
+    [fsChatSlug, fsClaudeCount, postChat],
   );
 
-  // Option-chat state for the fullscreen preview (previous rounds).
-  const [previewChatSentAt, setPreviewChatSentAt] = useState<number | null>(null);
-  const openPreview = useCallback((next: NonNullable<Preview>) => {
-    setPreview(next);
-    setPreviewChatSentAt(null);
+  // Pin/unpin a captured artifact to the filmstrip (persists to session.json).
+  const togglePin = useCallback(async (slug: string) => {
+    try {
+      const res = await fetch('/api/pinned', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      });
+      const body = await res.json();
+      if (!body.ok) throw new Error(body.error);
+    } catch (err) {
+      setCommandStatus(`pin failed: ${err instanceof Error ? err.message : err}`);
+      setTimeout(() => setCommandStatus(null), 5000);
+    }
   }, []);
-  const previewChatMessages = useMemo(() => {
-    if (!preview?.chatSlug) return [];
-    const source = archived ? archived.artifactChat ?? [] : state.artifactChat;
-    return source.filter((m) => m.artifactSlug === preview.chatSlug);
-  }, [preview, archived, state.artifactChat]);
-  const previewClaudeCount = useMemo(
-    () => previewChatMessages.filter((m) => m.role === 'claude').length,
-    [previewChatMessages],
-  );
-  const previewChatBusy = previewChatSentAt !== null && previewClaudeCount <= previewChatSentAt;
-  const sendPreviewChat = useCallback(
-    async (text: string) => {
-      if (!preview?.chatSlug) return;
-      if (await postChat(preview.chatSlug, text)) setPreviewChatSentAt(previewClaudeCount);
-    },
-    [preview, previewClaudeCount, postChat],
-  );
 
   // Persist artifact notes to the thread folder; the updated artifact returns
   // over WS ('artifact' upsert), so state stays disk-truth.
@@ -341,6 +393,13 @@ export default function App() {
   const viewingLive = archived === null;
   const rounds = viewingLive ? state.rounds : archived.rounds;
   const history = rounds.filter((r) => r.response !== null);
+  // Pinned artifacts (session.json) → a dedicated filmstrip row. Slugs resolve
+  // against the same thread's artifacts; a stale slug (deleted capture) drops.
+  const artifactSource = viewingLive ? state.artifacts : archived.artifacts;
+  const pinnedSlugs = (viewingLive ? state.session?.pinnedSlugs : archived.session.pinnedSlugs) ?? [];
+  const pinned = pinnedSlugs
+    .map((slug) => artifactSource.find((a) => a.slug === slug))
+    .filter((a): a is Artifact => Boolean(a));
   // Empty live session → land on the New Discussion panel (the intake surface),
   // e.g. a bare /run-brainstorm opening the studio via open_studio. A pending
   // concierge question takes over the surface instead (adaptive intake).
@@ -448,13 +507,16 @@ export default function App() {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col pb-6 pl-4 pt-16 lg:pl-8 lg:pt-6">
-        {viewingLive && !newOpen && (
+        {!newOpen && (
           <div className="pr-4 lg:pr-8">
+            {/* Archived threads render the same strip so a captured keep stays
+                clickable (its chat replays read-only); live gets the proposal. */}
             <WayfinderStrip
-              rounds={state.rounds}
-              artifacts={state.artifacts}
-              activeBoard={state.activeBoard}
-              proposal={proposal}
+              rounds={viewingLive ? state.rounds : archived.rounds}
+              artifacts={viewingLive ? state.artifacts : archived.artifacts}
+              pinned={pinned}
+              activeBoard={viewingLive ? state.activeBoard : null}
+              proposal={viewingLive ? proposal : null}
               onJump={jumpToRound}
               onOpenArtifact={openArtifactChat}
               onAdvance={() => {
@@ -466,8 +528,8 @@ export default function App() {
         )}
 
         <main
-          className={`scroll-fade flex-1 space-y-6 overflow-y-auto pb-8 pr-4 lg:pr-8 ${
-            newOpen || landing ? 'flex flex-col' : ''
+          className={`flex-1 space-y-6 overflow-y-auto pb-8 pr-4 lg:pr-8 ${
+            newOpen || landing ? 'flex flex-col' : 'scroll-fade'
           }`}
         >
           {(newOpen || landing) && (
@@ -490,10 +552,21 @@ export default function App() {
             <>
           {!viewingLive && (
             <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs">
-              <span>
-                Archived thread. Fully cached, nothing regenerated. Ask Claude to resume it with
-                discussionId <code className="font-mono">{archived.session.id}</code>.
-              </span>
+              <span>Completed thread — fully cached, nothing regenerated.</span>
+              <button
+                type="button"
+                onClick={() =>
+                  reopenDiscussion(
+                    archived.session.id,
+                    history.length > 0 ? history[history.length - 1].board.round : 1,
+                    archived.session.title,
+                  )
+                }
+                title="Move this thread out of _completed and resume the brainstorm live from its last round"
+                className="shrink-0 rounded-lg border border-accent/50 bg-surface px-2.5 py-1 font-medium text-accent hover:bg-accent/10"
+              >
+                ↩ Reopen
+              </button>
               {archived.tokens && archived.tokens.input + archived.tokens.output > 0 && (
                 <span
                   title="Total tokens reported for this thread over its progress events"
@@ -509,19 +582,32 @@ export default function App() {
             <div key={record.board.id} id={`round-${record.board.id}`}>
               <Marker
                 action={
-                  viewingLive && revisitId !== record.board.id ? (
+                  viewingLive ? (
+                    revisitId !== record.board.id ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRevisitId(record.board.id);
+                          setTimeout(() => jumpToRound(record.board.id), 50);
+                        }}
+                        title={`Re-open round ${record.board.round}'s answers, change them, and Send & iterate — the brainstorm rewinds to this round`}
+                        className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-dim opacity-0 transition-opacity hover:border-accent hover:text-accent focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                      >
+                        ⟲ return to this round
+                      </button>
+                    ) : undefined
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        setRevisitId(record.board.id);
-                        setTimeout(() => jumpToRound(record.board.id), 50);
-                      }}
-                      title={`Re-open round ${record.board.round}'s answers, change them, and Send & iterate — the brainstorm rewinds to this round`}
+                      onClick={() =>
+                        reopenDiscussion(archived.session.id, record.board.round, archived.session.title)
+                      }
+                      title={`Reopen this completed thread and resume the brainstorm from round ${record.board.round}`}
                       className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-dim opacity-0 transition-opacity hover:border-accent hover:text-accent focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                     >
-                      ⟲ return to this round
+                      ↩ reopen from here
                     </button>
-                  ) : undefined
+                  )
                 }
               >
                 Round {record.board.round} · {record.board.kind} · {record.board.phase}
@@ -659,36 +745,40 @@ export default function App() {
         </div>
       )}
 
-      {preview && (
-        <PreviewModal
-          svg={preview.svg}
-          label={preview.label}
-          tags={preview.tags}
-          note={preview.note}
-          chat={
-            preview.chatSlug
-              ? {
-                  messages: previewChatMessages,
-                  busy: previewChatBusy,
-                  // Archived threads replay their persisted dialogs read-only.
-                  onSend: viewingLive ? sendPreviewChat : undefined,
-                }
+      {fullscreen && (
+        <ArtifactFullscreen
+          title={fullscreen.kind === 'artifact' ? fsArtifact?.name ?? fullscreen.slug : fullscreen.label}
+          tags={fullscreen.kind === 'option' ? fullscreen.tags : undefined}
+          svg={fullscreen.kind === 'option' ? fullscreen.svg : undefined}
+          fetchSlug={fullscreen.kind === 'artifact' ? fullscreen.displaySlug : undefined}
+          revised={fullscreen.kind === 'artifact' && Boolean(fsArtifact?.provenance.revises)}
+          notes={{
+            value:
+              fullscreen.kind === 'artifact' ? fsArtifact?.notes ?? '' : fullscreen.note ?? '',
+            // Editable only for a captured artifact on the live thread.
+            onSave:
+              fullscreen.kind === 'artifact' && viewingLive && fsArtifact
+                ? (notes) => saveArtifactNotes(fsArtifact.slug, notes)
+                : undefined,
+          }}
+          chat={{
+            messages: fsMessages,
+            busy: fsBusy,
+            // Archived threads replay their persisted dialog read-only.
+            onSend: viewingLive ? sendFsChat : undefined,
+            emptyHint:
+              fullscreen.kind === 'option'
+                ? viewingLive
+                  ? 'Ask about this option or the choice it represents — the conversation persists with the thread.'
+                  : 'No dialog was recorded for this option.'
+                : undefined,
+          }}
+          pin={
+            fullscreen.kind === 'artifact' && viewingLive && fsArtifact
+              ? { pinned: pinnedSlugs.includes(fsArtifact.slug), onToggle: () => togglePin(fsArtifact.slug) }
               : undefined
           }
-          onClose={() => setPreview(null)}
-        />
-      )}
-
-      {chat && chatArtifact && (
-        <ArtifactChat
-          artifact={chatArtifact}
-          messages={chatMessages}
-          onSend={sendArtifactChat}
-          onSaveNotes={
-            viewingLive ? (notes) => saveArtifactNotes(chatArtifact.slug, notes) : undefined
-          }
-          busy={chatBusy}
-          onClose={() => setChat(null)}
+          onClose={() => setFullscreen(null)}
         />
       )}
     </div>

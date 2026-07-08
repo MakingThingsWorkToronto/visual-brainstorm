@@ -4,7 +4,8 @@
     "slug": "api-matrix",
     "title": "API matrix",
     "startedAt": "<<iso-date>>",
-    "dir": "<<abs-path>>"
+    "dir": "<<abs-path>>",
+    "pinnedSlugs": []
   },
   "rounds": [],
   "activeBoard": null,

@@ -399,8 +399,9 @@ if (browsers.length === 0) {
       );
     });
 
+    let artifact;
     await step('a captured artifact appears in the wayfinder keeps', async () => {
-      const artifact = store.captureArtifact('Beta keeper', board.options[1].svg, 'kept by the human sim', {
+      artifact = store.captureArtifact('Beta keeper', board.options[1].svg, 'kept by the human sim', {
         boardId: board.id,
         optionIds: ['b'],
       });
@@ -416,12 +417,60 @@ if (browsers.length === 0) {
       );
     });
 
+    // =========================================================================
+    // Item 5: the unified fullscreen viewer + pins-to-filmstrip. Opening the keep
+    // must land on the ONE ArtifactFullscreen surface (replaces the old
+    // PreviewModal/ArtifactChat split) — proven by its own signature controls
+    // (zoom %, Notes, chat composer) — then pinning it must round-trip through
+    // POST /api/pinned and surface in the WayfinderStrip's dedicated pinned row.
+    // =========================================================================
+    await step('the keep opens the unified ArtifactFullscreen viewer', async () => {
+      await click(
+        `the "${artifact.slug}" keep`,
+        `[...document.querySelectorAll('a')].find((a) => (a.getAttribute('href') || '').includes('/api/artifact-svg/${encodeURIComponent(artifact.slug)}.svg'))`,
+      );
+      // Signature markers of the unified viewer: zoom % control, Notes dock, chat composer.
+      await waitInPage(
+        'the fullscreen viewer (zoom control + Notes + chat composer)',
+        `document.body.textContent.includes('Beta keeper') &&
+         !!document.querySelector('.tabular-nums') &&
+         document.body.textContent.includes('Notes') &&
+         !!document.querySelector('input[placeholder="Ask or ask for a change…"]')`,
+      );
+      await waitInPage(
+        'the 📌 Pin toggle (live captured artifact)',
+        `[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === '📌 Pin')`,
+      );
+    });
+
+    await step('pinning the keep round-trips through /api/pinned and hits the filmstrip', async () => {
+      await click(
+        'the 📌 Pin toggle',
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '📌 Pin')`,
+      );
+      await waitInPage(
+        'the toggle flips to 📌 Pinned (POST /api/pinned round-trip + hello broadcast)',
+        `[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === '📌 Pinned')`,
+      );
+      const pinnedState = await (await fetch(`${base}/api/state`)).json();
+      assert.deepEqual(
+        pinnedState.session.pinnedSlugs,
+        [artifact.slug],
+        '/api/state confirms the artifact is pinned',
+      );
+      await click('the fullscreen viewer close button', `document.querySelector('button[aria-label="Close"]')`);
+      await waitInPage(
+        'the WayfinderStrip pinned row shows the keep',
+        `document.body.textContent.includes('📌 pinned') && document.body.textContent.includes('Beta keeper')`,
+      );
+    });
+
     passed = true;
     console.log(
       `HUMAN SIM PASS — ${stepCount} steps: real ${browserName} over raw CDP drove the built studio ` +
         'against a real bridge (new discussion → concierge Q&A → gallery pick → live mindmap edit → ' +
-        'editedTree → board response → artifact visible), zero exceptions, zero STUDIO CLIENT ERROR lines, ' +
-        'root mounted throughout',
+        'editedTree → board response → artifact visible → unified fullscreen viewer → pinned to the ' +
+        'filmstrip), zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout',
     );
   } catch (err) {
     process.exitCode = 1;

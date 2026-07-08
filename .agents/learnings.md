@@ -1,5 +1,64 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — leaked headless browsers = silent token/time drain when iterating human-sim
+
+- **A subagent that re-runs the CDP human-sim many times (iterating on test authoring)
+  accumulates leaked headless `msedge`/`chrome` processes that compound into a large token
+  AND wall-clock burn** — not a hang, but it *looks* like "consuming tokens with no results":
+  each launch that times out on contention retries, and a 5-minute job stretches to 40+ min /
+  300k+ tokens. Root cause: `killProfileStragglers` (`scripts/lib/cdp.mjs`) sweeps only the
+  CURRENT run's profile path, so headless browsers from PRIOR runs (each with its own
+  `vibr-*`/Temp `--user-data-dir`) survive and pile up (see the ui-break-sweep entry below for
+  the orphaned-child mechanism).
+- **How to apply:** when an agent will run `test:human`/`test:human:archived`/`test:human:sweep`
+  repeatedly, sweep ALL leaked headless browsers between runs, not just the current profile's.
+  Targeted census (never kill the user's normal browser — headless is only ever the harness):
+  `Get-CimInstance Win32_Process | ? { $_.Name -match 'chrome|msedge' -and $_.CommandLine -match '--headless' -and $_.CommandLine -match 'vibr|Temp' }`
+  then `Stop-Process -Force` (kill the whole tree; renderer/GPU children outlive the root on
+  Windows). A single `npm test` from a clean process table is fine — the drain is from *looped*
+  runs. This manual all-headless sweep is safe ONLY for a single agent that owns the machine.
+- **Do NOT auto-kill every `vibr-*` browser at harness startup** — the harnesses are documented
+  concurrency-safe (per-run `mkdtemp` profiles + ephemeral ports; `wiki/System/testing-observability.md`),
+  and a blanket sweep would murder a *concurrent* session's `npm test` browser. The leak is
+  because the per-run cleanup (`killBrowserTree` + `killProfileStragglers(profileDir)`) sits in a
+  `finally` that a SIGINT/SIGTERM/SIGKILL of the node process skips — exactly what an agent
+  restarting runs mid-iteration triggers. The concurrency-safe durable fix is to register that
+  SAME per-run cleanup (its OWN `profileDir` only) on `SIGINT`/`SIGTERM` before exit; SIGKILL
+  still can't be caught, so the manual sweep above remains the recovery path.
+- **Coordinator hygiene:** a completed subagent cannot still burn tokens — if consumption
+  "won't stop", it already finished; the live cost is the leaked OS processes, so census +
+  kill them rather than trying to cancel an agent that is already done.
+
+## 2026-07-07 — ui-changes wave (Completed nav, archived chat, reopen, slider tag, pin + unified viewer)
+
+- **Widening a component from live-only to archived audits EVERY by-slug fetch it triggers.**
+  Rendering `WayfinderStrip`/the fullscreen viewer for archived threads exposed a latent
+  `GET /api/artifact-svg` gap: it only searched `this.store` (the one live thread), so a
+  completed thread's captured SVG 404'd and the modal hung on "loading…" (a *soft* failure —
+  the fetch was `.catch()`'d, so no crash, no test caught it). Fix: `resolveArtifactSvgPath`
+  now falls back across live + `_completed` thread dirs (`path.basename` guards traversal).
+  Lesson: when a surface stops being `viewingLive`-gated, trace every endpoint it hits for an
+  archived-thread fallback — the sibling `GET /api/discussions/:id` already had one; the
+  svg route didn't.
+- **"Works in preview but not in a real run" is usually a `viewingLive` state gate, not
+  preview-only slop.** The "missing divider button" was the revisit-round `⟲` action gated
+  `viewingLive &&` — it only *appeared* to work in the preview harness because that harness
+  makes every answered round the LIVE round. There was no preview conditional to delete.
+  Check the live-state gate before hunting for harness slop.
+- **Consolidating a component: grep the IMPORT, not just the obvious render sites.** An
+  explore that mapped "two fullscreen click paths" (keeps→ArtifactChat, round-history
+  options→PreviewModal) MISSED a third: `BoardSurvey.tsx` imported `PreviewModal` for the
+  live-board option preview (editable per-option note, no chat). Deleting the component broke
+  the build there. `grep -rn "import.*PreviewModal"` finds every consumer; render-site
+  reasoning does not. (The unified `ArtifactFullscreen` had to grow an `onChange` live-note
+  mode + optional `chat` to absorb that third path.)
+- **A new `SessionInfo`/`StudioState` field with `.default([])` ripples to canonical bodies
+  AND the constructor.** Adding `pinnedSlugs` broke 5 unit tests: every `tests/canonical/api/`
+  body embedding `session` failed its key-set assertion (assertMatches checks keys exactly),
+  and the `SessionStore` constructor literal needed `pinnedSlugs: []` (the `.default` makes
+  the OUTPUT type require the key). Checklist for a new session field: schema + constructor
+  literal + every canonical body carrying it + the coverage table.
+
 ## 2026-07-07 — agentic-model-efficiency (model-tiering the .claude layer)
 
 - **`model:` frontmatter is honored on ALL THREE `.claude` file types** — agents, slash

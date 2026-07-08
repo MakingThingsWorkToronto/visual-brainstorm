@@ -78,6 +78,7 @@ export class SessionStore {
       title,
       startedAt: now.toISOString(),
       dir,
+      pinnedSlugs: [],
     };
     fs.writeFileSync(
       path.join(dir, 'session.json'),
@@ -421,6 +422,20 @@ export class SessionStore {
     this.appendMd(
       `\n> Target repo for this thread ${targetRepo ? `set to \`${targetRepo}\`` : 'cleared'} — final artifacts are COPIED there on plan-closeout.`,
     );
+  }
+
+  /**
+   * Toggle a captured artifact's pin (persisted to session.json, mirrors
+   * setTheme/setTargetRepo). Returns the new pinned state so the endpoint can
+   * report it. Only known artifact slugs should reach here (the bridge checks).
+   */
+  togglePinned(slug: string): boolean {
+    const pins = this.info.pinnedSlugs ?? [];
+    const has = pins.includes(slug);
+    this.info.pinnedSlugs = has ? pins.filter((s) => s !== slug) : [...pins, slug];
+    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    this.appendMd(`\n> Artifact \`${slug}\` ${has ? 'unpinned from' : 'pinned to'} the filmstrip.`);
+    return !has;
   }
 
   nextRound(): number {

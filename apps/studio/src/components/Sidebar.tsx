@@ -35,7 +35,7 @@ function ThreadButton({
 
 /**
  * Left nav: brand block (app identity + New Discussion) above live threads
- * from discussion, plus a top-level Archive section for threads moved
+ * from discussion, plus a top-level Completed section for threads moved
  * to _completed/ by plan-closeout, and a footer (theme, logs) pinned bottom.
  */
 export function Sidebar({
@@ -95,7 +95,7 @@ export function Sidebar({
           className="mt-3 flex w-full items-center gap-2 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-ink-dim hover:text-ink"
         >
           <span className={`transition-transform ${archiveOpen ? 'rotate-90' : ''}`}>▸</span>
-          Archive ({archive.length})
+          Completed ({archive.length})
         </button>
         {archiveOpen &&
           archive.map((d) => (

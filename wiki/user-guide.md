@@ -124,8 +124,8 @@ colors travel with the brief.
 
 **Left nav** — the app's home base. At the top, the **brand block**: the lightbulb icon,
 the "Visual Brainstorm" title, the session subtitle with its connection dot, and the **New
-Discussion** button. Below that, every cached thread; click to reopen read-only. **Archive**
-holds threads finished by plan closeout or finalize. Pinned to the nav's bottom: the
+Discussion** button. Below that, every cached thread; click to reopen read-only. **Completed**
+holds threads finished by plan closeout or finalize (collapsible section; moved there by the closeout procedure). Pinned to the nav's bottom: the
 **Logs** button (bottom-left, live bridge logs) and the **theme picker** (bottom-right) —
 picking a theme also binds it to the live discussion, so every discussion keeps its own
 look (an archived thread reopens in ITS theme; without a discussion theme your local pick
@@ -173,23 +173,19 @@ every duel reach Claude as preference data — top ranks lead the next round's s
 
 **Wayfinder strip** (above the timeline) — one strip is the whole brainstorm: every round as
 a clickable thumbnail (narrowing toward the winner; click = jump back), your **keeps hanging
-beneath — drag one straight into your editor to export it, no export dialog, or click it to
-open the artifact chat** — and a glowing **next-phase pill** at the right end. Once you've
-judged, **Enter** sends and requests that phase; the composer shows "Enter sends & asks
-for …" when it's armed.
+beneath** (drag one straight into your editor to export it, no export dialog, or click to open
+fullscreen with notes and chat), optionally a **📌 pinned** row (artifacts you pinned from the
+fullscreen viewer — click to open read-only, or unpin via the 📌 toggle), and a glowing
+**next-phase pill** at the right end. Once you've judged, **Enter** sends and requests that
+phase; the composer shows "Enter sends & asks for …" when it's armed.
 
-**Artifact chat** — click any captured artifact (a keep on the wayfinder strip) to enlarge
-it fullscreen with a dock on the right: a **Notes** panel on top — jot anything, **Save
-notes** stores it with the artifact, and your notes stay in view even while Claude is
-composing an answer — above the chat. The chat composer is deliberately simple:
-one box, one **Send** — ask a question about the artifact or ask for a change in plain
-words. Answers come from Claude (subagent-powered, so the main brainstorm keeps moving).
-When Claude makes a change, it is **captured as a NEW version — the original artifact is
-never overwritten** — and the open view switches to the revision (marked with a `revised`
-badge; the strip picks it up too, since every capture lands there). The whole dialog is
-saved with the thread, so reopening the artifact later shows the conversation that shaped
-it. Artifacts in archived threads stay read-only — the saved conversation replays, but
-there is no chat composer.
+**Fullscreen viewer — ONE surface for every artifact and option.** Clicking any captured artifact (a keep on the wayfinder strip or pinned row), a pinned artifact, a previous round's option, or a live board's option opens the same fullscreen surface: a zoom/pan/pinch SVG stage on the left, a right dock with **Notes** above an optional **Chat**. 
+- **Captured artifacts and live board options:** Notes are editable. For artifacts, **Save notes** persists them with the artifact; for live options, notes ship with your response. A chat composer (one box, one **Send**) lets you ask questions or request changes; answers come from Claude via subagents. A requested change is captured as a NEW version (original untouched, marked `revised`); the view switches to the revision while the dialog stays open.
+- **Pinned artifacts:** Same as captured artifacts, but displayed in a dedicated "📌 pinned" row (below the wayfinder strip). Pin/unpin any captured artifact by toggling the 📌 button in the fullscreen header (live threads only).
+- **Previous-round options:** Notes and chat are read-only; they show the conversation history that shaped that option.
+- **Completed threads:** Artifact chat replays read-only (no composer). To continue a conversation, **Reopen** the thread (see below).
+
+**Reopen a completed thread** — when viewing a completed (archived) thread, a banner at the top shows "Completed thread — fully cached, nothing regenerated" with an **↩ Reopen** button. You can also hover any round's separator to reveal an **↩ reopen from here** action. Clicking either confirms your choice, and Claude moves the thread out of the archive back into the live discussion folder, then resumes the brainstorm at that round. The entire history is preserved (nothing is regenerated; rule 7 still holds). The studio returns to the live view to show the resumed board.
 
 **Session activity strip** (in the live timeline) — while Claude works, real progress
 events from the working session stream into the studio and persist with the thread: the
@@ -204,9 +200,7 @@ a per-thread `… tok` badge in the sidebar, and on an archived thread's banner 
 total.
 
 **Every gesture counts** — this is the core contract:
-- **Dials** (min 5 per board, tailored to your topic): moving a dial and sending — with
-  nothing else — is a complete instruction; the next round is visibly re-tuned. Moved dials
-  show a ● and "steers next round".
+- **Dials** (min 5 per board, tailored to your topic): each dial shows its current numeric value in a bordered tag right-aligned next to the heading (turns accent-coloured when moved off its default). Moving a dial and sending — with nothing else — is a complete instruction; the next round is visibly re-tuned. Moved dials show a ● and "steers next round".
 - **Click any option's SVG** — on every phase surface, and on round-history thumbnails (on
   the cluster field, a click without a drag) — to open it full screen with wheel zoom, drag
   pan, and pinch on mobile — built for dense system diagrams. The preview also shows the

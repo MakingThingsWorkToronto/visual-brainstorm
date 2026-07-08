@@ -26,11 +26,15 @@ You are the test engineer for Visual Brainstorm. The stack is deliberately frame
    REAL built studio against a REAL Bridge through the full user goal, crash-checked each
    step. Must print `HUMAN SIM PASS`; honest SKIP (exit 0) when no browser exists.
 
-`npm test` runs all four. All four green before any completion claim (CLAUDE.md rule 10).
-The deeper break sweep (`npm run test:human:sweep` → `scripts/ui-break-sweep.mjs`,
-every control × break gestures) is an ON-DEMAND fifth audit — too heavy to gate on every
-verify. Both browser harnesses are concurrency-safe (`mkdtemp` profile dirs + ephemeral
-bridge ports) so parallel `npm test` runs across sessions never collide.
+`npm test` runs the layers in sequence — and human-sim is now TWO gated journeys:
+`test:human` (the live goal run) AND `test:human:archived` (`scripts/human-sim-archived.mjs`
+— seeds a `_completed/` thread and proves the read-only replay + reopen controls). All green
+before any completion claim (CLAUDE.md rule 10). The deeper break sweep
+(`npm run test:human:sweep` → `scripts/ui-break-sweep.mjs`, every control × break gestures)
+is an ON-DEMAND audit — too heavy to gate on every verify. All browser harnesses are
+concurrency-safe (`mkdtemp` profile dirs + ephemeral bridge ports) so parallel `npm test`
+runs across sessions never collide — which is exactly why you must NOT auto-kill every
+straggler browser (see the leaked-browser rule below).
 
 ## Rules
 
@@ -63,11 +67,14 @@ bridge ports) so parallel `npm test` runs across sessions never collide.
   convention): tests import canonical files instead of declaring inline literals;
   protocol-shaped canonical JSON is proven via `Schema.parse` at use. New features extend
   the canonical set in the same change.
-- **A new `StudioState` field breaks the canonical body tests — that's the contract working.**
-  `api-status-matrix` asserts `GET /api/state` (and the WS hello, which references it) key-for-key
-  against `tests/canonical/api/state-200.json`. Adding a field means appending its fresh-thread
-  value to that file in the SAME order `bridge.state()` emits it. Expect this on every StudioState
-  growth; it is not a regression.
+- **A new `StudioState`/`SessionInfo` field breaks the canonical body tests — that's the contract
+  working.** `api-status-matrix` asserts key-for-key against `tests/canonical/api/`. A `StudioState`
+  field hits `state-200.json` (and the WS hello, which references it); a `SessionInfo` field
+  (e.g. `pinnedSlugs`) hits EVERY body embedding `session` — `state-200.json`, all
+  `discussion-by-id-200*.json`, the WS hello — AND needs the value added to the `SessionStore`
+  constructor literal (a `.default([])` makes the output type require the key). Fix all of them
+  in the SAME order `bridge.state()` / `session.json` emits; expect it on every schema growth,
+  it is not a regression.
 - **A new studio channel is a 5-part change; miss one and it breaks silently.** A blocking
   server→studio channel (like `askConcierge`/`presentGallery`, mirroring `presentAndWait`) = a
   protocol field + `ServerToStudio` case + `bridge.state()`/broadcast + a `useBridge` reducer case
@@ -78,8 +85,20 @@ bridge ports) so parallel `npm test` runs across sessions never collide.
   ui-smoke proves the static wrapper markers; the human-sim asserts the engine actually mounted
   (`[data-testid="…-engine"].childElementCount > 0`) and drives a real edit through the exposed
   instance handle (never a fabricated response).
+- **Re-running the CDP human-sim many times while iterating LEAKS headless browsers and
+  silently burns tokens+time.** The per-run cleanup sits in a `finally` a SIGINT/kill skips, so
+  interrupted iterations orphan `msedge`/`chrome` trees (Windows keeps renderer/GPU children);
+  they contend and time out the NEXT launch → retries → a 5-min job becomes 40+ min. Between
+  iterated runs, sweep the leaked HEADLESS test browsers (never the user's normal browser):
+  `Get-CimInstance Win32_Process | ? { $_.Name -match 'chrome|msedge' -and $_.CommandLine -match '--headless' -and $_.CommandLine -match 'vibr|Temp' } | % { Stop-Process $_.ProcessId -Force }`.
+  Do NOT bake an auto-kill-all into the harness — it would murder a concurrent session's run
+  (the harnesses are deliberately concurrency-safe). Full detail: `.agents/learnings.md` 2026-07-07.
 
 ## Changelog
+- 2026-07-07 — iterated human-sim leaks headless browsers (token/time drain) — sweep between
+  runs, never auto-kill-all (concurrency); broadened the canonical-body rule to SessionInfo
+  fields + the SessionStore constructor; noted the second gated journey `test:human:archived`
+  (from ui-changes wave: pin + archived chat + reopen)
 - 2026-07-07 — studio-channel test rules: a new StudioState field breaks state-200.json (append
   in bridge.state() order); a studio channel is a 5-part change (protocol/envelope/state/useBridge/
   endpoint); a live-DOM engine is only exercised in the human-sim, not renderToString (from

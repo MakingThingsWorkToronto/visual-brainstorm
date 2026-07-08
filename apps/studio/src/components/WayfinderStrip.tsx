@@ -11,6 +11,7 @@ import type { PhaseProposal } from '../lib/wayfinder';
 export function WayfinderStrip({
   rounds,
   artifacts,
+  pinned = [],
   activeBoard,
   proposal,
   onJump,
@@ -19,6 +20,8 @@ export function WayfinderStrip({
 }: {
   rounds: RoundRecord[];
   artifacts: Artifact[];
+  /** Artifacts pinned to the thread (session.json) — a dedicated row below the strip. */
+  pinned?: Artifact[];
   activeBoard: Board | null;
   proposal: PhaseProposal | null;
   onJump: (boardId: string) => void;
@@ -100,6 +103,25 @@ export function WayfinderStrip({
           </button>
         )}
       </div>
+
+      {pinned.length > 0 && (
+        <div className="mt-2 flex items-center gap-2 overflow-x-auto border-t border-line pt-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-ink-dim">
+            📌 pinned
+          </span>
+          {pinned.map((artifact) => (
+            <button
+              key={artifact.slug}
+              type="button"
+              onClick={() => onOpenArtifact?.(artifact)}
+              title={`${artifact.name}: open fullscreen (notes + chat); unpin from there`}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2 py-1 text-xs hover:border-accent"
+            >
+              <span className="truncate">{artifact.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

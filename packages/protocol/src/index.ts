@@ -351,6 +351,8 @@ export const SessionInfoSchema = z.object({
   targetRepo: z.string().optional(),
   /** Per-thread theme override — skins the studio AND steers generated artifact colors. */
   theme: z.string().optional(),
+  /** Captured-artifact slugs pinned to a dedicated filmstrip row (studio Pin toggle). */
+  pinnedSlugs: z.array(z.string()).default([]),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 

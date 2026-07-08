@@ -89,8 +89,30 @@ for that option shows read-only in that round's fullscreen preview.
 
 Chat history persists in `artifacts/chat.jsonl` and reloads with the thread —
 `GET /api/discussions/<id>` returns `artifactChat`, so archived threads replay dialogs
-read-only. The chat is a detour — after replying, the orchestrator resumes whatever the
-session was doing.
+read-only (no composer; WayfinderStrip's clickable keeps open artifacts with their persisted
+conversations). The chat is a detour — after replying, the orchestrator resumes whatever the
+session was doing. To send new messages, the thread must be reopened (see reopen command below).
+
+**Pinned artifacts.** A captured artifact can be pinned from the fullscreen viewer's 📌 toggle (live threads only); pinned artifacts appear in a dedicated "📌 pinned" row beneath the WayfinderStrip. Pins persist per-thread in `session.json` (`SessionInfo.pinnedSlugs: string[]`) and reload with the thread. On completed/archived threads, pinned artifacts appear read-only (no pin toggle). The pin control sends `POST /api/pinned {slug}` (validates the slug is a live-thread artifact, 404 otherwise), which `SessionStore.togglePinned(slug)` toggles, rewrites `session.json`, appends a one-line brainstorm.md note, and broadcasts `hello`.
+
+## Reopen a completed thread
+
+A completed (archived) thread can be brought back to life. The studio shows:
+- An **↩ Reopen** button on the archived-thread banner (top of the main timeline).
+- An **↩ reopen from here** action on each completed round's separator (on hover/always-visible on touch).
+
+Clicking either confirms the user's intent, then posts `POST /api/command` with:
+```json
+{ "command": "reopen", "discussionId": "<id>", "round": <N> }
+```
+
+The bridge routes this to Claude via the UI-command plumbing (board-waiting or pending queue).
+The procedure (`.claude/commands/reopen.md`):
+1. `git mv` the thread's folder from `discussion/_completed/<slug>` back to `discussion/<slug>`.
+2. Call `present_board` with the thread's `discussionId` to resume live at the given `round`.
+3. Nothing is regenerated; the full history is preserved (rule 7).
+
+The studio returns to the live view; the resumed board arrives over WebSocket and takes over.
 
 ## Seed intake — open with anything
 

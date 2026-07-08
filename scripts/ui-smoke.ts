@@ -18,7 +18,10 @@ const { loadCanonical } = await import('../tests/canonical/load.mjs');
 const { BoardSurvey } = await import('../apps/studio/src/components/BoardSurvey.js');
 
 const EXPECT: Record<string, string[]> = {
-  diverge: ['remix', 'Send &amp; iterate', 'Playful', 'Back', 'judge deck', 'More Tools', 'Voice', 'Target Folder'],
+  // 'text-[10px] tabular-nums leading-none' is the axis-value tag's own class list —
+  // unique to the new bordered-tag markup (the old postfix span had no border/padding
+  // classes), so it proves the tag exists without over-fitting to exact colors.
+  diverge: ['remix', 'Send &amp; iterate', 'Playful', 'Back', 'judge deck', 'More Tools', 'Voice', 'Target Folder', 'text-[10px] tabular-nums leading-none'],
   expand: ['remix', 'Amplify what resonates', 'select at least one option to expand from'],
   mutate: ['X-ray', 'the rest is hidden on purpose'],
   wreck: ['Wreckage mode', 'What breaks first'],
@@ -83,68 +86,134 @@ for (const marker of ['my-app', 'copied here on closeout']) {
 }
 console.log('UI target-repo picker renders ✓ (unset + set)');
 
-// Fullscreen preview — tags in the header, editable note when onNoteChange is given.
-const { PreviewModal } = await import('../apps/studio/src/components/PreviewModal.js');
-const preview = renderToString(
-  createElement(PreviewModal, {
-    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>',
-    label: 'Alpha',
-    tags: ['organic', 'bold'],
-    note: 'good bones',
-    onNoteChange: () => {},
-    onClose: () => {},
-  }),
-);
-for (const marker of ['Alpha', 'organic', 'bold', 'good bones', 'Notes on', '⟲', '>Notes<']) {
-  assert.ok(preview.includes(marker), `[preview] missing marker "${marker}"`);
-}
-const previewReadOnly = renderToString(
-  createElement(PreviewModal, {
-    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
-    label: 'Beta',
-    onClose: () => {},
-  }),
-);
-assert.ok(!previewReadOnly.includes('<textarea'), '[preview] note editor hidden without onNoteChange');
-assert.ok(!previewReadOnly.includes('>Notes<'), '[preview] notes side panel hidden without onNoteChange/note/chat');
-assert.ok(!previewReadOnly.includes('>Chat<'), '[preview] chat section hidden without the chat prop');
-
-// Read-only note (previous rounds): the dock renders the persisted note text, no editor.
-const previewNoteOnly = renderToString(
-  createElement(PreviewModal, {
-    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
-    label: 'Gamma',
-    note: 'liked the strata',
-    onClose: () => {},
-  }),
-);
-assert.ok(previewNoteOnly.includes('>Notes<'), '[preview read-only note] dock renders with a bare note');
-assert.ok(previewNoteOnly.includes('liked the strata'), '[preview read-only note] note text shown');
-assert.ok(!previewNoteOnly.includes('<textarea'), '[preview read-only note] no editor without onNoteChange');
-
-// Chat dock: the chat prop renders a Chat section under Notes with the dialog.
-// Fixtures go through the schema like every production path (defaults stay in sync).
-const previewChatMessages = [
+// --- Unified fullscreen viewer (ArtifactFullscreen — replaces PreviewModal +
+// ArtifactChat, item 5). One component, four call-site variants:
+//   (i)   round-history option  — inline svg, READ-ONLY note, chat dock (composer shown)
+//   (ii)  captured artifact     — fetched svg (fetchSlug), EDITABLE note (draft+Save), pin toggle, chat
+//   (iii) live-board option     — inline svg, LIVE note (onChange), NO chat dock at all
+//   (iv)  read-only replay      — chat present but onSend absent (archived thread): no composer, no Save
+const { ArtifactFullscreen } = await import('../apps/studio/src/components/ArtifactFullscreen.js');
+const fsChatMessages = [
   ArtifactChatMessageSchema.parse({
-    artifactSlug: 'option:b-preview:a',
+    artifactSlug: 'winner',
     role: 'user',
-    text: 'why the arc?',
-    at: '2026-07-07T10:00:00.000Z',
+    text: 'why this glow?',
+    at: '2026-07-07T10:01:00.000Z',
+  }),
+  ArtifactChatMessageSchema.parse({
+    artifactSlug: 'winner',
+    role: 'claude',
+    text: 'tightened the glow radius',
+    at: '2026-07-07T10:02:00.000Z',
+    revisedSlug: 'winner-2',
   }),
 ];
-const previewWithChat = renderToString(
-  createElement(PreviewModal, {
-    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
-    label: 'Alpha',
-    note: 'good bones',
-    chat: { messages: previewChatMessages, onSend: () => {} },
+
+// (i) round-history option: inline svg + tags, read-only note, chat composer live.
+const fsOption = renderToString(
+  createElement(ArtifactFullscreen, {
+    title: 'Alpha',
+    tags: ['organic', 'bold'],
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>',
+    notes: { value: 'liked the strata' },
+    chat: { messages: fsChatMessages, onSend: () => {} },
     onClose: () => {},
   }),
 );
-for (const marker of ['>Chat<', 'why the arc?', 'ask about this option']) {
-  assert.ok(previewWithChat.includes(marker), `[preview chat] missing marker "${marker}"`);
+for (const marker of [
+  'Alpha',
+  'organic',
+  'bold',
+  'liked the strata',
+  '>Notes<',
+  'tabular-nums', // the zoom % control
+  '⟲',
+  'why this glow?',
+  'tightened the glow radius',
+  'revised', // Claude reply carries revisedSlug → "revised → winner-2" trace
+  'Ask or ask for a change…', // composer present (onSend given)
+]) {
+  assert.ok(fsOption.includes(marker), `[fullscreen option] missing marker "${marker}"`);
 }
-console.log('UI preview modal renders ✓ (editable note, read-only note, chat dock, bare variants)');
+assert.ok(!fsOption.includes('<textarea'), '[fullscreen option] read-only note has no editor (no onChange/onSave)');
+assert.ok(!fsOption.includes('📌'), '[fullscreen option] no pin toggle without the pin prop');
+assert.ok(!fsOption.includes('Claude is thinking…'), '[fullscreen option] busy note absent when not busy');
+const fsOptionBusy = renderToString(
+  createElement(ArtifactFullscreen, {
+    title: 'Alpha',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    notes: { value: '' },
+    chat: { messages: [], busy: true, onSend: () => {} },
+    onClose: () => {},
+  }),
+);
+assert.ok(fsOptionBusy.includes('Claude is thinking…'), '[fullscreen option] busy note shown when busy');
+console.log('UI fullscreen viewer (round-history option) renders ✓ (inline svg, read-only note, chat dock, busy/idle)');
+
+// (ii) captured artifact: fetchSlug (not inline svg), editable note (draft+Save), pin toggle, chat.
+const fsArtifactPinned = renderToString(
+  createElement(ArtifactFullscreen, {
+    title: 'Winner',
+    fetchSlug: 'winner',
+    revised: true,
+    notes: { value: 'ship this one', onSave: () => {} },
+    chat: { messages: fsChatMessages, onSend: () => {} },
+    pin: { pinned: true, onToggle: () => {} },
+    onClose: () => {},
+  }),
+);
+for (const marker of ['Winner', 'ship this one', '<textarea', 'revised', '📌 Pinned']) {
+  assert.ok(fsArtifactPinned.includes(marker), `[fullscreen artifact] missing marker "${marker}"`);
+}
+const fsArtifactUnpinned = renderToString(
+  createElement(ArtifactFullscreen, {
+    title: 'Winner',
+    fetchSlug: 'winner',
+    notes: { value: 'ship this one', onSave: () => {} },
+    chat: { messages: [], onSend: () => {} },
+    pin: { pinned: false, onToggle: () => {} },
+    onClose: () => {},
+  }),
+);
+assert.ok(fsArtifactUnpinned.includes('📌 Pin'), '[fullscreen artifact] unpinned toggle label');
+assert.ok(!fsArtifactUnpinned.includes('📌 Pinned'), '[fullscreen artifact] not showing the pinned label when unpinned');
+assert.ok(!fsArtifactUnpinned.includes('unsaved'), '[fullscreen artifact] no "unsaved" badge when the draft matches the saved note');
+console.log('UI fullscreen viewer (artifact) renders ✓ (fetched svg, editable notes, pin toggle, revised badge, chat)');
+
+// (iii) live-board option (BoardSurvey usage): inline svg, LIVE onChange note, NO chat dock at all.
+const fsLiveOption = renderToString(
+  createElement(ArtifactFullscreen, {
+    title: 'Beta',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    notes: { value: 'rounder please', onChange: () => {} },
+    onClose: () => {},
+  }),
+);
+assert.ok(fsLiveOption.includes('<textarea'), '[fullscreen live-option] editable note (onChange)');
+assert.ok(fsLiveOption.includes('rounder please'), '[fullscreen live-option] live note value');
+assert.ok(!fsLiveOption.includes('Ask or ask for a change'), '[fullscreen live-option] no chat dock without the chat prop');
+assert.ok(!fsLiveOption.includes('Save notes'), '[fullscreen live-option] onChange note has no Save button (that is onSave)');
+console.log('UI fullscreen viewer (live-board option) renders ✓ (onChange note, no chat dock)');
+
+// (iv) read-only replay (archived thread): chat present but onSend absent → no
+// composer, no Save notes; persisted messages and read-only note text still render.
+const fsReadOnly = renderToString(
+  createElement(ArtifactFullscreen, {
+    title: 'Winner',
+    fetchSlug: 'winner',
+    notes: { value: 'ship this one' },
+    chat: { messages: fsChatMessages },
+    onClose: () => {},
+  }),
+);
+assert.ok(fsReadOnly.includes('why this glow?'), '[fullscreen read-only] persisted messages still render');
+assert.ok(fsReadOnly.includes('ship this one'), '[fullscreen read-only] notes shown as read-only text');
+assert.ok(!fsReadOnly.includes('<input'), '[fullscreen read-only] no composer input without onSend');
+assert.ok(!fsReadOnly.includes('Ask or ask for a change'), '[fullscreen read-only] no composer placeholder without onSend');
+assert.ok(!fsReadOnly.includes('<textarea'), '[fullscreen read-only] no note editor without onChange/onSave');
+assert.ok(!fsReadOnly.includes('Save notes'), '[fullscreen read-only] no Save notes button');
+assert.ok(!fsReadOnly.includes('📌'), '[fullscreen read-only] no pin toggle without the pin prop');
+console.log('UI fullscreen viewer (read-only replay) renders ✓ (no composer, no Save, persisted content shown)');
 
 // --- Pure helpers: judge-deck ranking mechanics ---
 const { applyDuel, adjacentDuels } = await import('../apps/studio/src/lib/deck.js');
@@ -238,7 +307,32 @@ const stripLive = renderToString(
 );
 assert.ok(stripLive.includes('next:'), '[wayfinder] proposal pill missing with active board + proposal');
 assert.ok(stripLive.includes('cluster'), '[wayfinder] proposed phase named');
-console.log('UI wayfinder strip renders ✓ (pill hidden idle, shown live)');
+
+// Pinned row (item 5): a dedicated "📌 pinned" strip below the rounds, hidden when empty.
+// Fixture goes through the schema like every production path (defaults stay in sync).
+const pinnedArtifact = ArtifactSchema.parse({
+  slug: 'glow-mark',
+  name: 'Glow Mark',
+  svgPath: 'threads/x/artifacts/glow-mark.svg',
+  provenance: { optionIds: ['a'] },
+  capturedAt: '2026-07-07T10:00:00.000Z',
+});
+const stripPinned = renderToString(
+  createElement(WayfinderStrip, {
+    rounds: wfRounds,
+    artifacts: [pinnedArtifact],
+    pinned: [pinnedArtifact],
+    activeBoard: null,
+    proposal: null,
+    onJump: () => {},
+    onAdvance: () => {},
+    onOpenArtifact: () => {},
+  }),
+);
+assert.ok(stripPinned.includes('📌 pinned'), '[wayfinder] pinned row label');
+assert.ok(stripPinned.includes('Glow Mark'), '[wayfinder] pinned artifact name shown');
+assert.ok(!stripIdle.includes('📌 pinned'), '[wayfinder] pinned row absent without the pinned prop');
+console.log('UI wayfinder strip renders ✓ (pill hidden idle, shown live, pinned row)');
 
 // --- New Discussion panel ("open with anything" as a chat panel) — must render without window ---
 const { NewDiscussionPanel } = await import('../apps/studio/src/components/NewDiscussionPanel.js');
@@ -461,80 +555,13 @@ const sidebarQuiet = renderToString(
   createElement(Sidebar, { ...sidebarProps, discussions: [summaryQuiet] }),
 );
 assert.ok(!sidebarQuiet.includes('tok'), '[sidebar] zero-token row must not show a token count');
-console.log('UI sidebar renders ✓ (token count at >0, hidden at 0)');
-
-// --- Artifact chat panel (per-artifact conversation + revision marker) ---
-// Fixtures go through the schema like every production path (defaults stay in sync).
-const { ArtifactChat } = await import('../apps/studio/src/components/ArtifactChat.js');
-const chatArtifact = ArtifactSchema.parse({
-  slug: 'winner',
-  name: 'Winner',
-  svgPath: 'threads/x/artifacts/winner.svg', // fake path — SVG fetch may placeholder, markers only
-  provenance: { optionIds: ['b'] },
-  capturedAt: '2026-07-07T10:00:00.000Z',
-});
-const chatMessages = [
-  ArtifactChatMessageSchema.parse({
-    artifactSlug: 'winner',
-    role: 'user',
-    text: 'why this glow?',
-    at: '2026-07-07T10:01:00.000Z',
-  }),
-  ArtifactChatMessageSchema.parse({
-    artifactSlug: 'winner',
-    role: 'claude',
-    text: 'tightened the glow radius',
-    at: '2026-07-07T10:02:00.000Z',
-    revisedSlug: 'winner-2',
-  }),
-];
-const chatIdle = renderToString(
-  createElement(ArtifactChat, { artifact: chatArtifact, messages: chatMessages, onSend: () => {} }),
-);
-// Markers live inside single text nodes — never spanning adjacent JSX expressions.
-for (const marker of [
-  'Artifact chat',
-  'Ask or ask for a change…',
-  'Send',
-  'revised',
-  'why this glow?',
-  'tightened the glow radius',
-]) {
-  assert.ok(chatIdle.includes(marker), `[artifact-chat] missing marker "${marker}"`);
-}
-assert.ok(
-  !chatIdle.includes('Claude is thinking…'),
-  '[artifact-chat] busy note must not render when not busy',
-);
-const chatBusy = renderToString(
-  createElement(ArtifactChat, { artifact: chatArtifact, messages: chatMessages, onSend: () => {}, busy: true }),
-);
-assert.ok(chatBusy.includes('Claude is thinking…'), '[artifact-chat] busy note missing when busy');
-
-// Notes dock above the chat: read-only text without onSaveNotes, editor + Save with it.
-assert.ok(chatIdle.includes('>Notes<'), '[artifact-chat] notes section header');
-assert.ok(chatIdle.includes('No notes on this artifact.'), '[artifact-chat] read-only fallback without onSaveNotes');
-assert.ok(!chatIdle.includes('Save notes'), '[artifact-chat] no save button without onSaveNotes');
-const chatNotesArtifact = ArtifactSchema.parse({
-  slug: 'winner',
-  name: 'Winner',
-  svgPath: 'threads/x/artifacts/winner.svg',
-  notes: 'ship this one',
-  provenance: { optionIds: ['b'] },
-  capturedAt: '2026-07-07T10:00:00.000Z',
-});
-const chatSavable = renderToString(
-  createElement(ArtifactChat, {
-    artifact: chatNotesArtifact,
-    messages: chatMessages,
-    onSend: () => {},
-    onSaveNotes: () => {},
-  }),
-);
-assert.ok(chatSavable.includes('Save notes'), '[artifact-chat] Save notes button with onSaveNotes');
-assert.ok(chatSavable.includes('<textarea'), '[artifact-chat] notes editor with onSaveNotes');
-assert.ok(chatSavable.includes('ship this one'), '[artifact-chat] persisted notes prefill the editor');
-console.log('UI artifact chat renders ✓ (messages, revision marker, busy/idle, notes dock save/read-only)');
+// Nav label: the collapsible section is "Completed (n)", not the old "Archive (n)".
+// "Completed (" and {archive.length} are adjacent JSX expressions — renderToString
+// emits a comment node between them, so 'Completed (0)' never matches (markers must
+// live in a single text/JSX node, learnings 2026-07-06); assert the text-node half.
+assert.ok(sidebarCounted.includes('Completed ('), '[sidebar] Completed section toggle');
+assert.ok(!sidebarCounted.includes('Archive'), '[sidebar] the old "Archive" label must be gone');
+console.log('UI sidebar renders ✓ (token count at >0, hidden at 0, Completed section label)');
 
 // --- Revisit mode: BoardSurvey prefilled from a recorded response (initial prop) ---
 // Fixtures go through the schema like every production path (defaults stay in sync).

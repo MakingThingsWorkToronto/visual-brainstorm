@@ -61,8 +61,11 @@ verdict. Most reports are a port-conflict ghost, not a failure.
 | process gone, no output | crash — see FATAL in log | fix root cause |
 | page flashes, then blank / crash panel | browser-side JS crash (often hello-state version skew) | `STUDIO CLIENT ERROR` in `/api/logs`; no line → CDP headless repro (step 3); fix code, not restarts |
 | "response submitted" never detected | misread health: `awaitingResponse` is the BLOCKING present_board wait (false after tool timeout) | a user submission is `activeBoard: null`; the board stays answerable via peek_response |
+| a control "works in preview but not in a real run" | usually a `viewingLive`/live-state gate, NOT preview-only slop — the preview harness makes every answered round the LIVE round | check the `viewingLive &&` (or live-state) condition on the control before hunting for a preview conditional to delete |
 
 ## Changelog
+- 2026-07-07 — failure table: "works in preview but not real" = a `viewingLive` state gate,
+  not preview slop (from ui-changes wave: reopen divider misdiagnosis)
 - 2026-07-07 — step 1: bridge-port.json is the authoritative real-port source (and the
   progress pipe's discovery file — stale/missing → lost token/progress events) (from ui-changes)
 - 2026-07-07 — step 3 signals: STUDIO CLIENT ERROR lines + connect/disconnect-≤1s crash-loop

@@ -171,6 +171,44 @@ assert.ok((await artifactRes.text()).includes('<svg'), 'artifact endpoint stream
 const missingRes = await fetch(`http://127.0.0.1:${bridge.port}/api/artifact-svg/no-such-artifact.svg`);
 assert.equal(missingRes.status, 404);
 
+// Pins (item 5, filmstrip): toggle on, then off — disk-backed on session.json.
+const pinOn = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/pinned`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ slug: artifact.slug }),
+  })
+).json();
+assert.deepEqual(pinOn, { ok: true, pinned: true }, 'pin toggles on');
+let pinnedState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.deepEqual(pinnedState.session.pinnedSlugs, [artifact.slug], 'state.session.pinnedSlugs reflects the pin');
+
+const pinOff = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/pinned`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ slug: artifact.slug }),
+  })
+).json();
+assert.deepEqual(pinOff, { ok: true, pinned: false }, 'pin toggles off');
+pinnedState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
+assert.deepEqual(pinnedState.session.pinnedSlugs, [], 'state.session.pinnedSlugs reflects the unpin');
+
+// …an unknown slug is an honest 404, nothing pinned.
+const pinMissing = await fetch(`http://127.0.0.1:${bridge.port}/api/pinned`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ slug: 'no-such-artifact' }),
+});
+assert.equal(pinMissing.status, 404, 'pinning an unknown slug is rejected honestly');
+
+// re-pin so the reload assertions below prove pins survive a disk reload.
+await fetch(`http://127.0.0.1:${bridge.port}/api/pinned`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ slug: artifact.slug }),
+});
+
 // Discussion cache: list + full reload via HTTP (what the left nav uses)…
 const list = await (await fetch(`http://127.0.0.1:${bridge.port}/api/discussions`)).json();
 assert.equal(list.length, 1, 'thread listed');
@@ -184,6 +222,7 @@ assert.equal(thread.rounds.length, 1);
 assert.equal(thread.rounds[0].response.elaboration, 'rounder please');
 assert.ok(thread.rounds[0].board.options[0].svg.includes('<svg'), 'SVGs reload from cache');
 assert.equal(thread.artifacts.length, 1);
+assert.deepEqual(thread.session.pinnedSlugs, [artifact.slug], 'pins survive a GET /api/discussions/:id disk reload');
 
 // …and via SessionStore.open (what present_board discussionId resume uses).
 const reopened = SessionStore.open(store.info.dir);
@@ -219,6 +258,59 @@ assert.equal(cmd.delivered, 'via-board-response');
 const parked = await wait2;
 assert.equal(parked.action, 'park');
 assert.deepEqual(parked.commands, ['discover-skills']);
+
+// UI command: reopen a completed thread — queued when no board is waiting; the
+// seed note names the discussionId, the round, and points at reopen.md so the
+// drained digest (index.ts) can run .claude/commands/reopen.md without guessing.
+let reopenCmd = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/command`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ command: 'reopen', discussionId: store.info.id, round: 2 }),
+  })
+).json();
+assert.equal(reopenCmd.ok, true);
+assert.equal(reopenCmd.delivered, 'queued');
+const [reopenReq] = bridge.drainCommands();
+assert.equal(reopenReq.command, 'reopen');
+assert.ok(reopenReq.seedNote.includes(store.info.id), 'seed note names the discussionId');
+assert.ok(reopenReq.seedNote.includes('round 2'), 'seed note names the round');
+assert.ok(reopenReq.seedNote.includes('.claude/commands/reopen.md'), 'seed note points at reopen.md');
+
+// …and resolves the active wait when a board IS waiting (mirrors discover-skills above).
+const wait3 = bridge.presentAndWait({ ...board, id: 'board-r3-smoke', round: 3 }, 15_000, false);
+await new Promise((r) => setTimeout(r, 100));
+reopenCmd = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/command`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ command: 'reopen', discussionId: store.info.id, round: 1 }),
+  })
+).json();
+assert.equal(reopenCmd.delivered, 'via-board-response');
+const parkedReopen = await wait3;
+assert.equal(parkedReopen.action, 'park');
+assert.deepEqual(parkedReopen.commands, ['reopen']);
+assert.ok(parkedReopen.elaboration.includes(store.info.id), 'via-board seed note (elaboration) names the discussionId');
+assert.ok(parkedReopen.elaboration.includes('.claude/commands/reopen.md'), 'via-board seed note points at reopen.md');
+
+// Bare-body reopen (no discussionId) still returns ok honestly — no crash, and the
+// seed note reports the missing id instead of guessing or faking one.
+const bareReopen = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/command`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ command: 'reopen' }),
+  })
+).json();
+assert.equal(bareReopen.ok, true, 'a bare reopen is not a transport error');
+assert.equal(bareReopen.delivered, 'queued');
+const [bareReopenReq] = bridge.drainCommands();
+assert.equal(bareReopenReq.command, 'reopen');
+assert.ok(
+  bareReopenReq.seedNote.includes('no discussionId was supplied'),
+  'honest missing-id note, never a fake target',
+);
 
 // Seed intake ("open with anything"): a sketch seed persists to <root>/.seeds/…
 const seedSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240"><polyline points="0,0 10,10" fill="none" stroke="#333"/></svg>';
@@ -740,5 +832,5 @@ ws.close();
 await bridge.stop();
 fs.rmSync(scratch, { recursive: true, force: true });
 console.log(
-  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands, artifact capture + serving, artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md), Claude-Code handoff (openStudio seedBrief) + concierge round-trip (ask, pending state, answer, resolve, brainstorm.md, 404), Living Gallery round-trip (present four minis, pending state, pick, resolve, clear, brainstorm.md, 404, 400 bad-method)',
+  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands (incl. reopen: queued, via-board-response, honest missing-id note), artifact capture + serving, pins (toggle on/off, state reflects it, honest 404, survives disk reload), artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md), Claude-Code handoff (openStudio seedBrief) + concierge round-trip (ask, pending state, answer, resolve, brainstorm.md, 404), Living Gallery round-trip (present four minis, pending state, pick, resolve, clear, brainstorm.md, 404, 400 bad-method)',
 );
