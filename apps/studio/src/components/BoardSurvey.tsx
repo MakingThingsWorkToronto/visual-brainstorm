@@ -8,6 +8,7 @@ import type {
   Phase,
   ResponseAction,
   Theme,
+  TreeOp,
 } from '@visual-brainstorm/protocol';
 import { SvgPane } from './primitives';
 import { ArtifactFullscreen } from './ArtifactFullscreen';
@@ -132,6 +133,9 @@ export function BoardSurvey({
   // Mind-map methodology: a board carries ONE live tree instead of options.
   const isMindmap = board.kind === 'mindmap' && !!board.tree;
   const [editedTree, setEditedTree] = useState<MindTree | undefined>(initial?.editedTree);
+  // Mind-map node ops (explode/add/delete/note) accumulate this round; they ship
+  // as treeOps and persist to tree-ops.jsonl. editedTree is the SHAPE, ops the INTENT.
+  const [treeOps, setTreeOps] = useState<TreeOp[]>(() => initial?.treeOps ?? []);
 
   const { multiSelect, minSelect, maxSelect } = board.survey;
   const phase = localPhase;
@@ -220,6 +224,7 @@ export function BoardSurvey({
     Object.keys(deckVerdicts).length > 0 ||
     clusterTouched ||
     !!editedTree ||
+    treeOps.length > 0 ||
     Object.values(flaws).some((f) => f.trim() !== '') ||
     Object.values(mutations).some((l) => l.length > 0);
   useEffect(() => {
@@ -294,6 +299,8 @@ export function BoardSurvey({
         finalOptionId: action === 'finalize' ? (finalId ?? undefined) : undefined,
         // Mind-map: the user's edited tree IS the feedback (absent = untouched).
         editedTree,
+        // Mind-map: the ordered explode/add/delete/note decisions this round.
+        treeOps,
         respondedAt: new Date().toISOString(),
       });
     } catch (err) {
@@ -325,7 +332,11 @@ export function BoardSurvey({
       </div>
 
       {isMindmap && board.tree && (
-        <MindmapCanvas tree={board.tree} onEdit={setEditedTree} />
+        <MindmapCanvas
+          tree={board.tree}
+          onEdit={setEditedTree}
+          onOp={(op) => setTreeOps((prev) => [...prev, op])}
+        />
       )}
 
       {!isMindmap && (

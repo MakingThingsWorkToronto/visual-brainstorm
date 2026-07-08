@@ -16,8 +16,9 @@ apps/studio          @visual-brainstorm/studio — Vite + React + Tailwind v4 SP
                      apps/studio/dist and served statically by the bridge. Never talks MCP;
                      only WS push (boards in) + HTTP POST (responses out).
 .github/             workspace-local GitHub Copilot instructions, prompts, and agents — thin
-                     adapters over `.claude/` and the MCP tool surface. They improve command
-                     discovery but do not own workflow logic or change the current engine model.
+                     adapters over `.claude/`, `.claude/agentic-surface-registry.json`, and the
+                     MCP tool surface. They improve command discovery but do not own workflow
+                     logic or change the current engine model.
 ```
 
 ## Data flow — the mashup

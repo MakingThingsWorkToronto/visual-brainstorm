@@ -5,7 +5,8 @@ agent: "visual-brainstorm-diagnostician"
 tools: [read, search, execute, visual-brainstorm/*]
 ---
 Read and follow these files in order:
-- [Agentic surface map](../agentic-surface-map.json)
+- [Authoritative registry](../../.claude/agentic-surface-registry.json)
+- [Copilot adapter index](../agentic-surface-map.json)
 - [Workflow](../../.claude/commands/diagnose-studio.md)
 - [Persona](../../.claude/agents/devops-diagnostician.md)
 - [Observability reference](../../wiki/System/testing-observability.md)

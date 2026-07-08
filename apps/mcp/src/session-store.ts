@@ -18,6 +18,7 @@ import {
 } from '@visual-brainstorm/protocol';
 import { buildFeedbackDigest } from './feedback.js';
 import { countNodes, treeToSvg } from './tree-svg.js';
+import { buildDecisionTree, decisionTreeToSvg } from './decision-tree.js';
 
 export function slugify(text: string): string {
   return (
@@ -264,6 +265,25 @@ export class SessionStore {
     round.response = response;
     const dir = this.roundDir(round.board.round);
     fs.writeFileSync(path.join(dir, 'response.json'), JSON.stringify(response, null, 2));
+    // Mind-map decisions are structured data (rule: jsonl where decisions matter).
+    // Every node op is appended to the round's tree-ops.jsonl — append-only, so
+    // the full explode/delete/add/note history survives for later synthesis.
+    if (response.treeOps.length > 0) {
+      const opsFile = path.join(dir, 'tree-ops.jsonl');
+      for (const op of response.treeOps) {
+        try {
+          fs.appendFileSync(opsFile, JSON.stringify(op) + '\n');
+        } catch (err) {
+          console.error(`[store] tree-ops.jsonl append failed: ${String(err)}`);
+        }
+      }
+    }
+    // The edited tree (with per-node notes) is the final shape — keep a dedicated
+    // JSON alongside response.json so the decision-tree builder and re-synthesis
+    // read it without unpacking the whole response.
+    if (response.editedTree) {
+      fs.writeFileSync(path.join(dir, 'edited-tree.json'), JSON.stringify(response.editedTree, null, 2));
+    }
     this.appendMd(
       [
         '',
@@ -271,6 +291,42 @@ export class SessionStore {
         ...buildFeedbackDigest(round.board, response).map((line) => `- ${line}`),
       ].join('\n'),
     );
+    // The decision tree is a derived index over every round — rebuild + persist it
+    // on each response so the studio's Decision-tree view reloads with the thread.
+    this.writeDecisionTree();
+  }
+
+  /**
+   * Chain-of-thought persistence (rule: persist chains of thought to the plan
+   * folder). The bridge's live `thinking` stream was ephemeral; every non-null
+   * note is now appended to thinking.jsonl — append-only, reloadable, never
+   * rewritten. A null note (cleared) is not recorded.
+   */
+  recordThinking(note: string): void {
+    try {
+      fs.appendFileSync(
+        path.join(this.info.dir, 'thinking.jsonl'),
+        JSON.stringify({ at: new Date().toISOString(), note }) + '\n',
+      );
+    } catch (err) {
+      console.error(`[store] thinking.jsonl append failed: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Rebuild the discussion's decision tree from every round and write it as
+   * decision-tree.json + decision-tree.svg at the thread root. Derived index
+   * (not presented artwork), so overwriting each round is correct — the source
+   * of truth is the append-only round records it is built from.
+   */
+  private writeDecisionTree(): void {
+    try {
+      const tree = buildDecisionTree(this.info.title, this.rounds);
+      fs.writeFileSync(path.join(this.info.dir, 'decision-tree.json'), JSON.stringify(tree, null, 2));
+      fs.writeFileSync(path.join(this.info.dir, 'decision-tree.svg'), decisionTreeToSvg(tree));
+    } catch (err) {
+      console.error(`[store] decision-tree write failed: ${String(err)}`);
+    }
   }
 
   /** Token meter: cumulative usage over every progress event of this thread. */

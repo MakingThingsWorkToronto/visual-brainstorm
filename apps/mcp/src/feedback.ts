@@ -1,4 +1,15 @@
-import type { Board, BoardResponse } from '@visual-brainstorm/protocol';
+import type { Board, BoardResponse, MindNode } from '@visual-brainstorm/protocol';
+
+/** Node count of a mind tree (labels the mind-map edit in the digest). */
+function countTree(node: MindNode): number {
+  return 1 + (node.children ?? []).reduce((sum, k) => sum + countTree(k), 0);
+}
+
+/** Every node carrying a note, depth-first — the steering the user attached. */
+function collectNotes(node: MindNode): { topic: string; note: string }[] {
+  const here = node.note && node.note.trim() ? [{ topic: node.topic, note: node.note.trim() }] : [];
+  return [...here, ...(node.children ?? []).flatMap(collectNotes)];
+}
 
 /**
  * Package the user's survey response into labeled, executable instructions.
@@ -121,6 +132,38 @@ export function buildFeedbackDigest(board: Board, response: BoardResponse): stri
         'compose_poster to build the shareable contact sheet, then run .claude/commands/plan-closeout.md — ' +
         'finality triggers closeout; the thread is done.',
     );
+  }
+
+  // Mind-map decisions — the tree edit is the feedback (rule 7). editedTree is
+  // the final SHAPE; treeOps are the INTENT. A digest that omits these cannot
+  // re-synthesize a mind-map round, so both are spelled out for any model.
+  if (response.editedTree) {
+    const root = response.editedTree.nodeData;
+    const count = countTree(root);
+    const notes = collectNotes(root);
+    digest.push(
+      `Mind-map edited: root "${root.topic}", ${count} node${count === 1 ? '' : 's'} after the user's edits (this tree IS the feedback — build the next round from it).`,
+    );
+    for (const { topic, note } of notes) {
+      digest.push(`Node note on "${topic}": ${note} — steering for any explode of this node.`);
+    }
+  }
+  for (const op of response.treeOps) {
+    if (op.op === 'explode') {
+      digest.push(
+        `EXPLODE "${op.topic || op.nodeId}"${op.note ? ` [note: ${op.note}]` : ''} — expand this node into ≥5 children relevant to its topic${op.note ? ' AND that note' : ''}; append them under it in the returned tree.`,
+      );
+    } else if (op.op === 'add') {
+      digest.push(`ADD: user seeded ${op.count ?? 5} blank idea node${(op.count ?? 5) === 1 ? '' : 's'} under "${op.topic || op.nodeId}" — help fill them next round.`);
+    } else if (op.op === 'delete') {
+      digest.push(`DELETE: "${op.topic || op.nodeId}" was eliminated — never reintroduce this branch.`);
+    } else if (op.op === 'note') {
+      digest.push(`NOTE set on "${op.topic || op.nodeId}": ${op.note} — steers future expansion of this node.`);
+    } else if (op.op === 'rename') {
+      digest.push(`RENAME: "${op.nodeId}" → "${op.topic}".`);
+    } else if (op.op === 'move') {
+      digest.push(`MOVE: "${op.topic || op.nodeId}" was re-parented — respect the new structure.`);
+    }
   }
 
   if (response.requestedPhase) {

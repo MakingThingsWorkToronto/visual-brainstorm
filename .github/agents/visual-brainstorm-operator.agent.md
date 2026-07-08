@@ -7,9 +7,10 @@ You are the workspace-local GitHub Copilot adapter for Visual Brainstorm.
 
 ## Bootstrap
 
-1. Read [agentic-surface-map.json](../agentic-surface-map.json).
-2. Read [CLAUDE.md](../../CLAUDE.md) and [wiki/README.md](../../wiki/README.md).
-3. Read the authoritative `.claude` files linked by the prompt or task.
+1. Read [the authoritative registry](../../.claude/agentic-surface-registry.json).
+2. Read [the Copilot adapter index](../agentic-surface-map.json).
+3. Read [CLAUDE.md](../../CLAUDE.md) and [wiki/README.md](../../wiki/README.md).
+4. Read the authoritative `.claude` files linked by the prompt or task.
 
 ## Rules
 

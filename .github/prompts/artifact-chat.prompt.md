@@ -5,7 +5,8 @@ agent: "visual-brainstorm-operator"
 tools: [read, search, execute, agent, visual-brainstorm/*]
 ---
 Read and follow these files in order:
-- [Agentic surface map](../agentic-surface-map.json)
+- [Authoritative registry](../../.claude/agentic-surface-registry.json)
+- [Copilot adapter index](../agentic-surface-map.json)
 - [Workflow](../../.claude/commands/artifact-chat.md)
 - [Persona](../../.claude/agents/brainstorm-orchestrator.md)
 - [SVG delegate](../../.claude/agents/svg-artisan.md)

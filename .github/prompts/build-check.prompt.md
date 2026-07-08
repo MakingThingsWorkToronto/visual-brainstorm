@@ -5,7 +5,8 @@ agent: "visual-brainstorm-test-engineer"
 tools: [read, search, execute, todo]
 ---
 Read and follow these files in order:
-- [Agentic surface map](../agentic-surface-map.json)
+- [Authoritative registry](../../.claude/agentic-surface-registry.json)
+- [Copilot adapter index](../agentic-surface-map.json)
 - [Workflow](../../.claude/commands/build-check.md)
 - [Testing reference](../../wiki/System/testing-observability.md)
 

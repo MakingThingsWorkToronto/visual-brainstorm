@@ -7,7 +7,8 @@ tools: [read, search, execute, agent, todo, visual-brainstorm/*]
 Use the chat request as the brief or resume hint.
 
 Read and follow these files in order:
-- [Agentic surface map](../agentic-surface-map.json)
+- [Authoritative registry](../../.claude/agentic-surface-registry.json)
+- [Copilot adapter index](../agentic-surface-map.json)
 - [Workflow](../../.claude/commands/run-brainstorm.md)
 - [Persona](../../.claude/agents/brainstorm-orchestrator.md)
 - [Phase craft](../../.claude/skills/brainstorm-phases/SKILL.md)

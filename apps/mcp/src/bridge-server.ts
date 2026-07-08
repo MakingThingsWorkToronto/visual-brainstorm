@@ -27,6 +27,7 @@ import {
   type Theme,
 } from '@visual-brainstorm/protocol';
 import { SessionStore } from './session-store.js';
+import { buildDecisionTree, decisionTreeToSvg } from './decision-tree.js';
 
 export interface CommandRequest {
   command: string;
@@ -154,6 +155,9 @@ export class Bridge {
   /** Live progress feedback — shown as the shimmer marker in the studio. */
   think(note: string | null): void {
     this.thinking = note;
+    // Persist the chain of thought (rule: chains of thought persist to the plan
+    // folder). Only real notes are recorded; clearing (null) is not an event.
+    if (note) this.store.recordThinking(note);
     this.broadcast({ type: 'thinking', note });
   }
 
@@ -410,6 +414,21 @@ export class Bridge {
         } else {
           res.writeHead(404, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ error: `no artifact "${slug}" in any cached thread` }));
+        }
+        return;
+      }
+      const decisionMatch = url.pathname.match(/^\/api\/decision-tree\/([^/]+)$/);
+      if (req.method === 'GET' && decisionMatch) {
+        const id = decodeURIComponent(decisionMatch[1]);
+        const dir = SessionStore.resolveDir(this.options.discussionRoot, id);
+        try {
+          const thread = SessionStore.open(dir);
+          const tree = buildDecisionTree(thread.info.title, thread.rounds);
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ tree, svg: decisionTreeToSvg(tree) }));
+        } catch (err) {
+          res.writeHead(404, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: `thread not found: ${String(err)}` }));
         }
         return;
       }
@@ -838,7 +857,6 @@ export class Bridge {
       `presenting ${board.id}: round ${board.round}, phase ${board.phase}, ${board.options.length} options, ` +
         `timeout ${Math.round(timeoutMs / 1000)}s, ${this.sockets.size} client(s) connected`,
     );
-    this.store.recordBoard(board);
     this.activeBoard = board;
     this.thinking = null;
     this.broadcast({ type: 'board', board });
@@ -847,7 +865,7 @@ export class Bridge {
       this.browserOpened = true;
       openBrowser(this.url);
     }
-    return new Promise<BoardResponse | null>((resolve) => {
+    const responsePromise = new Promise<BoardResponse | null>((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(board.id);
         resolve(null); // board stays live; peek_response recovers the late answer
@@ -857,6 +875,18 @@ export class Bridge {
         resolve(response);
       });
     });
+    // Persistence is OFF the present→wire critical path. recordBoard() does
+    // synchronous disk I/O (board.json, one write per option SVG, brainstorm.md;
+    // for a mindmap also a tree-SVG snapshot + artifact capture) that measured
+    // ~5–15ms — and running it BEFORE the broadcast blocked the queued board
+    // frame from flushing to the studio (it can't leave the socket until the
+    // sync tick ends). The pending resolver is already registered, so no
+    // response can be dropped; one setImmediate lets the frame flush, then we
+    // persist synchronously — still well before any networked response could
+    // arrive (recordResponse relies on the round existing).
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    this.store.recordBoard(board);
+    return responsePromise;
   }
 
   peekResponse(boardId: string): BoardResponse | null {

@@ -15,7 +15,8 @@ Mashup-culture architecture: three small pieces loosely joined — Claude Code (
 an MCP server (glue), a local React app (surface). No accounts, no cloud, MIT.
 
 GitHub Copilot workspace adapters now live in `.github/` as thin prompts/agents that read the
-authoritative `.claude/` workflows instead of duplicating them. The current local runtime and
+provider-neutral registry at `.claude/agentic-surface-registry.json` and then the authoritative
+`.claude/` workflows themselves instead of duplicating them. The current local runtime and
 studio copy are still Claude-oriented until the provider-aware engine seam lands.
 
 ## What a session feels like
@@ -63,8 +64,9 @@ Use with GitHub Copilot in this workspace:
 - Type `/` and run `run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`,
    `diagnose-studio`, `artifact-chat`, `reopen`, `new-command`, or
    `create-dispatch-command`.
-- These prompt files are thin adapters over `.claude/commands`, `.claude/skills`, and
-   `.claude/agents`; the repo's behavior still lives there.
+- These prompt files are thin adapters over the provider-neutral `.claude/agentic-surface-registry.json`
+   and the referenced `.claude/commands`, `.claude/skills`, and `.claude/agents`; the repo's
+   behavior still lives there.
 
 ## MCP tools
 
@@ -94,6 +96,7 @@ wiki/               authoritative facts & guardrails + user-guide.md (start: REA
 discussion/         plans + the brainstorm thread cache (_completed/ = archive; .logs/ = runtime logs)
 .claude/            commands (procedures) · skills (craft) · agents (specialized roles)
 .github/            Copilot instructions + thin prompt/agent adapters over the `.claude/` SSOT
+.claude/agentic-surface-registry.json  provider-neutral registry external harness adapters reference
 ```
 
 Contributors: read `CLAUDE.md` first — 12 rules + the session bootstrap, all enforced.

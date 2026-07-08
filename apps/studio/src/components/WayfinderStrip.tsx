@@ -17,6 +17,7 @@ export function WayfinderStrip({
   onJump,
   onAdvance,
   onOpenArtifact,
+  onDecisionTree,
 }: {
   rounds: RoundRecord[];
   artifacts: Artifact[];
@@ -28,6 +29,8 @@ export function WayfinderStrip({
   onAdvance: () => void;
   /** When provided, clicking a keep opens the artifact chat instead of downloading (drag-out still exports). */
   onOpenArtifact?: (artifact: Artifact) => void;
+  /** Opens the per-discussion decision-tree overlay (the visual decision record). */
+  onDecisionTree?: () => void;
 }) {
   if (rounds.length === 0) return null;
   const keeps = artifacts.slice(-6);
@@ -90,6 +93,20 @@ export function WayfinderStrip({
               </a>
             ))}
           </>
+        )}
+
+        {onDecisionTree && (
+          <button
+            type="button"
+            data-testid="decision-tree-toggle"
+            onClick={onDecisionTree}
+            title="See how this discussion decided — the decision tree across every round"
+            className={`shrink-0 rounded-full border border-line px-3 py-1 text-xs font-medium text-ink-dim hover:border-accent hover:text-ink ${
+              proposal && activeBoard ? '' : 'ml-auto'
+            }`}
+          >
+            🌳 decision tree
+          </button>
         )}
 
         {proposal && activeBoard && (

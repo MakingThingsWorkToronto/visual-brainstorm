@@ -1,134 +1,74 @@
 {
   "version": 1,
   "updated": "2026-07-07",
-  "authority": {
-    "commandsRoot": ".claude/commands",
-    "skillsRoot": ".claude/skills",
-    "agentsRoot": ".claude/agents",
-    "rule": "Workspace-local Copilot adapters in .github reference these files and must not duplicate workflow logic."
-  },
+  "registry": "../.claude/agentic-surface-registry.json",
+  "rule": "This file is the GitHub Copilot adapter index. The provider-neutral authoritative registry lives at .claude/agentic-surface-registry.json, and workflow logic remains in the referenced .claude files.",
   "commands": [
     {
       "name": "run-brainstorm",
-      "path": ".claude/commands/run-brainstorm.md",
-      "model": "opus",
-      "purpose": "Drive a full visual brainstorm session",
       "copilotPrompt": ".github/prompts/run-brainstorm.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
     },
     {
       "name": "plan-closeout",
-      "path": ".claude/commands/plan-closeout.md",
-      "model": "sonnet",
-      "purpose": "Close the active plan and feed learnings back into the repo",
       "copilotPrompt": ".github/prompts/plan-closeout.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
     },
     {
       "name": "discover-skills",
-      "path": ".claude/commands/discover-skills.md",
-      "model": "sonnet",
-      "purpose": "Find local skills or ingest new craft",
       "copilotPrompt": ".github/prompts/discover-skills.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
     },
     {
       "name": "diagnose-studio",
-      "path": ".claude/commands/diagnose-studio.md",
-      "model": "sonnet",
-      "purpose": "Diagnose the studio, bridge, or MCP from evidence",
       "copilotPrompt": ".github/prompts/diagnose-studio.prompt.md",
       "copilotAgent": "visual-brainstorm-diagnostician"
     },
     {
       "name": "artifact-chat",
-      "path": ".claude/commands/artifact-chat.md",
-      "model": "haiku",
-      "purpose": "Route artifact questions and revisions through subagents",
       "copilotPrompt": ".github/prompts/artifact-chat.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
     },
     {
       "name": "reopen",
-      "path": ".claude/commands/reopen.md",
-      "model": "sonnet",
-      "purpose": "Move a completed thread back to live discussion and resume it",
       "copilotPrompt": ".github/prompts/reopen.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
     },
     {
       "name": "build-check",
-      "path": ".claude/commands/build-check.md",
-      "model": "haiku",
-      "purpose": "Run the canonical build and test verification",
       "copilotPrompt": ".github/prompts/build-check.prompt.md",
       "copilotAgent": "visual-brainstorm-test-engineer"
     },
     {
       "name": "new-command",
-      "path": ".claude/commands/new-command.md",
-      "model": "sonnet",
-      "purpose": "Codify recurring work as a new repeatable command",
       "copilotPrompt": ".github/prompts/new-command.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
     },
     {
       "name": "create-dispatch-command",
-      "path": ".claude/commands/create-dispatch-command.md",
-      "model": "sonnet",
-      "purpose": "Turn a plan into a loopable dispatcher command",
       "copilotPrompt": ".github/prompts/create-dispatch-command.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
-    }
-  ],
-  "skills": [
-    {
-      "name": "brainstorm-phases",
-      "path": ".claude/skills/brainstorm-phases/SKILL.md",
-      "model": "inherit",
-      "purpose": "Drive the five-phase funnel and interpret every response field"
-    },
-    {
-      "name": "svg-authoring",
-      "path": ".claude/skills/svg-authoring/SKILL.md",
-      "model": "inherit",
-      "purpose": "Author divergent SVG board options and validate them"
     }
   ],
   "agents": [
     {
       "name": "brainstorm-orchestrator",
-      "path": ".claude/agents/brainstorm-orchestrator.md",
-      "model": "opus",
-      "purpose": "Primary brainstorm persona and orchestration owner",
       "copilotAgent": "visual-brainstorm-operator"
     },
     {
       "name": "devops-diagnostician",
-      "path": ".claude/agents/devops-diagnostician.md",
-      "model": "sonnet",
-      "purpose": "Evidence-first diagnosis for studio, bridge, and MCP",
       "copilotAgent": "visual-brainstorm-diagnostician"
     },
     {
       "name": "svg-artisan",
-      "path": ".claude/agents/svg-artisan.md",
-      "model": "opus",
-      "purpose": "Delegated SVG generation and revision",
       "copilotAgent": "visual-brainstorm-svg-artisan"
     },
     {
       "name": "test-engineer",
-      "path": ".claude/agents/test-engineer.md",
-      "model": "sonnet",
-      "purpose": "Testing and verification specialist",
       "copilotAgent": "visual-brainstorm-test-engineer"
     },
     {
       "name": "wiki-librarian",
-      "path": ".claude/agents/wiki-librarian.md",
-      "model": "haiku",
-      "purpose": "Authoritative documentation and changelog discipline",
       "copilotAgent": "visual-brainstorm-wiki-librarian"
     }
   ]

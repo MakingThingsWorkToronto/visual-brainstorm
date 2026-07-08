@@ -22,6 +22,7 @@ import { SessionActivity } from './components/SessionActivity';
 import { Sidebar } from './components/Sidebar';
 import { ThemePicker } from './components/ThemePicker';
 import { WayfinderStrip } from './components/WayfinderStrip';
+import { DecisionTreeView } from './components/DecisionTreeView';
 
 interface Thread {
   session: SessionInfo;
@@ -177,6 +178,9 @@ export default function App() {
   // The one fullscreen viewer's target (null = closed). Set by every artifact/
   // option click; a captured-artifact viewer follows revisions via displaySlug.
   const [fullscreen, setFullscreen] = useState<Fullscreen>(null);
+  // Decision-tree overlay: { title, svg } while open (svg null = loading). The
+  // SVG is built server-side (GET /api/decision-tree/:id), never client-side.
+  const [decisionTree, setDecisionTree] = useState<{ title: string; svg: string | null } | null>(null);
   // Claude-message count at the moment a send succeeded; busy until it grows
   // (one counter for whichever subject the fullscreen viewer has open).
   const [chatSentAt, setChatSentAt] = useState<number | null>(null);

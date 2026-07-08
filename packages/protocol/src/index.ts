@@ -85,6 +85,12 @@ export interface MindNode {
   expanded?: boolean;
   tags?: string[];
   style?: { color?: string; background?: string; fontSize?: string };
+  /**
+   * Free-text note the user attached to THIS node. It is steering data: an
+   * `explode` on the node must generate children relevant to the topic AND this
+   * note, so changing the note materially changes the expansion.
+   */
+  note?: string;
 }
 
 export const MindNodeSchema: z.ZodType<MindNode> = z.lazy(() =>
@@ -101,8 +107,35 @@ export const MindNodeSchema: z.ZodType<MindNode> = z.lazy(() =>
         fontSize: z.string().optional(),
       })
       .optional(),
+    note: z.string().optional(),
   }),
 );
+
+/**
+ * One mind-map decision the user made this round — the ordered node-op log that
+ * rides back in BoardResponse.treeOps (persisted to round-NN/tree-ops.jsonl and
+ * folded into the feedback digest). `editedTree` carries the final SHAPE; treeOps
+ * carry the INTENT, so a delegated model that never saw the canvas can act:
+ *  - explode: expand this node into ≥5 children relevant to `topic` + `note`.
+ *  - add:     the user seeded `count` blank child ideas under the node.
+ *  - delete:  the node (and its subtree) was eliminated.
+ *  - note:    the user attached/changed `note` on the node (steers future explodes).
+ *  - rename / move: structural edits, kept for the decision record.
+ */
+export const TreeOpSchema = z.object({
+  op: z.enum(['explode', 'delete', 'add', 'note', 'rename', 'move']),
+  /** mind-elixir node id the op targets. */
+  nodeId: z.string(),
+  /** The node's topic at op time — labels the op for any model reading the digest. */
+  topic: z.string().default(''),
+  /** The node's note at op time — the steering text for `explode`/`note`. */
+  note: z.string().default(''),
+  /** `add`: how many child ideas were seeded (default 5). */
+  count: z.number().int().min(1).optional(),
+  /** ISO timestamp — the studio stamps it when the user acts. */
+  at: z.string(),
+});
+export type TreeOp = z.infer<typeof TreeOpSchema>;
 
 export const MindTreeSchema = z.object({
   nodeData: MindNodeSchema,
@@ -229,6 +262,13 @@ export const BoardResponseSchema = z.object({
   finalOptionId: z.string().optional(),
   /** mindmap: the user's edited tree — absent means the tree was untouched. */
   editedTree: MindTreeSchema.optional(),
+  /**
+   * mindmap: the ordered node-op decision log for this round (explode/delete/
+   * add/note/rename/move). editedTree is the final shape; treeOps is the intent
+   * — the orchestrator reads `explode` ops to know which nodes to expand (≥5
+   * relevant children) and with what steering note.
+   */
+  treeOps: z.array(TreeOpSchema).default([]),
   respondedAt: z.string(),
 });
 export type BoardResponse = z.infer<typeof BoardResponseSchema>;
