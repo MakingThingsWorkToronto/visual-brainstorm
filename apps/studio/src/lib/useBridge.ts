@@ -12,6 +12,7 @@ const EMPTY: StudioState = {
   artifacts: [],
   artifactChat: [],
   thinking: null,
+  runtime: { id: 'claude', label: 'Claude Code', provider: 'Anthropic' },
   themes: [],
   theme: 'neon-purple',
   models: [],

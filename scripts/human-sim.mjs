@@ -321,6 +321,60 @@ if (browsers.length === 0) {
         typeof childCount === 'number' && childCount > 2,
         `the REAL mind-elixir engine added a child via addChild() (got ${JSON.stringify(childCount)})`,
       );
+    });
+
+    // Matt's node-controls matrix (2026-07-07): +5 creates five real nodes; a note
+    // that changes a node's meaning rides back on the explode op (a different note →
+    // a different explosion). All assertions are engine-sourced (mind.getData()) or
+    // taken from the genuine response — never fabricated (rule 6/11).
+    await step('human uses the node action bar — +5 seeds five ideas, note + explode ride back', async () => {
+      // Select the "Mark" leaf (c1); the action bar binds to the selected node.
+      await evaluate(
+        `(() => {
+          const el = document.querySelector('[data-testid="mindmap-engine"]');
+          const mind = el && el.mind;
+          mind.selectNode(mind.findEle('c1'));
+        })()`,
+      );
+      await waitInPage(
+        'the node action bar enables for the selected node',
+        `!!document.querySelector('[data-testid="node-explode"]') && !document.querySelector('[data-testid="node-explode"]').disabled`,
+      );
+      // +5 ideas → the REAL engine must show five children under "Mark".
+      await click('the +5 ideas button', `document.querySelector('[data-testid="node-add"]')`);
+      await waitInPage(
+        'the +5 button created five real child nodes under "Mark"',
+        `(() => {
+          const el = document.querySelector('[data-testid="mindmap-engine"]');
+          const mind = el && el.mind;
+          const c1 = mind && mind.getData().nodeData.children.find((n) => n.id === 'c1');
+          return !!c1 && (c1.children ? c1.children.length : 0) === 5;
+        })()`,
+        15_000,
+      );
+      // Note + explode on the "Motion" leaf (c2): the note steers the explosion.
+      await evaluate(
+        `(() => {
+          const el = document.querySelector('[data-testid="mindmap-engine"]');
+          const mind = el && el.mind;
+          mind.selectNode(mind.findEle('c2'));
+        })()`,
+      );
+      await waitInPage(
+        'the node bar rebinds to c2',
+        `!document.querySelector('[data-testid="node-explode"]').disabled`,
+      );
+      await click('the Note button', `document.querySelector('[data-testid="node-note"]')`);
+      await waitInPage('the note editor opens', `!!document.querySelector('[data-testid="node-note-input"]')`);
+      await typeInto(
+        'the node note',
+        `document.querySelector('[data-testid="node-note-input"]')`,
+        'make it kinetic — speed lines, motion blur',
+      );
+      await click('save the note', `document.querySelector('[data-testid="node-note-save"]')`);
+      await click('the Explode button', `document.querySelector('[data-testid="node-explode"]')`);
+
+      // Send: editedTree (five +5 nodes + the folded note) and treeOps ride back.
       await click(
         'the mindmap composer Send & iterate button',
         `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Send & iterate')`,
@@ -328,14 +382,46 @@ if (browsers.length === 0) {
       const treeResp = await treeWait;
       assert.ok(treeResp, 'presentAndWait resolved with a response for the mindmap board, not a timeout');
       assert.ok(treeResp.editedTree, 'response carries editedTree');
+      const c1 = treeResp.editedTree.nodeData.children.find((n) => n.id === 'c1');
+      assert.ok(c1 && c1.children && c1.children.length === 5, 'the five +5 nodes rode back in editedTree');
+      const c2 = treeResp.editedTree.nodeData.children.find((n) => n.id === 'c2');
+      assert.ok(c2 && c2.note && c2.note.includes('kinetic'), 'the node note folded into editedTree');
+      const explodeOp = treeResp.treeOps.find((o) => o.op === 'explode' && o.nodeId === 'c2');
+      assert.ok(explodeOp, 'an explode op for "Motion" rode back in treeOps');
       assert.ok(
-        treeResp.editedTree.nodeData.children.length > 2,
-        'the node added by the real engine rode back in editedTree',
+        explodeOp.note.includes('kinetic'),
+        'the explode op carries the steering note — a different note would explode into a different set',
       );
+      assert.ok(treeResp.treeOps.some((o) => o.op === 'add' && o.count === 5), 'the +5 add op rode back');
+
+      // The decisions persisted as structured jsonl (rule: jsonl for decisions).
+      const roundDir = path.join(store.info.dir, `round-${String(treeBoard.round).padStart(2, '0')}`);
+      const opsLines = fs
+        .readFileSync(path.join(roundDir, 'tree-ops.jsonl'), 'utf8')
+        .trim()
+        .split('\n');
+      assert.ok(opsLines.length >= 2, 'tree-ops.jsonl recorded the node ops (add + explode)');
+
       const introMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
       assert.ok(introMd.includes('Concierge Q: Who is this glyph for?'), 'brainstorm.md records the concierge question');
       assert.ok(introMd.includes(`Concierge A: ${cAnswer}`), 'brainstorm.md records the concierge answer');
       assert.ok(introMd.includes('Mind-map tree presented'), 'brainstorm.md records the mindmap presentation (recordBoard)');
+      assert.ok(introMd.includes('EXPLODE'), 'the digest surfaces the EXPLODE decision for synthesis');
+    });
+
+    // The decision tree is reachable from the wayfinder and renders the round record.
+    await step('the decision-tree overlay opens and shows the mind-map round', async () => {
+      await click('the decision-tree toggle', `document.querySelector('[data-testid="decision-tree-toggle"]')`);
+      await waitInPage(
+        'the decision-tree overlay renders a real SVG',
+        `(() => {
+          const v = document.querySelector('[data-testid="decision-tree-view"]');
+          return !!v && !!v.querySelector('svg');
+        })()`,
+        15_000,
+      );
+      // Close it so the timeline is clean for the following steps.
+      await click('close the decision tree', `[...document.querySelectorAll('[data-testid="decision-tree-view"] button')].find((b) => b.textContent.trim() === 'Close')`);
     });
 
     // The canonical diverge board, re-anchored to this thread (fresh id rule

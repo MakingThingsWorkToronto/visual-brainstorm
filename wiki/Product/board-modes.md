@@ -9,7 +9,7 @@ them with the same survey machinery; Claude varies the SVG content and option co
 | `moodboard` | style tiles: color, texture, typography, composition studies | multi-select, per-option notes |
 | `system-map` | architecture diagrams: boxes/arrows variants of the same system | single/dual select, elaboration-heavy |
 | `storyboard` | user-flow frames or scene sequences | select the frames that ring true |
-| `mindmap` | radial concept expansions from a seed idea | select branches to grow next round |
+| `mindmap` | radial concept expansions from a seed idea | select node(s), use per-node controls to steer structure |
 | `matrix` | comparison grids (options × criteria rendered as SVG) | select the row/framing that fits |
 | `palette` | color systems with swatches + sample applications | select + axis dials (warm↔cool etc.) |
 | `freeform` | anything | whatever Claude configures |

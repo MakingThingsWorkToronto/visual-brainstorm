@@ -94,7 +94,7 @@ Every scaffolded plan carries a mandatory human-verification phase —
   an archived thread shows its Σ total in the archived banner.
 - **Live ring**: last 500 lines in memory → `GET /api/logs` → studio Logs modal (Logs
   button, bottom-left of the left nav).
-- **`GET /api/health`**: pid, port, startedAt, engine, session id/dir, active board,
+- **`GET /api/health`**: pid, port, startedAt, session id/dir, active board,
   awaiting-response, connected clients, studio-dist existence. First question, always.
   Semantics: `awaitingResponse` reflects the blocking `present_board` wait — it flips
   false after the tool timeout, so it is NOT board liveness. `activeBoard` becomes null

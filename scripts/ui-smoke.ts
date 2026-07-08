@@ -640,15 +640,48 @@ const mmHtml = renderToString(
 for (const marker of [
   'data-testid="mindmap-canvas"',
   'Mind map — one living structure',
-  'double-click a node to rename',
+  'double-click to rename',
   'data-testid="mindmap-engine"',
+  // The per-node action bar + its four controls render statically (bound to the
+  // selected node, so they exist even before the engine mounts).
+  'data-testid="node-actions"',
+  'data-testid="node-explode"',
+  'data-testid="node-add"',
+  'data-testid="node-note"',
+  'data-testid="node-delete"',
   'Send &amp; iterate', // the composer still renders under the canvas
 ]) {
   assert.ok(mmHtml.includes(marker), `[mindmap-canvas] missing marker "${marker}"`);
 }
 // The option grid + phase mechanics are suppressed for a mindmap board.
 assert.ok(!mmHtml.includes('judge deck'), '[mindmap-canvas] option-grid mechanic must be suppressed');
-console.log('UI mindmap canvas renders ✓ (canvas + engine + composer, option grid suppressed)');
+console.log('UI mindmap canvas renders ✓ (canvas + engine + node action bar + composer, option grid suppressed)');
+
+// --- Decision-tree toggle: the WayfinderStrip exposes the per-discussion decision
+// tree once there is at least one round. Render the strip with onDecisionTree set. ---
+const wfRound = {
+  board: BoardSchema.parse({
+    id: 'b-wf', sessionId: 's', round: 1, kind: 'icon-grid', phase: 'diverge',
+    title: 't', prompt: 'p',
+    options: [{ id: 'o1', label: 'One', svg: '<svg/>', tags: [], parents: [] }],
+    survey: { axes: [] }, createdAt: 'now',
+  }),
+  response: null,
+};
+const wfHtml = renderToString(
+  createElement(WayfinderStrip, {
+    rounds: [wfRound],
+    artifacts: [],
+    activeBoard: null,
+    proposal: null,
+    onJump: () => {},
+    onAdvance: () => {},
+    onDecisionTree: () => {},
+  }),
+);
+assert.ok(wfHtml.includes('data-testid="decision-tree-toggle"'), '[wayfinder] decision-tree toggle missing');
+assert.ok(wfHtml.includes('decision tree'), '[wayfinder] decision-tree label missing');
+console.log('UI decision-tree toggle renders ✓ (wayfinder exposes the per-discussion decision tree)');
 
 // --- Crash boundary (blank-page skew, 2026-07-07) ---
 // renderToString never invokes error boundaries (client-runtime only), so the

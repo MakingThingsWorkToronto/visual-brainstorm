@@ -43,6 +43,7 @@ function effectiveTargetRepo(): string | null {
 function bridgeOptions(): BridgeOptions {
   return {
     discussionRoot: root,
+    runtime: config.runtime,
     themes: loadThemes(config),
     theme: config.theme,
     models: config.models,

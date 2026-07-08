@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PaletteColor, ResponseAttachment, SeedIntake, Theme } from '@visual-brainstorm/protocol';
+import type {
+  ModelCatalogEntry,
+  PaletteColor,
+  ResponseAttachment,
+  RuntimeEngine,
+  SeedIntake,
+  Theme,
+} from '@visual-brainstorm/protocol';
 import { Bubble } from './primitives';
 import { PalettePicker } from './PalettePicker';
 import { TargetRepoPicker } from './TargetRepoPicker';
@@ -21,7 +28,7 @@ import { Survey, surveyWords, type SurveyQuestion, type SurveyAnswers } from './
  * full-height scribble pad, and a
  * composer with the full board-reply toolset (mic, attachments, camera,
  * model, target folder). Send & iterate dispatches new-brainstorm, which
- * starts a fresh Claude session when the engine is attached.
+ * starts a fresh live session when the attached runtime can handle it.
  */
 
 type Stroke = { x: number; y: number }[];
@@ -97,6 +104,7 @@ export function NewDiscussionPanel({
   themes = [],
   models = [],
   defaultModel = '',
+  runtime = { id: 'claude', label: 'Claude Code', provider: 'Anthropic' },
   targetRepo = null,
   cancellable = true,
   initialPrompt = '',
@@ -104,8 +112,9 @@ export function NewDiscussionPanel({
   onStart,
 }: {
   themes?: Theme[];
-  models?: string[];
+  models?: Array<ModelCatalogEntry | string>;
   defaultModel?: string;
+  runtime?: RuntimeEngine;
   targetRepo?: string | null;
   /** False when the panel IS the landing surface (nothing to go back to). */
   cancellable?: boolean;
@@ -137,6 +146,13 @@ export function NewDiscussionPanel({
     setPrompt((prev) => (prev.trim() ? `${prev.trim()} ${heard}` : heard)),
   );
   const intake = useAttachments();
+  const delegateModels = models
+    .map((candidate) =>
+      typeof candidate === 'string'
+        ? { id: candidate, label: candidate, capabilities: { delegate: true } }
+        : candidate,
+    )
+    .filter((candidate) => candidate.capabilities.delegate);
 
   // Handoff seed arrives async over WS (hello.seedBrief). Fill the brief the
   // first time it lands, but never clobber text the user has already typed.
@@ -297,7 +313,7 @@ export function NewDiscussionPanel({
                 palette,
               })
             }
-            title="Starts a fresh brainstorm session from this brief (requires the Claude engine)"
+            title={`Starts a fresh brainstorm session from this brief (requires ${runtime.label})`}
             className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-105 disabled:opacity-50"
           >
             Send & iterate
@@ -367,7 +383,7 @@ export function NewDiscussionPanel({
                     />
                   </label>
                 )}
-                {models.length > 0 && (
+                {delegateModels.length > 0 && (
                   <label className="block px-2 py-1.5 text-xs text-ink-dim">
                     Model for generation
                     <select
@@ -375,9 +391,9 @@ export function NewDiscussionPanel({
                       onChange={(e) => setModel(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
                     >
-                      {models.map((m) => (
-                        <option key={m} value={m}>
-                          {m.replace(/^claude-/, '')}
+                      {delegateModels.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.label}
                         </option>
                       ))}
                     </select>

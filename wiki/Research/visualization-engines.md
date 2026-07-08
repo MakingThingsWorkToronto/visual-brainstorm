@@ -28,4 +28,11 @@ own `discussion/` session (protocol change → rule: update packages/protocol fi
 in `packages/protocol`, the live co-edited `MindmapCanvas` (dynamically imported inside the mount
 effect so ui-smoke's esbuild never touches its `.less`), and a deterministic server-side
 `apps/mcp/src/tree-svg.ts` snapshot for the rule-7 artifact ledger (the browser export path is not
-relied on for capture). Proven end-to-end in a real browser by the human-sim.
+relied on for capture). Per-node action bar binds to mind-elixir's `selectNode` monkey-patch:
+**Explode** (deferred generation request, steered by node topic + optional note), **+5 ideas** (real
+`mind.addChild()` immediate generation), **Note** (free-text steering folded into `editedTree`),
+**Delete** (node + subtree). Node ops are logged to `round-NN/tree-ops.jsonl` (append-only intent
+log); `TreeOpSchema` ({explode|delete|add|note|rename|move, nodeId, topic, note?, count?, at?})
+and `BoardResponse.treeOps` carry the ordered decision trail. Feedback digest now surfaces mind-map
+decisions: "Mind-map edited", "Node note on …", "EXPLODE … [note: …]", "DELETE", "ADD", "NOTE"
+lines. Proven end-to-end in a real browser by the human-sim.

@@ -50,7 +50,8 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
   from the studio's global error handlers/CrashBoundary; written to the same log ring as
   bridge events, prefix `STUDIO CLIENT ERROR [source]:` (see
   System/testing-observability §Observability).
-- `GET /api/state` — full session state (hello payload) incl. themes/models for initial load/reconnect.
+- `GET /api/state` — full session state (hello payload) incl. runtime metadata, themes, and the
+  structured model catalog for initial load/reconnect.
 - `GET /api/discussions` — all cached threads (left-nav source), newest first; threads in
   `_completed/` carry `archived: true` and populate the Archive nav section.
 - `GET /api/discussions/<id>` — full thread reload (boards + SVGs + responses + artifacts
@@ -91,6 +92,12 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
   `artifacts/<slug>.json` in place (the SVG is untouched) and broadcasts the updated
   `artifact` envelope (useBridge upserts by slug). Live thread only; unknown slug →
   honest 404.
+- `GET /api/decision-tree/:id` — builds and returns the decision tree from the reloaded
+  thread (live or archived), deterministically rendered to sanitized SVG. `SessionStore`
+  writes `decision-tree.json` (structured tree) + `decision-tree.svg` (rendered index) at
+  the thread root on each response (derived, safe to overwrite). Studio: **🌳 decision tree**
+  toggle in the WayfinderStrip opens a `DecisionTreeView` overlay (fetches server-built SVG
+  + legend).
 - `POST /api/target-repo` — `{ path: string|null, scope: 'thread'|'default' }`. Validates the
   folder exists (honest 400; any plain folder qualifies, not necessarily a git repo).
   `thread` → `SessionInfo.targetRepo` in session.json; `default` → rewrites `targetRepo` in
@@ -115,7 +122,9 @@ targetRepo     optional path (any folder) — the DEFAULT target; per-thread ove
                accepted artifacts are ALSO copied to <effective>/brainstorm-artifacts/
 stylesDir      theme JSON drop-in folder, default "styles"
 theme          default theme name, default "neon-purple"
-models         model list for the composer's More Tools (+) menu picker, default [claude-fable-5, claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5]
+runtime        live orchestration runtime metadata (id / label / provider), default Claude Code
+models         structured model catalog for the composer's More Tools (+) menu picker;
+               each entry carries id / label / provider / engineIds / capabilities
 defaultModel   default "claude-fable-5"
 discussionDir  thread-cache root, default "discussion"
 ```
@@ -150,10 +159,17 @@ discussion/<yyyy-mm-dd-hhmm>-<slug>/
                                targetRepo override)
   brainstorm.md                append-only TEXT memory: every round's options (labels,
                                lineage) + every response digest — the re-synthesis source
+  thinking.jsonl               append-only chain-of-thought stream (previously ephemeral;
+                               bridge record_thinking → SessionStore.recordThinking)
   round-01/board.json          full board payload
   round-01/option-<id>.svg     every presented SVG, individually cached
   round-01/response.json       the user's survey response (incl. chosen model); rewritten
                                in place on a revisit (brainstorm.md appends — never erased)
+  round-01/tree-ops.jsonl      mind-map methodology: append-only node-op log (TreeOp:
+                               explode|delete|add|note|rename|move, nodeId, topic, note?,
+                               count?, at?) — the INTENT trail
+  round-01/edited-tree.json    mind-map final structure with folded notes (MindNode tree;
+                               only written for tree-payload rounds)
   attachments/<stamp>-<name>   composer file/photo attachments, decoded from response data
                                URIs by the bridge (savedPath in the recorded response)
   progress.jsonl               append-only session-progress events (SessionActivity strip,
@@ -164,6 +180,11 @@ discussion/<yyyy-mm-dd-hhmm>-<slug>/
                                rewritten in place when notes are saved (/api/artifact-notes)
   artifacts/chat.jsonl         append-only artifact-chat messages (ArtifactChatMessage:
                                user questions + Claude replies, revisedSlug links)
+  decision-tree.json           derived index: per-thread decision tree (one node per round,
+                               chosen ✓ / rejected ✕ / action / explode·delete·note ops,
+                               coloured by decision kind) — built server-side, safe to overwrite
+  decision-tree.svg            derived index: decision tree rendered deterministically as
+                               sanitized (rule 8) SVG, served at GET /api/decision-tree/:id
 
 discussion/.seeds/seed-<stamp>.(svg|png|jpeg|…)   non-text seed intake files (root-level,
                                not per-thread — the seed precedes the thread)

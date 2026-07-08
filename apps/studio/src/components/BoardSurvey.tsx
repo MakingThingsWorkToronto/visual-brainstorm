@@ -4,6 +4,7 @@ import type {
   BoardOption,
   BoardResponse,
   MindTree,
+  ModelCatalogEntry,
   PaletteColor,
   Phase,
   ResponseAction,
@@ -57,7 +58,7 @@ export function BoardSurvey({
   initial,
 }: {
   board: Board;
-  models: string[];
+  models: Array<ModelCatalogEntry | string>;
   defaultModel: string;
   onRespond: (response: BoardResponse) => Promise<void>;
   /** Wayfinder's next-phase suggestion — Enter accepts it once you've judged. */
@@ -139,6 +140,17 @@ export function BoardSurvey({
 
   const { multiSelect, minSelect, maxSelect } = board.survey;
   const phase = localPhase;
+  const delegateModels = useMemo(
+    () =>
+      models
+        .map((candidate) =>
+          typeof candidate === 'string'
+            ? { id: candidate, label: candidate, capabilities: { delegate: true } }
+            : candidate,
+        )
+        .filter((candidate) => candidate.capabilities.delegate),
+    [models],
+  );
   const dialsMoved = board.survey.axes.filter(
     (axis) => (axisValues[axis.id] ?? axis.defaultValue) !== axis.defaultValue,
   ).length;
@@ -704,7 +716,7 @@ export function BoardSurvey({
                     )}
                   </div>
                 )}
-                {models.length > 0 && (
+                {delegateModels.length > 0 && (
                   <label className="block px-2 py-1.5 text-xs text-ink-dim">
                     Model for the next round
                     <select
@@ -713,9 +725,9 @@ export function BoardSurvey({
                       className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
                       title="The orchestrator delegates the next round's generation to this model"
                     >
-                      {models.map((m) => (
-                        <option key={m} value={m}>
-                          {m.replace(/^claude-/, '')}
+                      {delegateModels.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.label}
                         </option>
                       ))}
                     </select>

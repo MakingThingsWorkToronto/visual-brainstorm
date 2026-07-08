@@ -17,7 +17,8 @@ an MCP server (glue), a local React app (surface). No accounts, no cloud, MIT.
 GitHub Copilot workspace adapters now live in `.github/` as thin prompts/agents that read the
 provider-neutral registry at `.claude/agentic-surface-registry.json` and then the authoritative
 `.claude/` workflows themselves instead of duplicating them. The current local runtime and
-studio copy are still Claude-oriented until the provider-aware engine seam lands.
+studio now read runtime/model labels from structured metadata, but the only implemented live
+orchestration runtime is still Claude Code.
 
 ## What a session feels like
 
@@ -82,7 +83,9 @@ Use with GitHub Copilot in this workspace:
 
 `visual-brainstorm.config.json` in your project root (all optional): `targetRepo` (also
 receive artifacts there), `stylesDir` (theme JSON drop-ins, default `styles/`), `theme`
-(default `neon-purple`), `models` + `defaultModel` (composer picker), `discussionDir`
+(default `neon-purple`), `runtime` (live orchestration runtime metadata), `models`
+(structured composer catalog: id / label / provider / engineIds / capabilities),
+`defaultModel`, `discussionDir`
 (thread cache, default `discussion`). Themes are pickable visually in the studio
 header or by editing the config — see `styles/sunset.json` for the drop-in format.
 

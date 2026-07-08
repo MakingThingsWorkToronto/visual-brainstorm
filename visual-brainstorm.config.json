@@ -2,7 +2,41 @@
   "$comment": "Visual Brainstorm config — human-editable. targetRepo (optional) also receives accepted artifacts under brainstorm-artifacts/. stylesDir is scanned for theme JSON drop-ins. theme picks the default; the studio picker can override per-browser.",
   "stylesDir": "styles",
   "theme": "neon-purple",
-  "models": ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5"],
+  "runtime": {
+    "id": "claude",
+    "label": "Claude Code",
+    "provider": "Anthropic"
+  },
+  "models": [
+    {
+      "id": "claude-fable-5",
+      "label": "Claude Fable 5",
+      "provider": "Anthropic",
+      "engineIds": ["claude"],
+      "capabilities": { "orchestrate": false, "delegate": true }
+    },
+    {
+      "id": "claude-opus-4-8",
+      "label": "Claude Opus 4.8",
+      "provider": "Anthropic",
+      "engineIds": ["claude"],
+      "capabilities": { "orchestrate": false, "delegate": true }
+    },
+    {
+      "id": "claude-sonnet-5",
+      "label": "Claude Sonnet 5",
+      "provider": "Anthropic",
+      "engineIds": ["claude"],
+      "capabilities": { "orchestrate": false, "delegate": true }
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "label": "Claude Haiku 4.5",
+      "provider": "Anthropic",
+      "engineIds": ["claude"],
+      "capabilities": { "orchestrate": false, "delegate": true }
+    }
+  ],
   "defaultModel": "claude-fable-5",
   "discussionDir": "discussion"
 }

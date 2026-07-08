@@ -8,6 +8,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import {
   ArtifactChatMessageSchema,
   BoardResponseSchema,
+  ModelCatalogEntrySchema,
   PaletteColorSchema,
   ProgressEventSchema,
   ResponseAttachmentSchema,
@@ -20,7 +21,9 @@ import {
   type BoardResponse,
   type ConciergeExchange,
   type LivingGallery,
+  type ModelCatalogEntry,
   type ResponseAttachment,
+  type RuntimeEngine,
   type SeedIntake,
   type ServerToStudio,
   type StudioState,
@@ -40,9 +43,10 @@ export interface CommandRequest {
 export interface BridgeOptions {
   /** Discussion root scanned for reloadable threads. */
   discussionRoot: string;
+  runtime?: RuntimeEngine;
   themes: Theme[];
   theme: string;
-  models: string[];
+  models: Array<ModelCatalogEntry | string>;
   defaultModel: string;
   /** Default target repo/folder (config); the thread override lives in SessionInfo. */
   defaultTargetRepo?: () => string | null;
@@ -72,6 +76,28 @@ const MIME: Record<string, string> = {
   '.map': 'application/json',
   '.woff2': 'font/woff2',
 };
+
+function normalizeBridgeModel(model: ModelCatalogEntry | string): ModelCatalogEntry {
+  if (typeof model !== 'string') return ModelCatalogEntrySchema.parse(model);
+  const slug = model.replace(/^claude-/, '');
+  const words = slug
+    .split('-')
+    .filter(Boolean)
+    .map((part) => (/^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(' ');
+  return {
+    id: model,
+    label: model.startsWith('claude-') ? `Claude ${words}` : words || model,
+    provider: model.startsWith('claude-') ? 'Anthropic' : 'Unknown',
+    engineIds: ['claude'],
+    capabilities: { orchestrate: false, delegate: true },
+  };
+}
+
+function normalizeRuntime(runtime?: RuntimeEngine): RuntimeEngine {
+  if (!runtime) return { id: 'claude', label: 'Claude Code', provider: 'Anthropic' };
+  return runtime;
+}
 
 function studioDist(): string {
   if (process.env.VIBR_STUDIO_DIST) return process.env.VIBR_STUDIO_DIST;
@@ -113,6 +139,10 @@ export class Bridge {
   private commandWaiters: ((request: CommandRequest) => void)[] = [];
   /** Live theme list — refreshed when the studio saves a palette edit. */
   private themesList: Theme[];
+  /** Structured model catalog served to the studio, even from legacy callers. */
+  private readonly modelsList: ModelCatalogEntry[];
+  /** Live orchestration runtime metadata served to the studio. */
+  private readonly runtime: RuntimeEngine;
   /** Claude Code → studio handoff: the purpose the human already described. */
   private seedBrief: string | null = null;
   /** Pending concierge question + its answer resolver (adaptive intake). */
@@ -133,6 +163,8 @@ export class Bridge {
     private readonly options: BridgeOptions,
   ) {
     this.themesList = options.themes;
+    this.modelsList = options.models.map((model) => normalizeBridgeModel(model));
+    this.runtime = normalizeRuntime(options.runtime);
   }
 
   private log(message: string): void {
@@ -172,9 +204,10 @@ export class Bridge {
       activeBoard: this.activeBoard,
       artifacts: this.store.artifacts,
       thinking: this.thinking,
+      runtime: this.runtime,
       themes: this.themesList,
       theme: this.options.theme,
-      models: this.options.models,
+      models: this.modelsList,
       defaultModel: this.options.defaultModel,
       targetRepo: this.store.info.targetRepo ?? this.options.defaultTargetRepo?.() ?? null,
       progress: this.store.progress.slice(-200),

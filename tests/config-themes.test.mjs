@@ -14,8 +14,10 @@ test('config defaults without a file', () => {
   assert.equal(config.theme, 'neon-purple');
   assert.equal(config.stylesDir, 'styles');
   assert.equal(config.discussionDir, 'discussion');
+  assert.equal(config.runtime.label, 'Claude Code');
   assert.equal(config.defaultModel, 'claude-fable-5');
-  assert.ok(config.models.includes('claude-opus-4-8'));
+  assert.ok(config.models.some((model) => model.id === 'claude-opus-4-8'));
+  assert.ok(config.models.every((model) => model.capabilities.delegate));
 });
 
 test('config file overrides defaults; invalid JSON falls back safely', () => {

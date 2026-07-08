@@ -28,8 +28,9 @@ files and custom agents under `.github/`. In VS Code, open Copilot Chat, type `/
 `run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`, `diagnose-studio`,
 `artifact-chat`, `reopen`, `new-command`, or `create-dispatch-command`. These are thin
 adapters over the authoritative `.claude/` workflows and the same local MCP/studio stack.
-Current studio/runtime copy still says "Claude" because the provider-aware engine seam has
-not been widened yet; the adapter layer does not change thread or artifact semantics.
+The studio now renders runtime-aware action copy and structured model labels from bridge
+metadata, but the only implemented live orchestration runtime is still Claude Code; the
+adapter layer does not change thread or artifact semantics.
 
 ## 2. Starting a brainstorm, step by step
 
@@ -117,7 +118,7 @@ the intake** (see above). Top to bottom:
   box grows with its content, capped at 30% of the viewport, then scrolls internally.
 
 **Send & iterate** is enabled by a prompt OR a sketch OR an attachment, and starts the
-intake journey when the Claude engine is attached. You can also dictate the brief (the mic
+intake journey when the live Claude Code runtime is attached. You can also dictate the brief (the mic
 button is honestly disabled where the browser has no speech recognition). Chosen model and
 colors travel with the brief.
 
@@ -149,8 +150,12 @@ you pick one to start (§2, Stage 3).
 
 **Mind map canvas** — when you pick Mind map in the Living Gallery, the studio opens a
 live co-edited **mind-elixir canvas** instead of the phase funnel. Double-click any node to
-rename, Tab to add a child, drag to rearrange. Your tree edits are the "response" that
-returns to Claude (structure IS the feedback).
+rename, Tab to add a child, drag to rearrange. Select any node and use the per-node action bar:
+- **Explode** — marks the node to be expanded next round into ≥5 children relevant to its topic and note (a deferred request; the orchestrator generates them).
+- **+5 ideas** — immediately seeds five child idea nodes under the selected node.
+- **Note** — attach free-text steering to the node; a note that changes a node's meaning changes what an explode generates.
+- **Delete** — remove the node and its subtree.
+Your tree edits are the "response" that returns to Claude (structure IS the feedback).
 
 **Phase tabs** (Diverge · Expand · Mutate · Wreck · Cluster · Converge) — the funnel,
 left-aligned liquid-chrome tabs sized to their labels, attached flush to the full-width
@@ -182,9 +187,11 @@ every duel reach Claude as preference data — top ranks lead the next round's s
 a clickable thumbnail (narrowing toward the winner; click = jump back), your **keeps hanging
 beneath** (drag one straight into your editor to export it, no export dialog, or click to open
 fullscreen with notes and chat), optionally a **📌 pinned** row (artifacts you pinned from the
-fullscreen viewer — click to open read-only, or unpin via the 📌 toggle), and a glowing
-**next-phase pill** at the right end. Once you've judged, **Enter** sends and requests that
-phase; the composer shows "Enter sends & asks for …" when it's armed.
+fullscreen viewer — click to open read-only, or unpin via the 📌 toggle), a **🌳 decision tree**
+toggle (opens an overlay showing how the brainstorm decided — root → one node per round → chosen
+✓ / rejected ✕ / action / explode/delete/note operations, coloured by decision kind), and a
+glowing **next-phase pill** at the right end. Once you've judged, **Enter** sends and requests
+that phase; the composer shows "Enter sends & asks for …" when it's armed.
 
 **Fullscreen viewer — ONE surface for every artifact and option.** Clicking any captured artifact (a keep on the wayfinder strip or pinned row), a pinned artifact, a previous round's option, or a live board's option opens the same fullscreen surface: a zoom/pan/pinch SVG stage on the left, a right dock with **Notes** above an optional **Chat**. 
 - **Captured artifacts and live board options:** Notes are editable. For artifacts, **Save notes** persists them with the artifact; for live options, notes ship with your response. A chat composer (one box, one **Send**) lets you ask questions or request changes; answers come from Claude via subagents. A requested change is captured as a NEW version (original untouched, marked `revised`); the view switches to the revision while the dialog stays open.
@@ -254,7 +261,7 @@ for context) · **Finalize & close out** (appears in Converge once a Final is ma
 **Colors** (the palette picker), the model picker, **Park**, **Discover skills** (match or
 web-discover craft, ingested as repo skills), and **Plan closeout** (harvest learnings,
 improve the repo's commands, archive the thread). **New Discussion** (start from your own
-prompt or seed; needs the Claude engine), **Logs**, and the **theme picker** live in the
+prompt or seed; needs the live Claude Code runtime), **Logs**, and the **theme picker** live in the
 left nav (see **Left nav** above).
 
 ## 4. Where everything is saved
@@ -272,12 +279,14 @@ artifacts also copied to its `brainstorm-artifacts/`; override per thread with t
 theme JSON may include an optional `palette` of named colors for the Colors picker, and
 palette edits made in the studio are saved back to this folder — an edited built-in is
 shadowed by its saved copy), `theme` (the default; each discussion can carry its own),
-`models`, `defaultModel`, `discussionDir`. Themes are also switchable visually via the
+`runtime` (live orchestration runtime metadata), `models` (structured catalog entries with
+id / label / provider / engineIds / capabilities), `defaultModel`, `discussionDir`.
+Themes are also switchable visually via the
 picker at the bottom-right of the left nav.
 
 ## 6. When something looks broken
 
-1. `curl http://127.0.0.1:5199/api/health` — who owns the port? (pid, session, engine)
+1. `curl http://127.0.0.1:5199/api/health` — who owns the port? (pid, session, active board, clients)
 2. The **Logs** button (bottom-left of the nav) or `GET /api/logs` or
    `discussion/.logs/*.log` — pid-tagged event trail.
 3. Most common cause: a stale instance holding 5199 while yours fell back to another port —

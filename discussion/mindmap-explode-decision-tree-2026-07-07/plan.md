@@ -103,15 +103,25 @@ Notes are folded into `editedTree` on send (walk tree, attach `node.note`) so th
 
 ## Phases (progress log)
 
-- [ ] **P1 — Contracts & persistence backend** (protocol, session-store, feedback digest,
-  thinking.jsonl, tree-ops.jsonl) + build.
-- [ ] **P2 — Decision-tree builder + endpoint** + unit tests + smoke extension. `npm test` green.
-- [ ] **P3 — Studio UI**: MindmapCanvas node action bar (explode/add/delete/note) + Decision-tree
-  view/toggle. `npm run build` green.
-- [ ] **P4 — Human-pathway tests** (canonical fixtures + human-sim matrix + ui-smoke/break-sweep).
-- [ ] **P5 — Docs + wiki + learnings.**
+- [x] **P1 — Contracts & persistence backend** — MindNode.note, TreeOpSchema, BoardResponse.treeOps;
+  tree-ops.jsonl + edited-tree.json + thinking.jsonl; digest EXPLODE/DELETE/ADD/NOTE + notes. Built.
+- [x] **P2 — Decision-tree builder + endpoint** — decision-tree.ts (build + SVG), GET
+  /api/decision-tree/:id, write on each response. Unit test (8) + smoke extension. **Green.**
+- [x] **P3 — Studio UI** — MindmapCanvas node action bar (explode/+5/delete/note, notes folded
+  into editedTree), DecisionTreeView overlay + WayfinderStrip 🌳 toggle. **Build green.**
+- [x] **P4 — Human-pathway tests** — ui-smoke (node bar + toggle markers), **human-sim 16 steps
+  live**: +5 creates 5 real nodes, note+explode ride back, decision-tree overlay opens. All green.
+- [ ] **P5 — Docs + wiki + learnings** (+ tests/journeys.md registry — new CLAUDE.md rule 10).
 - [ ] **P6 — `/run-brainstorm` live validation** of explode/delete/+/notes/decision-tree.
 - [ ] **P7 — `/plan-closeout`.**
+
+## Verification log
+- unit: `npm run test:unit` → 145+ pass incl. 8 decision-tree tests.
+- smoke: `node scripts/smoke.mjs` → PASS incl. mindmap node ops (tree-ops.jsonl, edited-tree.json
+  note fold, digest EXPLODE/DELETE + steering note, decision-tree.json/svg, thinking.jsonl, endpoint).
+- ui-smoke: `npm run smoke:ui` → PASS incl. node action bar (explode/add/note/delete testids) +
+  decision-tree toggle.
+- human-sim: `npm run test:human` → 16 steps PASS on real Chrome/CDP incl. the node-controls matrix.
 
 ## Progress
 - 2026-07-07 — plan created; architecture mapped (MindmapCanvas, protocol, SessionStore,

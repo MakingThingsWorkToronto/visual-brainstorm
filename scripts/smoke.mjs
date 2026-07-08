@@ -72,7 +72,11 @@ ws.addEventListener('message', async (event) => {
   if (msg.type === 'hello') {
     assert.ok(msg.state.themes.length >= 4, 'hello carries themes');
     assert.equal(msg.state.theme, 'neon-purple');
-    assert.deepEqual(msg.state.models, ['claude-fable-5', 'claude-haiku-4-5']);
+    assert.equal(msg.state.runtime.label, 'Claude Code');
+    assert.deepEqual(
+      msg.state.models.map((model) => model.id),
+      ['claude-fable-5', 'claude-haiku-4-5'],
+    );
   }
   if (msg.type === 'board' && msg.board.id === 'board-r1-smoke') {
     assert.equal(msg.board.survey.axes.length, 5, 'axes delivered to studio');
@@ -675,13 +679,18 @@ const mmRespRes = await fetch(`http://127.0.0.1:${bridge.port}/api/respond`, {
         id: 'root',
         topic: 'Glow mark',
         children: [
-          { id: 'c1', topic: 'Warmth — ember' },
+          { id: 'c1', topic: 'Warmth — ember', note: 'lean cozy, hearth energy' },
           { id: 'c2', topic: 'Motion', children: [{ id: 'c3', topic: 'Arc' }] },
           { id: 'c4', topic: 'Halo' },
         ],
       },
       direction: 2,
     },
+    // Mind-map node decisions: an explode target (steered by a note) + a delete.
+    treeOps: [
+      { op: 'explode', nodeId: 'c1', topic: 'Warmth — ember', note: 'lean cozy, hearth energy', at: new Date().toISOString() },
+      { op: 'delete', nodeId: 'zombie', topic: 'Cold mark', note: '', at: new Date().toISOString() },
+    ],
     respondedAt: new Date().toISOString(),
   }),
 });
@@ -726,6 +735,50 @@ assert.equal(mmRound.response.editedTree.nodeData.children.length, 3, 'reloaded 
 // brainstorm.md records the tree presentation (append-only text memory).
 const mmMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
 assert.ok(mmMd.includes('Mind-map tree presented'), 'brainstorm.md notes the presented tree');
+
+// --- Mind-map node ops persist as structured decisions (jsonl) + reach synthesis ---
+// tree-ops.jsonl: every node op appended, append-only.
+const mmOpsFile = path.join(store.info.dir, 'round-03', 'tree-ops.jsonl');
+assert.ok(fs.existsSync(mmOpsFile), 'round-03/tree-ops.jsonl on disk');
+const mmOps = fs.readFileSync(mmOpsFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+assert.equal(mmOps.length, 2, 'both node ops persisted');
+assert.ok(mmOps.some((o) => o.op === 'explode' && o.nodeId === 'c1' && o.note.includes('cozy')), 'explode op with steering note persisted');
+assert.ok(mmOps.some((o) => o.op === 'delete' && o.topic === 'Cold mark'), 'delete op persisted');
+
+// edited-tree.json: the final shape (with folded note) written beside the response.
+const mmEditedFile = path.join(store.info.dir, 'round-03', 'edited-tree.json');
+assert.ok(fs.existsSync(mmEditedFile), 'round-03/edited-tree.json on disk');
+const mmEdited = JSON.parse(fs.readFileSync(mmEditedFile, 'utf8'));
+assert.equal(mmEdited.nodeData.children.find((c) => c.id === 'c1').note, 'lean cozy, hearth energy', 'node note persisted on the edited tree');
+
+// The digest (brainstorm.md) makes mind-map decisions synthesizable — EXPLODE +
+// note + delete all appear (they were invisible before this feature).
+assert.ok(mmMd.includes('EXPLODE'), 'digest carries the EXPLODE instruction');
+assert.ok(mmMd.includes('DELETE'), 'digest carries the DELETE instruction');
+assert.ok(mmMd.includes('lean cozy'), 'digest surfaces the steering note');
+assert.ok(mmMd.includes('Mind-map edited'), 'digest summarizes the edited tree');
+
+// Decision tree: a derived index written on each response (json + svg), reloadable.
+const mmDtJson = path.join(store.info.dir, 'decision-tree.json');
+const mmDtSvg = path.join(store.info.dir, 'decision-tree.svg');
+assert.ok(fs.existsSync(mmDtJson), 'decision-tree.json written on response');
+assert.ok(fs.existsSync(mmDtSvg), 'decision-tree.svg written on response');
+const mmDt = JSON.parse(fs.readFileSync(mmDtJson, 'utf8'));
+assert.equal(mmDt.nodeData.kind, 'root', 'decision tree roots on the discussion');
+assert.ok(fs.readFileSync(mmDtSvg, 'utf8').startsWith('<svg'), 'decision-tree.svg is a real SVG');
+
+// Chain-of-thought persistence: bridge.think() appends to thinking.jsonl.
+bridge.think('smoke: drawing the next round');
+const mmThinkFile = path.join(store.info.dir, 'thinking.jsonl');
+assert.ok(fs.existsSync(mmThinkFile), 'thinking.jsonl on disk after think()');
+assert.ok(fs.readFileSync(mmThinkFile, 'utf8').includes('drawing the next round'), 'chain of thought persisted');
+
+// GET /api/decision-tree/:id builds the tree from the reloaded thread.
+const mmDtRes = await fetch(`http://127.0.0.1:${bridge.port}/api/decision-tree/${encodeURIComponent(store.info.id)}`);
+assert.equal(mmDtRes.status, 200, 'decision-tree endpoint responds');
+const mmDtBody = await mmDtRes.json();
+assert.ok(mmDtBody.svg.startsWith('<svg'), 'decision-tree endpoint returns an SVG');
+assert.ok(mmDtBody.tree.nodeData.children.length >= 1, 'decision tree has at least one round');
 
 // --- Claude-Code handoff + adaptive concierge round-trip (concierge-intake phase). ---
 // The WS handler above keys only on 'board-r1-smoke'/'board-r2-smoke' and ignores the
@@ -831,5 +884,5 @@ ws.close();
 await bridge.stop();
 fs.rmSync(scratch, { recursive: true, force: true });
 console.log(
-  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands (incl. reopen: queued, via-board-response, honest missing-id note), artifact capture + serving, pins (toggle on/off, state reflects it, honest 404, survives disk reload), artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md), Claude-Code handoff (openStudio seedBrief) + concierge round-trip (ask, pending state, answer, resolve, brainstorm.md, 404), Living Gallery round-trip (present four minis, pending state, pick, resolve, clear, brainstorm.md, 404, 400 bad-method)',
+  'SMOKE PASS — round-trip, phase fields, disk cache, thread list/reload/resume, themes, model routing, UI commands (incl. reopen: queued, via-board-response, honest missing-id note), artifact capture + serving, pins (toggle on/off, state reflects it, honest 404, survives disk reload), artifact chat (404, queue, persist, broadcast, claude reply + revises, reload), seed intake, composer extras, landing wait, palette editing, discussion theme, session progress pipe, token meter (live totals, summaries, transcript-delta hook), mindmap tree round-trip (editedTree, tree.json, SVG snapshot artifact, reload, brainstorm.md), mindmap node ops (tree-ops.jsonl, edited-tree.json note fold, digest EXPLODE/DELETE + steering note, decision-tree.json/svg, thinking.jsonl, /api/decision-tree endpoint), Claude-Code handoff (openStudio seedBrief) + concierge round-trip (ask, pending state, answer, resolve, brainstorm.md, 404), Living Gallery round-trip (present four minis, pending state, pick, resolve, clear, brainstorm.md, 404, 400 bad-method)',
 );

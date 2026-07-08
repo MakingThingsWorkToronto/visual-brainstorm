@@ -216,6 +216,28 @@ export const PaletteColorSchema = z.object({
 });
 export type PaletteColor = z.infer<typeof PaletteColorSchema>;
 
+export const RuntimeEngineSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  provider: z.string(),
+});
+export type RuntimeEngine = z.infer<typeof RuntimeEngineSchema>;
+
+export const ModelCatalogEntrySchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  provider: z.string(),
+  /** Which orchestration runtimes can honestly delegate to this model. */
+  engineIds: z.array(z.string()).min(1).default(['claude']),
+  capabilities: z
+    .object({
+      orchestrate: z.boolean().default(false),
+      delegate: z.boolean().default(true),
+    })
+    .default({ orchestrate: false, delegate: true }),
+});
+export type ModelCatalogEntry = z.infer<typeof ModelCatalogEntrySchema>;
+
 export const BoardResponseSchema = z.object({
   boardId: z.string(),
   selectedOptionIds: z.array(z.string()).default([]),
@@ -479,12 +501,14 @@ export interface StudioState {
   activeBoard: Board | null;
   artifacts: Artifact[];
   thinking: string | null;
+  /** The live orchestration runtime behind this session. */
+  runtime: RuntimeEngine;
   /** Available themes (built-ins + ingested user styles). */
   themes: Theme[];
   /** Default theme name from config. */
   theme: string;
   /** Models offered in the composer picker. */
-  models: string[];
+  models: ModelCatalogEntry[];
   defaultModel: string;
   /** Effective target repo/folder (thread override ?? config default), null when unset. */
   targetRepo: string | null;

@@ -1,5 +1,29 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — mind-elixir: a per-node action bar must bind to the engine's OWN selection, not the bus
+
+- **`mind-elixir`'s `selectNode(el)` called PROGRAMMATICALLY does NOT fire the `selectNode` bus
+  event, and does not reliably fire it on click either across versions.** A React action bar that
+  enables itself when a node is "selected" will therefore never light up if it only listens to
+  `bus.addListener('selectNode', …)`. This bit the human-sim node-controls step: the test did
+  `mind.selectNode(mind.findEle('c1'))` and the bar stayed disabled → 15s timeout.
+- **How to apply:** derive selection from the engine's own state, three ways belt-and-suspenders:
+  (1) monkey-patch `instance.selectNode` to run a `readSelection()` on a `setTimeout(…, 0)` after
+  the original (covers programmatic selection, incl. test drivers); (2) add a real `click` listener
+  on the engine container that re-reads selection a tick later (covers human clicks); (3) keep the
+  `selectNode`/`selectNodes` bus listeners as a bonus. `readSelection()` reads
+  `mind.currentNode ?? mind.currentNodes?.[0]`, then the data via `el.nodeObj ?? el`. The human-sim
+  driver's real CDP mouse `click` on `…mindmap-engine.mind.findEle(id)` then flows through path (2).
+- **Node notes must live OUT-OF-BAND and be folded into `editedTree` on emit.** mind-elixir does not
+  round-trip arbitrary custom fields through `getData()`, so a per-node note kept only on the engine
+  node can vanish. Keep notes in a `Record<nodeId,string>` ref and walk+attach them onto the tree in
+  the `onEdit` emitter, so the note always rides back even when no structural edit fired.
+
+## 2026-07-07 — shared-state schema widening: normalize legacy bridge/test callers at the boundary, not at every callsite
+
+- **When a protocol/config field widens from a scalar to a structured object, older bridge callers in `tests/` and `scripts/` will keep constructing the old shape long after the main app path is updated.** In this slice, `models: string[]` became a structured catalog and `runtime` became explicit metadata. The least-destructive rollout was to normalize legacy strings and missing runtime metadata at the `Bridge` boundary, while keeping the studio's `EMPTY` state seeded for version skew. That let `/api/state` and `hello` become authoritative immediately without forcing every smoke/human-sim helper to learn the new shape in the same edit.
+- **How to apply:** for a provider-aware schema change, update `packages/protocol` first, then add compatibility normalizers at the first shared boundary (`config.ts`, `BridgeOptions`, `useBridge` defaults) before touching all test helpers. After that, update only the explicit assertions/canonical fixtures that care about the emitted shape. This keeps the rollout local, preserves older harness callers, and avoids a repo-wide edit burst for a single contract change.
+
 ## 2026-07-07 — shared-tree commit trap: a plain `git commit` grabs another session's STAGED changes
 
 - **In a shared working tree, `git add <my-files>` then `git commit` will ALSO commit whatever a

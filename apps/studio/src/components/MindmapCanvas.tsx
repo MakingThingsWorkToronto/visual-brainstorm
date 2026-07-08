@@ -70,6 +70,21 @@ export function MindmapCanvas({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let bus: any;
     const onOperation = () => emitEdit();
+    // Read the engine's OWN current selection (robust across mind-elixir versions
+    // and independent of whether a programmatic vs. click selection fired a bus
+    // event). currentNode is the selected Topic element; its `.nodeObj` is the data.
+    const readSelection = () => {
+      const mind = mindRef.current;
+      if (!mind) return;
+      const cur = mind.currentNode ?? (mind.currentNodes && mind.currentNodes[0]);
+      const obj = cur?.nodeObj ?? cur;
+      if (obj?.id) {
+        setSelected({ id: obj.id, topic: obj.topic ?? '' });
+        setNoteDraft(notesRef.current[obj.id] ?? '');
+      } else {
+        setSelected(null);
+      }
+    };
     // mind-elixir passes the selected node object; shape varies by version, so
     // read id/topic defensively (nodeObj wrapper OR the node itself).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,17 +93,24 @@ export function MindmapCanvas({
       if (obj?.id) {
         setSelected({ id: obj.id, topic: obj.topic ?? '' });
         setNoteDraft(notesRef.current[obj.id] ?? '');
+      } else {
+        readSelection();
       }
     };
     const onUnselect = () => setSelected(null);
+    // Fallback: a real pointer click on the canvas re-reads the engine selection
+    // one tick later (after mind-elixir has updated currentNode). Covers the human
+    // pathway (click a node → the bar binds to it) even if no bus event fires.
+    const onContainerClick = () => window.setTimeout(readSelection, 0);
     void (async () => {
       const mod = await import('mind-elixir');
       if (disposed || !elRef.current) return;
       const MindElixir = mod.default;
+      const container = elRef.current;
       const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const instance: any = new MindElixir({
-        el: elRef.current,
+        el: container,
         direction: (tree.direction ?? MindElixir.SIDE) as 0 | 1 | 2,
         editable: true,
         theme: dark ? MindElixir.DARK_THEME : MindElixir.THEME,
@@ -100,18 +122,27 @@ export function MindmapCanvas({
       };
       seed(tree.nodeData);
       instance.init({ nodeData: tree.nodeData, direction: tree.direction });
+      const rawSelectNode = instance.selectNode?.bind(instance);
+      if (rawSelectNode) {
+        instance.selectNode = (...args: unknown[]) => {
+          const result = rawSelectNode(...args);
+          window.setTimeout(readSelection, 0);
+          return result;
+        };
+      }
       mindRef.current = instance;
       bus = instance.bus;
       bus?.addListener('operation', onOperation);
       bus?.addListener('selectNode', onSelect);
       bus?.addListener('unselectNode', onUnselect);
       bus?.addListener('unselectNodes', onUnselect);
+      container.addEventListener('click', onContainerClick);
       // Expose the live instance on its container (mind-elixir interop convention):
       // lets devtools + the human-sim driver inspect the tree and invoke a REAL
       // edit (e.g. selectNode + addChild) so editedTree comes from the genuine
       // engine → onEdit path, never a fabricated response.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (elRef.current) (elRef.current as any).mind = instance;
+      (container as any).mind = instance;
     })();
     return () => {
       disposed = true;
@@ -119,6 +150,7 @@ export function MindmapCanvas({
       bus?.removeListener?.('selectNode', onSelect);
       bus?.removeListener?.('unselectNode', onUnselect);
       bus?.removeListener?.('unselectNodes', onUnselect);
+      elRef.current?.removeEventListener('click', onContainerClick);
       mindRef.current?.destroy?.();
       mindRef.current = null;
     };

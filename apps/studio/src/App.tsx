@@ -86,9 +86,11 @@ function ThinkingMarker({ note, latest }: { note: string; latest?: string }) {
 /** A completed round in the timeline: Claude's bubble + mini grid + user's reply bubble. */
 function RoundHistoryView({
   record,
+  modelLabels,
   onPreview,
 }: {
   record: RoundRecord;
+  modelLabels: Map<string, string>;
   onPreview: (option: OptionView) => void;
 }) {
   const { board, response } = record;
@@ -154,7 +156,7 @@ function RoundHistoryView({
           <div className="text-xs text-ink-dim">
             {response.action} · picked {response.selectedOptionIds.length}
             {response.remixPairs.length > 0 && ` · ${response.remixPairs.length} remix`}
-            {response.model && ` · to ${response.model.replace(/^claude-/, '')}`}
+            {response.model && ` · to ${modelLabels.get(response.model) ?? response.model}`}
           </div>
           {response.elaboration && <div className="mt-1">{response.elaboration}</div>}
         </Bubble>
@@ -185,9 +187,27 @@ export default function App() {
   // (one counter for whichever subject the fullscreen viewer has open).
   const [chatSentAt, setChatSentAt] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const modelLabels = useMemo(
+    () => new Map(state.models.map((entry) => [entry.id, entry.label])),
+    [state.models],
+  );
 
   const openLogs = useCallback(async () => {
     setLogs(await (await fetch('/api/logs')).json());
+  }, []);
+
+  // Open the decision-tree overlay for the current thread (live or archived).
+  // The SVG is built deterministically on the server from the round records.
+  const openDecisionTree = useCallback(async (id: string, title: string) => {
+    setDecisionTree({ title, svg: null });
+    try {
+      const res = await fetch(`/api/decision-tree/${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error(String(res.status));
+      const body = (await res.json()) as { svg: string };
+      setDecisionTree({ title, svg: body.svg });
+    } catch {
+      setDecisionTree({ title, svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40"><text x="8" y="24" font-family="system-ui" font-size="12" fill="#ef4444">decision tree unavailable</text></svg>' });
+    }
   }, []);
 
   const invokeCommand = useCallback(async (
@@ -472,7 +492,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setNewOpen(true)}
-                  title="Start a fresh brainstorm from your own prompt (requires the Claude engine)"
+                  title={`Start a fresh brainstorm from your own prompt (requires ${state.runtime.label})`}
                   className="mt-3 w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:brightness-105"
                 >
                   New Discussion
@@ -523,6 +543,11 @@ export default function App() {
               proposal={viewingLive ? proposal : null}
               onJump={jumpToRound}
               onOpenArtifact={openArtifactChat}
+              onDecisionTree={() => {
+                const id = viewingLive ? state.session?.id : archived.session.id;
+                const title = viewingLive ? state.session?.title : archived.session.title;
+                if (id) void openDecisionTree(id, title ?? 'this discussion');
+              }}
               onAdvance={() => {
                 setAdvanceSignal((s) => s + 1);
                 bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -541,6 +566,7 @@ export default function App() {
               themes={state.themes}
               models={state.models}
               defaultModel={state.defaultModel}
+              runtime={state.runtime}
               targetRepo={state.targetRepo}
               cancellable={!landing}
               initialPrompt={state.seedBrief ?? ''}
@@ -654,7 +680,7 @@ export default function App() {
                     />
                   </div>
                 ) : (
-                  <RoundHistoryView record={record} onPreview={openPreview} />
+                  <RoundHistoryView record={record} modelLabels={modelLabels} onPreview={openPreview} />
                 )}
               </div>
             </div>
@@ -782,6 +808,14 @@ export default function App() {
               : undefined
           }
           onClose={() => setFullscreen(null)}
+        />
+      )}
+
+      {decisionTree && (
+        <DecisionTreeView
+          title={decisionTree.title}
+          svg={decisionTree.svg}
+          onClose={() => setDecisionTree(null)}
         />
       )}
     </div>
