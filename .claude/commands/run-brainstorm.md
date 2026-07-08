@@ -11,12 +11,24 @@ The complete operator procedure. Follow it literally; the skills carry the craft
 `svg-artisan`, artifact chat → subagents, diagnosis → `devops-diagnostician`) and its
 `## Orchestration learnings` section are binding parts of this procedure.
 
+## This procedure IS the abstraction — advance the UI stage by stage, never à la carte
+
+`run-brainstorm` is the single entry point. The studio's stages — **New Discussion brief →
+concierge → Living Gallery → board(s)** — are a followed STATE MACHINE, and the MCP tools
+(`open_studio`, `ask_concierge`, `present_gallery`, `present_board`) are the internal DISPATCH
+STEPS that advance the UI from one stage to the next. They are NOT à-la-carte tools to reach
+for individually: you never call `ask_concierge` or `present_board` "because it seemed useful"
+— you call them ONLY as this procedure's next stage, in order. The procedure is what guarantees
+the crowned methodology happens; a stage tool invoked out of sequence (a board before a gallery
+pick, a gallery before the concierge) is a procedure violation, i.e. a bug. Run the procedure
+top to bottom; each numbered step below dispatches the next UI stage.
+
 ## Procedure
 
-0. **Intake — hand off, clarify, then let them pick a method** (the concierge → Living
-   Gallery flow, `wiki/Product/intake-methodologies.md`). This is the studio's real front
-   door — and the ONLY way the studio ever runs: a real Claude session driving the MCP tools
-   (there is no fixture/preview harness). Four moves:
+0. **Intake — advance the UI: brief → concierge → gallery → route** (the mandatory front door,
+   `wiki/Product/intake-methodologies.md`). This is the ONLY way the studio ever runs: this
+   procedure driving the stage tools in order (no fixture/preview harness exists). Four
+   dispatches, strictly in sequence — do not skip, do not reorder:
    - **a. Hand off the brief.** Call **`open_studio`** — it lands the user on the New
      Discussion panel (brief + voice, chips, colors, scribble, attachments, model, target
      folder) and blocks until they submit. **If the human ALREADY described the purpose in

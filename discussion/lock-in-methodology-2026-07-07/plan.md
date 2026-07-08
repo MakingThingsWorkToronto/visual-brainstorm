@@ -28,5 +28,14 @@ A concurrent session holds a large UNCOMMITTED diff across the structural target
 ## Verify / Closeout
 Each lock ships WITH its real-journey assertion. Final: `npm test` + a real human-sim that asserts the concierge/gallery surface appears from a brief submit WITHOUT the harness faking `present_gallery`. `/plan-closeout` when all three land.
 
+## Architecture (operator, live): run-brainstorm IS the dispatch abstraction
+"ask_concierge shouldn't be an à-la-carte command — abstract it behind run-brainstorm. run-brainstorm advances the studio UI to the appropriate stage; the procedure must be FOLLOWED. The UI are tools and need to be dispatchable."
+- **Model:** the studio stages (brief → concierge → gallery → board) are a followed STATE MACHINE. The MCP tools (`open_studio`/`ask_concierge`/`present_gallery`/`present_board`) are the internal DISPATCH STEPS that advance the UI stage to stage — never called individually "when useful." `run-brainstorm` is the single abstraction that dispatches them in order.
+- **DONE (clean, command layer):** `run-brainstorm.md` reframed — "This procedure IS the abstraction; advance the UI stage by stage, never à la carte"; a stage tool out of sequence (board before a gallery pick) is a bug.
+- **BLOCKED (code — concurrent-dirty `bridge-server.ts`/`index.ts`/`App.tsx`):** make the sequence STRUCTURALLY enforced/dispatchable so a compliant procedure isn't just prompt-hoped:
+  1. Bridge tracks an intake stage; **`present_board` before a recorded gallery pick is REJECTED** with an honest error ("intake incomplete — run concierge→gallery first"). The model structurally cannot skip.
+  2. New Discussion **brief submit transitions the studio into a `concierge-expected` state** (a "clarifying…" surface), so the user is never stranded on the panel while the orchestrator catches up — the studio DISPATCHES the procedure forward, not only the orchestrator.
+  3. Optionally collapse the à-la-carte tool surface: the stage tools stay, but their doc/registration frames them as run-brainstorm-internal dispatch steps (not general-purpose).
+
 ## Progress log
-- 2026-07-07 — plan scaffolded; diagnosis recorded; visual-honesty helper+test delivered (7/7); orchestration lock begins; structural half BLOCKED on the concurrent uncommitted diff.
+- 2026-07-07 — plan scaffolded; diagnosis recorded; visual-honesty helper+test delivered (7/7); orchestration lock (mandatory intake) + run-brainstorm-as-dispatch-abstraction reframe committed (15f1729); structural half (bridge-enforced ordering + studio stage-dispatch) BLOCKED on the concurrent uncommitted diff.
