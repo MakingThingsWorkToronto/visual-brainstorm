@@ -3,7 +3,7 @@
 - **Date:** 2026-07-07
 - **Scope:** Add `model:` frontmatter to every `.md` in `.claude/` (agents, commands, skills), picking the most token-efficient model that can do each job. Opus reserved for orchestrator + security + long-run work. Add a token-efficiency guardrail to the wiki.
 - **Authority:** Operator directive (`/goal make agentic layer token efficient and optimize for agentic use`); donor tiering pattern at `C:\Code\tp\.claude` (agents carry `model:`; security-engineer → opus; light ops → haiku).
-- **Status:** in progress
+- **Status:** closed 2026-07-07 — BUILD landed in `9877356`; closeout harvested 1 learning block, improved `/new-command` + `/create-dispatch-command` (both now stamp a model tier on what they author), verified (build + smoke green).
 
 ## Tiering rule
 `haiku` mechanical/deterministic/routing · `sonnet` reasoning/generation/build · `opus` orchestrator + security + long-run · `inherit` reference skills & orchestrator sub-procedures (never downgrade the caller). Values are tier **aliases** (auto-track the best current model per tier).

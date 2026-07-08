@@ -1,5 +1,31 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — agentic-model-efficiency (model-tiering the .claude layer)
+
+- **`model:` frontmatter is honored on ALL THREE `.claude` file types** — agents, slash
+  commands, AND skills — accepting tier aliases (`haiku`/`sonnet`/`opus`/`fable`), full IDs,
+  or `inherit`. Prefer aliases: they auto-track the best current model per tier, so efficiency
+  improves for free. The guardrail + per-file assignments live in `wiki/System/model-tiering.md`.
+- **For commands and skills the override lasts only the current turn** (agents get their own
+  context). The load-bearing consequence: a **reference/craft skill must be `model: inherit`**,
+  else merely LOADING it (e.g. svg-authoring, brainstorm-phases) silently switches the whole
+  turn's model as a side effect. Same for a command that runs as a **sub-step inside a higher
+  persona's turn** (revisit-round inside an opus orchestrator round) — `inherit` so it never
+  downgrades the caller. Only standalone entry points pin a concrete tier.
+- **Delegate-don't-upsize beats a heavier model.** A haiku router that hands the heavy step to
+  the right-tier subagent (artifact-chat → svg-artisan) is cheaper AND better than running the
+  whole flow on the heavy model. Opus is a reserved carve-out (orchestrator + security +
+  long-run + quality-critical user-facing generation), never a default.
+- **Donor precedent** (`C:\Code\tp\.claude`): model frontmatter on AGENTS ONLY (light ops →
+  haiku, security-engineer → opus, rest → sonnet); commands/skills carried none. We kept the
+  shape and extended it to stamp commands + skills too, pushing mechanical work down to haiku.
+- **`.claude` files can be swept into a commit by a concurrent loop/hook mid-task** — during
+  this plan another session committed all 24 of my working files under my plan slug
+  (`feat(agentic-model-efficiency)…`) before I reached closeout. `git status` then showed my
+  work "gone" though `git ls-files`/`git diff HEAD` proved it committed and clean. In a shared
+  working tree, check `git log -- <path>` before assuming lost work; closeout becomes
+  bookkeeping-only when BUILD already landed.
+
 ## 2026-07-07 — concierge-living-gallery (phase 6, real-session human-sim)
 
 - **A live-DOM engine (mind-elixir) is only exercised in a REAL browser — renderToString/

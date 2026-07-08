@@ -82,6 +82,10 @@ One tick = one phase through the agentic loop. Everything between the markers is
 verbatim after substitution.
 
 ```markdown
+---
+model: sonnet
+---
+
 # /dispatch-<slug>-next-phase — one loop tick for "<title>"
 
 Plan: `discussion/<plan-folder>/plan.md` — the ONLY state. Read it fresh every tick;
@@ -124,6 +128,9 @@ repo ever runs concurrent dispatchers, steal those pieces back from
 `c:\code\tp\.claude\commands\create-dispatch-command.md` rather than reinventing them.
 
 ## Changelog
+- 2026-07-07 — inline dispatcher template now carries `model: sonnet` frontmatter — a
+  per-tick build loop runs on the reasoning/build tier by default (wiki/System/model-tiering.md);
+  bump to opus only for a genuinely long-run or security-critical dispatch (from agentic-model-efficiency)
 - 2026-07-07 — scaffold-new: human-verification must prove the REAL path (engine:'claude'/
   human-sim), never the preview fixture player ("preview ≠ acceptance"); + mandatory
   agentic-wiring phase for any plan adding an MCP tool/studio surface (wire the .claude skills

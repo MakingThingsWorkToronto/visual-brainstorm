@@ -6,7 +6,11 @@ model: sonnet
 
 ## Procedure
 
-1. **Name it** — kebab-case verb phrase; file `.claude/commands/<name>.md`.
+1. **Name it + set the model tier** — kebab-case verb phrase; file
+   `.claude/commands/<name>.md`. Give it `model:` frontmatter picked per
+   `wiki/System/model-tiering.md` (haiku = mechanical/routing · sonnet = reasoning/build ·
+   opus = orchestrator/security/long-run/quality-critical · inherit = a sub-step that runs
+   INSIDE a higher persona's turn and must not downgrade it). Unset = review defect.
 2. **Write the procedure** as numbered, literal steps a fresh session can follow with zero
    context: exact paths, exact commands, decision points as explicit questions. If craft
    knowledge is needed (not steps), put it in `.claude/skills/<name>/SKILL.md` instead and
@@ -23,6 +27,8 @@ model: sonnet
    task that triggered it.
 
 ## Changelog
+- 2026-07-07 — step 1 (Name it): now also sets the `model:` frontmatter tier per
+  wiki/System/model-tiering.md — every authored command pins a tier (from agentic-model-efficiency)
 - 2026-07-06 — steps 3–4: one Changelog footer per file (append, don't duplicate);
   cross-reference steps by name, never number (from ship-discipline-loopable-plans)
 - 2026-07-05 — created (from phase-funnel-ux-2026-07-05)
