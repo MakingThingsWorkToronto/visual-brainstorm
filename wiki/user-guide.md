@@ -94,19 +94,21 @@ reloads from the cache; nothing is regenerated.
 the top of the left nav; clicking it swaps the main timeline for the full brainstorm-intake
 **chat panel**. An empty live session (no rounds, no active board) lands on this panel
 automatically — it is also where a bare `/run-brainstorm` puts you. This is **Stage 1 of
-the intake** (see above). Every intake box is a **collapsible card** (same shell, caret
-toggle). Top to bottom:
+the intake** (see above). Top to bottom:
 - a Claude-side intro bubble;
-- five **chip-group cards** — making (icons / a logo / a ui flow / a palette / a system
-  map / new feature / comparison), vibe (calm / playful / bold / minimal / neon / formal /
-  professional), range (stay close to convention / go wild), audience (just me / my team /
-  customers / kids / executives), constraints (works tiny / monochrome-safe / high
-  contrast / print friendly / square format) — each with an **other** chip that opens a
-  free-text field whose value joins the brief;
+- a **survey of tappable questions** (the Survey module): *What are you making?* (icons /
+  a logo / a ui flow / a palette / a system map / new feature / comparison), *What's the
+  vibe?* (calm / playful / bold / minimal / neon / formal / professional), *How far should
+  it push convention?* (stay close to convention / go wild), *Who is it for?* (just me /
+  my team / customers / kids / executives), and *Any hard constraints?* (works tiny /
+  monochrome-safe / high contrast / print friendly / square format). Tap the answers (some
+  questions are multi-select) or type your own in each **"or your own…"** field — your
+  answers join the brief. Adaptive follow-up questions are the live concierge's job (Stage 2);
 - a **Colors** card: each theme carries a curated named 5-color palette; click a theme's
   NAME to make its whole palette the generation palette (click again to clear; leave empty
   for free choice); click any swatch to edit that color and its name, or **+** to add one;
-- a full-width **Scribble a seed** pad that fills the remaining space (sketches are saved
+- a **Scribble a seed** pad, collapsed by default (expand it to sketch; it then fills the
+  remaining space; sketches are saved
   under `discussion/.seeds/` and Claude reads the file as part of the brief); photos and
   files now arrive via the composer's **+** menu, not a drop zone;
 - a **composer** with full board-composer parity: **Mic** · **Cancel** (hidden when the

@@ -131,3 +131,5 @@
 - 2026-07-07 — .github/agents/visual-brainstorm-operator.agent.md — removed "or the preview harness" from rules — reason: preview harness deleted
 - 2026-07-07 — .github/agentic-surface-map.json — updated two purpose fields: diagnose-studio "studio, bridge, MCP, or preview" → "studio, bridge, or MCP"; devops-diagnostician "studio, bridge, MCP, and preview" → "studio, bridge, and MCP" — reason: preview harness deleted
 - 2026-07-07 — Requirements/system-architecture.md (LOCK) — removed stale comment about preview harness config persistence on POST /api/target-repo `default` scope — reason: preview harness deleted
+- 2026-07-07 — System/agents.md — devops-diagnostician trigger "studio/preview/bridge/MCP" → "studio/bridge/MCP" — reason: preview harness deleted
+- 2026-07-07 — user-guide.md (New Discussion §) — chip-group cards rewritten as a survey of tappable questions (the new Survey module: "What are you making?" / vibe / range / audience / constraints); Scribble a seed now collapsed by default — reason: intake repurposed as questions (studio-survey-intake plan, phases 1–3)

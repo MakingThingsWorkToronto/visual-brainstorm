@@ -350,9 +350,13 @@ const open = renderToString(
 for (const marker of [
   'New Discussion',
   'Scribble a seed',
-  'audience',
-  'constraints',
-  'other',
+  'data-testid="survey"',
+  'What are you making?',
+  'Who is it for?',
+  'How far should it push convention?',
+  'Any hard constraints?',
+  'or your own',
+  'a logo',
   'Colors',
   'Neon Purple',
   'Add a color',
@@ -363,7 +367,7 @@ for (const marker of [
 ]) {
   assert.ok(open.includes(marker), `[new-discussion] missing marker "${marker}"`);
 }
-console.log('UI new-discussion panel renders ✓ (chips + colors + full composer)');
+console.log('UI new-discussion panel renders ✓ (survey questions + colors + full composer)');
 
 // --- Claude-Code handoff: openStudio(brief) pre-fills the New Discussion brief textarea ---
 // initialPrompt seeds the composer via useState(initialPrompt), so the brief text

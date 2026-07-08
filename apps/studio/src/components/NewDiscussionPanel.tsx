@@ -11,12 +11,14 @@ import {
   useAttachments,
 } from './composer';
 import { useVoice } from '../lib/useVoice';
+import { Survey, surveyWords, type SurveyQuestion, type SurveyAnswers } from './Survey';
 
 /**
  * "Open with anything" as a blank chat panel: the landing surface for a new
  * brainstorm (New Discussion button, or a bare /run-brainstorm via the
  * open_studio tool). Organizes the intake top to bottom: what we're making
- * (chips + other), generation colors, a full-height scribble pad, and a
+ * (as tappable questions — the Survey module), generation colors, a
+ * full-height scribble pad, and a
  * composer with the full board-reply toolset (mic, attachments, camera,
  * model, target folder). Send & iterate dispatches new-brainstorm, which
  * starts a fresh Claude session when the engine is attached.
@@ -30,12 +32,17 @@ export interface NewDiscussionExtras {
   palette: PaletteColor[];
 }
 
-const CHIP_GROUPS: { label: string; chips: string[] }[] = [
-  { label: 'making', chips: ['icons', 'a logo', 'a ui flow', 'a palette', 'a system map', 'new feature', 'comparison'] },
-  { label: 'vibe', chips: ['calm', 'playful', 'bold', 'minimal', 'neon', 'formal', 'professional'] },
-  { label: 'range', chips: ['stay close to convention', 'go wild'] },
-  { label: 'audience', chips: ['just me', 'my team', 'customers', 'kids', 'executives'] },
-  { label: 'constraints', chips: ['works tiny', 'monochrome-safe', 'high contrast', 'print friendly', 'square format'] },
+// The pre-session intake as questions (the winning concierge→gallery design,
+// panel 2): each former chip group reworded as a question with tappable
+// answers. Static here — the panel runs before Claude attaches; adaptive
+// follow-ups are the live ask_concierge's job. Single-select where the answer
+// is a spectrum or a one-of.
+const QUESTIONS: SurveyQuestion[] = [
+  { id: 'making', question: 'What are you making?', options: ['icons', 'a logo', 'a ui flow', 'a palette', 'a system map', 'new feature', 'comparison'], multi: true },
+  { id: 'vibe', question: "What's the vibe?", options: ['calm', 'playful', 'bold', 'minimal', 'neon', 'formal', 'professional'], multi: true },
+  { id: 'range', question: 'How far should it push convention?', options: ['stay close to convention', 'go wild'] },
+  { id: 'audience', question: 'Who is it for?', options: ['just me', 'my team', 'customers', 'kids', 'executives'] },
+  { id: 'constraints', question: 'Any hard constraints?', options: ['works tiny', 'monochrome-safe', 'high contrast', 'print friendly', 'square format'], multi: true },
 ];
 
 /** One collapsible intake card — every box on the panel shares this shell. */
@@ -111,9 +118,7 @@ export function NewDiscussionPanel({
   onStart: (prompt: string, seed: SeedIntake | undefined, extras: NewDiscussionExtras) => void;
 }) {
   const [prompt, setPrompt] = useState(initialPrompt);
-  const [chips, setChips] = useState<string[]>([]);
-  const [others, setOthers] = useState<Record<string, string>>({});
-  const [otherOpen, setOtherOpen] = useState<Record<string, boolean>>({});
+  const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [genTheme, setGenTheme] = useState<string | null>(null);
   const [palette, setPalette] = useState<PaletteColor[]>([]);
@@ -152,9 +157,6 @@ export function NewDiscussionPanel({
     el.style.height = `${el.scrollHeight}px`;
   }, [prompt]);
 
-  const toggleChip = (chip: string) =>
-    setChips((prev) => (prev.includes(chip) ? prev.filter((c) => c !== chip) : [...prev, chip]));
-
   const point = (e: React.PointerEvent): { x: number; y: number } => {
     const rect = svgRef.current!.getBoundingClientRect();
     return {
@@ -167,10 +169,7 @@ export function NewDiscussionPanel({
   const seed: SeedIntake | undefined = hasSketch
     ? { kind: 'sketch', svg: strokesToSvg(strokes) }
     : undefined;
-  const chipWords = [
-    ...chips,
-    ...Object.values(others).map((v) => v.trim()).filter(Boolean),
-  ];
+  const chipWords = surveyWords(QUESTIONS, answers);
   const composedPrompt = [prompt.trim(), chipWords.length > 0 ? `(${chipWords.join(' · ')})` : '']
     .filter(Boolean)
     .join(' ');
@@ -186,75 +185,27 @@ export function NewDiscussionPanel({
         Whatever arrives seeds the first board.
       </Bubble>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {CHIP_GROUPS.map((group) => (
-          <Section
-            key={group.label}
-            title={group.label}
-            collapsed={!!collapsed[group.label]}
-            onToggle={() => toggleSection(group.label)}
-          >
-            <div className="flex flex-wrap gap-2">
-              {group.chips.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => toggleChip(chip)}
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    chips.includes(chip)
-                      ? 'border-accent bg-accent/15 text-accent'
-                      : 'border-line text-ink-dim hover:border-accent hover:text-ink'
-                  }`}
-                >
-                  {chip}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() =>
-                  setOtherOpen((prev) => ({ ...prev, [group.label]: !prev[group.label] }))
-                }
-                className={`rounded-full border px-3 py-1 text-sm ${
-                  otherOpen[group.label] || (others[group.label] ?? '').trim()
-                    ? 'border-accent bg-accent/15 text-accent'
-                    : 'border-line text-ink-dim hover:border-accent hover:text-ink'
-                }`}
-              >
-                other
-              </button>
-            </div>
-            {otherOpen[group.label] && (
-              <input
-                autoFocus
-                value={others[group.label] ?? ''}
-                onChange={(e) => setOthers((prev) => ({ ...prev, [group.label]: e.target.value }))}
-                placeholder={`your own ${group.label}`}
-                className="mt-2 w-full rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-sm outline-none focus:border-accent"
-              />
-            )}
-          </Section>
-        ))}
-        {themes.length > 0 && (
-          <Section
-            title="Colors"
-            collapsed={!!collapsed.colors}
-            onToggle={() => toggleSection('colors')}
-          >
-            <div className="mb-2 text-[11px] text-ink-dim">
-              Pick a theme to draw the generated options with its palette; click a swatch to
-              change a color or its name, + to add one. Leave unselected for free choice.
-            </div>
-            <PalettePicker
-              themes={themes}
-              selectedTheme={genTheme}
-              onSelect={(theme, colors) => {
-                setGenTheme(theme?.name ?? null);
-                setPalette(colors);
-              }}
-            />
-          </Section>
-        )}
-      </div>
+      <Survey questions={QUESTIONS} answers={answers} onChange={setAnswers} />
+      {themes.length > 0 && (
+        <Section
+          title="Colors"
+          collapsed={!!collapsed.colors}
+          onToggle={() => toggleSection('colors')}
+        >
+          <div className="mb-2 text-[11px] text-ink-dim">
+            Pick a theme to draw the generated options with its palette; click a swatch to
+            change a color or its name, + to add one. Leave unselected for free choice.
+          </div>
+          <PalettePicker
+            themes={themes}
+            selectedTheme={genTheme}
+            onSelect={(theme, colors) => {
+              setGenTheme(theme?.name ?? null);
+              setPalette(colors);
+            }}
+          />
+        </Section>
+      )}
 
       <Section
         title="Scribble a seed"
