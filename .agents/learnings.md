@@ -1,5 +1,26 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — concierge-living-gallery (phase 6, real-session human-sim)
+
+- **A live-DOM engine (mind-elixir) is only exercised in a REAL browser — renderToString/
+  jsdom never runs its effect, so ui-smoke proves the static wrapper, NOT the engine.** The
+  human-sim (real chrome/CDP) is the first and only place the genuine engine mounts; asserting
+  `[data-testid="mindmap-engine"].childElementCount > 0` is the real proof it rendered.
+- **To drive a real edit on a canvas engine honestly, expose the instance and call its OWN
+  mutation method — don't fake the result.** MindmapCanvas assigns `elRef.current.mind =
+  instance` (idiomatic mind-elixir interop); the human-sim does `mind.selectNode(mind.findEle(
+  mind.nodeData.id)); await mind.addChild()`, which fires the engine's real `operation` event →
+  the component's `onEdit` → `editedTree`. Clicking the real Send then round-trips it. That's a
+  genuine engine edit through the genuine React path, not a POSTed fixture. Keyboard-driving
+  mind-elixir headlessly is fragile; the instance handle is reliable AND honest.
+- **The break-sweep's blocking surfaces need a long timeout + a re-present in `restore`.**
+  `askConcierge`/`presentGallery` clear on resolve OR timeout; a break gesture that clicks
+  "Send answer"/a card RESOLVES them (surface vanishes), and their timeout would also clear them
+  mid-sweep. Present them with a long timeout and re-present in `restore` (same pattern as a
+  submitted board). Also: concierge/gallery never populate `history`, so a resolved-but-not-yet-
+  re-presented surface transiently shows the New Discussion landing — skip census re-admission
+  unless the surface's own signature is present, or its controls bleed into the wrong surface.
+
 ## 2026-07-07 — concierge-living-gallery (phase 5, real-session routing)
 
 - **"Works in `npm run preview`" is answered by wiring the SKILLS, not the harness.** The
