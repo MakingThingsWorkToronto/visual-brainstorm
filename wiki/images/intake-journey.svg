@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 190" font-family="system-ui,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#A855F7"/>
+    </marker>
+  </defs>
+  <!-- 1 · brief -->
+  <g>
+    <rect x="8" y="14" width="166" height="130" rx="10" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <rect x="48" y="32" width="86" height="80" rx="6" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <path d="M60 50 h62 M60 60 h48 M60 70 h56" stroke="#9aa0aa" stroke-width="1.3"/>
+    <rect x="60" y="88" width="24" height="13" rx="6" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <rect x="90" y="88" width="18" height="13" rx="6" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <rect x="112" y="88" width="16" height="13" rx="6" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <text x="91" y="166" font-size="12" font-weight="700" fill="#555b66" text-anchor="middle">Brief</text>
+    <text x="91" y="181" font-size="10" fill="#8a909a" text-anchor="middle">handoff pre-fills it</text>
+  </g>
+  <path d="M180 80 h18" stroke="#A855F7" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- 2 · concierge -->
+  <g>
+    <rect x="204" y="14" width="166" height="130" rx="10" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <rect x="232" y="34" width="96" height="50" rx="10" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <path d="M252 84 l-2 13 l16 -13 z" fill="none" stroke="#9aa0aa" stroke-width="1.5" stroke-linejoin="round"/>
+    <text x="280" y="68" font-size="26" font-weight="700" fill="#9aa0aa" text-anchor="middle">?</text>
+    <rect x="234" y="102" width="38" height="15" rx="7" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <rect x="278" y="102" width="32" height="15" rx="7" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <rect x="316" y="102" width="24" height="15" rx="7" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <text x="287" y="166" font-size="12" font-weight="700" fill="#555b66" text-anchor="middle">Concierge</text>
+    <text x="287" y="181" font-size="10" fill="#8a909a" text-anchor="middle">a few smart questions</text>
+  </g>
+  <path d="M376 80 h18" stroke="#A855F7" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- 3 · living gallery -->
+  <g>
+    <rect x="400" y="14" width="166" height="130" rx="10" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <rect x="420" y="36" width="52" height="40" rx="4" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <circle cx="446" cy="52" r="3" fill="none" stroke="#9aa0aa" stroke-width="1.3"/>
+    <path d="M446 55 l-8 9 M446 55 l8 9" stroke="#9aa0aa" stroke-width="1.3"/>
+    <rect x="484" y="36" width="52" height="40" rx="4" fill="none" stroke="#A855F7" stroke-width="1.8"/>
+    <path d="M498 48 h24 l-8 10 v8 l-8 -3 v-5 z" fill="none" stroke="#A855F7" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M524 32 h13 v17 l-6.5 -4.5 l-6.5 4.5 z" fill="none" stroke="#A855F7" stroke-width="1.6" stroke-linejoin="round"/>
+    <rect x="420" y="84" width="52" height="40" rx="4" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <circle cx="438" cy="100" r="3.2" fill="none" stroke="#9aa0aa" stroke-width="1.3"/>
+    <circle cx="452" cy="106" r="3.2" fill="none" stroke="#9aa0aa" stroke-width="1.3"/>
+    <circle cx="443" cy="112" r="3.2" fill="none" stroke="#9aa0aa" stroke-width="1.3"/>
+    <rect x="484" y="84" width="52" height="40" rx="4" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <path d="M498 98 h24 M498 106 h24 M506 92 v24 M514 92 v24" stroke="#9aa0aa" stroke-width="1.3"/>
+    <text x="483" y="166" font-size="12" font-weight="700" fill="#555b66" text-anchor="middle">Living Gallery</text>
+    <text x="483" y="181" font-size="10" fill="#8a909a" text-anchor="middle">pick a method</text>
+  </g>
+  <path d="M572 80 h18" stroke="#A855F7" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- 4 · your method -->
+  <g>
+    <rect x="596" y="14" width="156" height="130" rx="10" fill="none" stroke="#9aa0aa" stroke-width="1.5"/>
+    <path d="M681 66 L706 48 M681 74 L718 74 M679 82 L705 100 M656 68 L628 55 M658 80 L624 93" stroke="#9aa0aa" stroke-width="1.3"/>
+    <circle cx="668" cy="72" r="13" fill="none" stroke="#9aa0aa" stroke-width="1.6"/>
+    <circle cx="712" cy="44" r="8" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <circle cx="726" cy="74" r="8" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <circle cx="710" cy="104" r="8" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <circle cx="622" cy="52" r="7" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <circle cx="618" cy="96" r="7" fill="none" stroke="#9aa0aa" stroke-width="1.4"/>
+    <text x="674" y="166" font-size="12" font-weight="700" fill="#555b66" text-anchor="middle">Your method</text>
+    <text x="674" y="181" font-size="10" fill="#8a909a" text-anchor="middle">mind map · funnel · wreck · cluster</text>
+  </g>
+</svg>

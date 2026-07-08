@@ -40,18 +40,46 @@ looking at the UI — it has no generator and says so in the interface.
 
    A **bare `/run-brainstorm`** (no topic) skips the terminal interrogation: the studio
    opens directly on the **New Discussion** panel (via the `open_studio` tool) and Claude
-   waits for whatever you submit there.
-5. **Answer the clarifying questions** Claude asks in the terminal (style, references,
-   constraints) — this consensus seeds the first board.
-6. **Your browser opens automatically** at the studio (default `http://127.0.0.1:5199`) with
-   round 1. If no tab appears, the URL is in Claude's message. From here you never need the
-   terminal: respond on the board (§3), and each **Send** returns your feedback to Claude,
-   which presents the next round.
-7. **Finish** with **Accept** (capture the keepers) or **Finalize & close out** (crown THE
-   one — this also runs plan closeout and archives the thread), or **Park** (in the
-   composer's More Tools menu) to pause. If a target repo is set (the **Target Folder**
-   button in the composer), Claude asks at closeout exactly where inside it the final
-   artifacts should go and COPIES them there — the originals stay archived in the thread.
+   waits for whatever you submit there. If you already described the purpose to Claude in
+   step 4, the brief box is **pre-filled** and you refine instead of retyping.
+5. **Your browser opens automatically** at the studio (default `http://127.0.0.1:5199`) on
+   the **New Discussion** panel. If no tab appears, the URL is in Claude's message.
+
+**The intake journey — three stages that seed your brainstorm:**
+
+![The intake journey](images/intake-journey.svg)
+
+6. **Stage 1: Enter your brief.** The New Discussion panel collects your idea (see "New
+   Discussion — open with anything" below for the full panel description). Refine the brief
+   and click **Send & iterate** when ready.
+
+7. **Stage 2: Concierge asks clarifying questions.** Claude moves to the **ConciergeIntake**
+   surface and asks ONE question at a time — domain-tailored to your idea (audience,
+   constraints, what "good" looks like, scope, liveness). Each question has tappable
+   suggestion chips plus a free-text box. Answer and send; Claude asks the next. This loop
+   runs as many rounds as it takes (not a fixed count; comprehensiveness pays off). Every
+   answer lives in your thread's memory so Claude can weave them in.
+
+8. **Stage 3: Pick a method.** Claude presents the **Living Gallery** — a set of method
+   cards (Mind map, Funnel, Wreck, Cluster), each seeded with a tiny live SVG grown from
+   your brief and answers. ONE card is highlighted with a **"Recommended"** ribbon and a
+   reason chip quoting your answers (Claude's suggestion, not a mandate). Click any card to
+   start that methodology.
+
+9. **What happens next depends on your pick:**
+   - **Mind map:** The studio opens a live co-edited **mind-elixir canvas**. Double-click any
+     node to rename it, press Tab to add a child, drag to rearrange. As you edit, the tree
+     updates live; your final structure returns to Claude as your brainstorm "response"
+     (structure IS the response). The canvas stays open as long as you need to refine it.
+   - **Funnel, Wreck, or Cluster:** The brainstorm continues into the standard funnel:
+     diverge, expand, mutate, wreck, cluster, converge. You'll select options, move dials,
+     add notes, and steer each round exactly as in a regular brainstorm (see §3).
+
+10. **Finish** with **Accept** (capture the keepers) or **Finalize & close out** (crown THE
+    one — this also runs plan closeout and archives the thread), or **Park** (in the
+    composer's More Tools menu) to pause. If a target repo is set (the **Target Folder**
+    button in the composer), Claude asks at closeout exactly where inside it the final
+    artifacts should go and COPIES them there — the originals stay archived in the thread.
 
 **Resume later:** in a new Claude session say *"resume brainstorm \<thread-id\>"* — the id is
 shown in the studio's left nav (e.g. `2026-07-06-1902-visualize-5-…`). The whole history
@@ -60,8 +88,9 @@ reloads from the cache; nothing is regenerated.
 **New Discussion — open with anything.** The button sits directly under the app title at
 the top of the left nav; clicking it swaps the main timeline for the full brainstorm-intake
 **chat panel**. An empty live session (no rounds, no active board) lands on this panel
-automatically — it is also where a bare `/run-brainstorm` puts you. Every intake box is a
-**collapsible card** (same shell, caret toggle). Top to bottom:
+automatically — it is also where a bare `/run-brainstorm` puts you. This is **Stage 1 of
+the intake** (see above). Every intake box is a **collapsible card** (same shell, caret
+toggle). Top to bottom:
 - a Claude-side intro bubble (with the honest no-generator note on the preview harness);
 - five **chip-group cards** — making (icons / a logo / a ui flow / a palette / a system
   map / new feature / comparison), vibe (calm / playful / bold / minimal / neon / formal /
@@ -80,10 +109,10 @@ automatically — it is also where a bare `/run-brainstorm` puts you. Every inta
   file, Take a photo, Model for generation). Attachments show as removable chips; the brief
   box grows with its content, capped at 30% of the viewport, then scrolls internally.
 
-**Send & iterate** is enabled by a prompt OR a sketch OR an attachment, and starts a fresh
-brainstorm from the brief when the Claude engine is attached. You can also dictate the brief
-(the mic button is honestly disabled where the browser has no speech recognition). Chosen
-model and colors travel with the brief.
+**Send & iterate** is enabled by a prompt OR a sketch OR an attachment, and starts the
+intake journey when the Claude engine is attached. You can also dictate the brief (the mic
+button is honestly disabled where the browser has no speech recognition). Chosen model and
+colors travel with the brief.
 
 **The one-sitting journey** the studio is built around:
 
@@ -104,12 +133,25 @@ applies, then the config default). On
 small screens the nav is hidden behind a floating hamburger button at the top-left; command
 status messages appear as a toast at the bottom-right.
 
+**Intake surfaces** (New Discussion, ConciergeIntake, LivingGallery) — the three-stage
+intake that seeds every brainstorm. **New Discussion** collects your brief (§2, Stage 1).
+**ConciergeIntake** presents Claude's clarifying questions one at a time with tappable
+suggestion chips and free-text input (§2, Stage 2). **LivingGallery** displays the method
+cards — each with a live SVG preview of how that method would approach your brief — and
+you pick one to start (§2, Stage 3).
+
+**Mind map canvas** — when you pick Mind map in the Living Gallery, the studio opens a
+live co-edited **mind-elixir canvas** instead of the phase funnel. Double-click any node to
+rename, Tab to add a child, drag to rearrange. Your tree edits are the "response" that
+returns to Claude (structure IS the feedback).
+
 **Phase tabs** (Diverge · Expand · Mutate · Wreck · Cluster · Converge) — the funnel,
 left-aligned liquid-chrome tabs sized to their labels, attached flush to the full-width
 guide bubble beneath them. Claude picks a phase per round, but the tabs are CLICKABLE:
 switch the mechanic instantly and your choice becomes the requested phase for the next
 round. Each tab's guide bubble shows "how to work this surface" in numbered plain-language
-steps.
+steps. (These are used when you pick Funnel, Wreck, or Cluster in the Living Gallery, or
+when you start a brainstorm that bypasses the intake.)
 
 ![The phase funnel](images/funnel.svg)
 
