@@ -59,7 +59,7 @@ import { fileURLToPath } from 'node:url';
 import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical, CANONICAL_DIR } from '../tests/canonical/load.mjs';
-import { BoardSchema, ThemeSchema } from '../packages/protocol/dist/index.js';
+import { BoardSchema, LivingGallerySchema, ThemeSchema } from '../packages/protocol/dist/index.js';
 import {
   Cdp,
   findBrowsers,
@@ -76,6 +76,11 @@ import {
 // ---------------------------------------------------------------------------
 const TOTAL_BUDGET_MS = 9 * 60_000; // whole-sweep wall clock
 const PRESENT_TIMEOUT_MS = 5_000; // presentAndWait waiter (fire-and-forget; short so timers drain fast)
+// askConcierge/presentGallery CLEAR the surface on timeout (unlike presentAndWait, which
+// leaves the board live) — a short timeout would make the surface vanish mid-sweep with
+// nothing resolving it. Long enough to outlive the whole sweep; restore() re-presents
+// whenever a gesture (Send answer / a card pick) genuinely resolves it early.
+const CONCIERGE_GALLERY_TIMEOUT_MS = TOTAL_BUDGET_MS;
 const MAX_CONTROLS_PER_SURFACE = 70;
 const OVERSIZE_TEXT = 'A'.repeat(100_000);
 const HOSTILE_TEXT =
@@ -491,10 +496,47 @@ if (browsers.length === 0) {
         loadCanonical(`boards/${phase}.json`, BoardSchema),
       ]),
     );
+    // Living Gallery canonical fixture (concierge-living-gallery phase 4).
+    const galleryBase = loadCanonical('gallery/gallery.json', LivingGallerySchema);
+    // A tree board (concierge-living-gallery phase 2/6): options-XOR-tree, built
+    // THROUGH the schema (never a hand-built literal) — round 7 stays clear of
+    // the six canonical phase boards (rounds 1–6) so nothing collides on disk.
+    const mindmapBoardBase = BoardSchema.parse({
+      id: 'board-mindmap-sweep',
+      sessionId: store.info.id,
+      round: 7,
+      kind: 'mindmap',
+      phase: 'diverge',
+      title: 'Mind map — break sweep',
+      prompt: 'Co-edit the tree.',
+      options: [],
+      tree: {
+        nodeData: {
+          id: 'root',
+          topic: 'Sweep glyph',
+          children: [
+            { id: 'c1', topic: 'Mark' },
+            { id: 'c2', topic: 'Motion' },
+          ],
+        },
+        direction: 2,
+      },
+      survey: {},
+      createdAt: new Date().toISOString(),
+    });
 
     const surfaceSignatureExpr = (surface) => {
       if (surface.kind === 'landing') {
         return `document.body.textContent.includes('New Discussion') && !!document.querySelector('textarea') && document.body.textContent.includes('What do you want to explore?')`;
+      }
+      if (surface.kind === 'concierge') {
+        return `!!document.querySelector('[data-testid="concierge-intake"]')`;
+      }
+      if (surface.kind === 'gallery') {
+        return `!!document.querySelector('[data-testid="living-gallery"]')`;
+      }
+      if (surface.kind === 'mindmap') {
+        return `!!document.querySelector('[data-testid="mindmap-canvas"]')`;
       }
       const title = JSON.stringify(boardBases[surface.phase].title.slice(0, 16));
       const guide = JSON.stringify(GUIDE_TITLES[surface.phase]);
@@ -502,9 +544,26 @@ if (browsers.length === 0) {
     };
 
     const presentFresh = async (surface) => {
+      if (surface.kind === 'concierge') {
+        // askConcierge CLEARS the surface on timeout, unlike presentAndWait —
+        // give it a timeout that outlives the whole sweep (see const above).
+        bridge
+          .askConcierge('Sweep — who is it for?', ['a', 'b', 'c'], CONCIERGE_GALLERY_TIMEOUT_MS)
+          .catch(() => {});
+        await waitInPage('the concierge intake surface to render', surfaceSignatureExpr(surface), 20_000);
+        return;
+      }
+      if (surface.kind === 'gallery') {
+        bridge
+          .presentGallery({ ...galleryBase, id: `sweep-gallery-${++presentCounter}` }, CONCIERGE_GALLERY_TIMEOUT_MS)
+          .catch(() => {});
+        await waitInPage('the living gallery surface to render', surfaceSignatureExpr(surface), 20_000);
+        return;
+      }
+      const sourceBoard = surface.kind === 'mindmap' ? mindmapBoardBase : boardBases[surface.phase];
       const clone = {
-        ...boardBases[surface.phase],
-        id: `${boardBases[surface.phase].id}-sweep-${++presentCounter}`,
+        ...sourceBoard,
+        id: `${sourceBoard.id}-sweep-${++presentCounter}`,
         sessionId: store.info.id,
       };
       surface.currentBoardId = clone.id;
@@ -512,7 +571,7 @@ if (browsers.length === 0) {
       // Fire-and-forget: the sweep never fakes a response; the short waiter
       // resolves null on its own (board stays live for the humanlike gestures).
       bridge.presentAndWait(clone, PRESENT_TIMEOUT_MS, /* open browser */ false).catch(() => {});
-      await waitInPage(`the ${surface.phase} board to render`, surfaceSignatureExpr(surface), 20_000);
+      await waitInPage(`the ${surface.name} board to render`, surfaceSignatureExpr(surface), 20_000);
     };
 
     /** Bring the surface back to a workable state after a gesture knocked it
@@ -546,13 +605,18 @@ if (browsers.length === 0) {
             if (btn) { btn.click(); return true; } return false; })()`,
         ).catch(() => {});
       }
-      // 5. Board surfaces: a submit cleared the board, or a phase tab switched
-      //    the mechanic — re-present a fresh canonical clone.
-      if (surface.kind === 'board') {
+      // 5. Board/mindmap surfaces: a submit cleared the board, or a phase tab
+      //    switched the mechanic — re-present a fresh canonical clone. Concierge/
+      //    gallery: a gesture that answered/picked RESOLVES (and clears) them —
+      //    re-present a fresh one via the bridge, same intent, no board tracking.
+      if (surface.kind === 'board' || surface.kind === 'mindmap') {
         const state = await fetchState();
         const alive = state.activeBoard && state.activeBoard.id === surface.currentBoardId;
         const looksRight = alive && (await evaluate(surfaceSignatureExpr(surface)).catch(() => false));
         if (!looksRight) await presentFresh(surface);
+      } else if (surface.kind === 'concierge' || surface.kind === 'gallery') {
+        const ok = await evaluate(surfaceSignatureExpr(surface)).catch(() => false);
+        if (!ok) await presentFresh(surface);
       } else {
         const ok = await evaluate(surfaceSignatureExpr(surface)).catch(() => false);
         if (!ok) {
@@ -566,24 +630,24 @@ if (browsers.length === 0) {
     };
 
     const locate = (surface, d) =>
-      evaluate(locateExpr(surface.kind === 'board' ? surface.rootId : null, d.key, d.nth), { awaitPromise: true });
+      evaluate(locateExpr(surface.kind === 'board' || surface.kind === 'mindmap' ? surface.rootId : null, d.key, d.nth), { awaitPromise: true });
 
     const revive = async (surface, d, depth = 0) => {
       let center = await locate(surface, d);
       if (center || depth >= 4 || !d.revealedBy) return center;
       await revive(surface, d.revealedBy, depth + 1);
-      await evaluate(reviveClickExpr(surface.kind === 'board' ? surface.rootId : null, d.revealedBy.key, d.revealedBy.nth)).catch(() => {});
+      await evaluate(reviveClickExpr(surface.kind === 'board' || surface.kind === 'mindmap' ? surface.rootId : null, d.revealedBy.key, d.revealedBy.nth)).catch(() => {});
       await sleep(250);
       center = await locate(surface, d);
       return center;
     };
 
     const takeCensus = (surface) =>
-      evaluate(censusExpr(surface.kind === 'board' ? surface.rootId : null));
+      evaluate(censusExpr(surface.kind === 'board' || surface.kind === 'mindmap' ? surface.rootId : null));
 
     // --- per-control gesture programs ---------------------------------------
     const runControl = async (surface, d, report) => {
-      const rootId = surface.kind === 'board' ? surface.rootId : null;
+      const rootId = surface.kind === 'board' || surface.kind === 'mindmap' ? surface.rootId : null;
       const controlName = `${d.kind} "${d.label}"${d.nth > 0 ? `[${d.nth}]` : ''}`;
       currentContext = `${surface.name} / ${controlName}`;
       const gesturesRun = [];
@@ -697,10 +761,10 @@ if (browsers.length === 0) {
       const report = { name: surface.name, rows: [], dedupedChrome: 0, notes: [] };
       surfaceReports.push(report);
 
-      if (surface.kind === 'board') {
-        await presentFresh(surface);
-      } else {
+      if (surface.kind === 'landing') {
         await waitInPage('the New Discussion landing panel', surfaceSignatureExpr(surface), 30_000);
+      } else {
+        await presentFresh(surface);
       }
       await checkpoint(surface.name, '(surface)', 'enter');
 
@@ -760,10 +824,21 @@ if (browsers.length === 0) {
         const d = queue.shift();
         processed++;
         await runControl(surface, d, report);
-        // Discover controls the gestures revealed (menus, dialogs, duels…).
+        // Discover controls the gestures revealed (menus, dialogs, duels…). For
+        // concierge/gallery: a resolving gesture (Send answer / a card pick)
+        // clears the surface immediately, and — since neither adds to `history`
+        // — the studio can transiently show the New Discussion landing panel
+        // before restore() re-presents it; skip admission in that window so
+        // landing's unrelated controls never bleed into this surface's queue.
         if (!NO_REQUEUE_LABELS.has(d.label)) {
-          const after = await takeCensus(surface).catch(() => []);
-          admit(after, d);
+          const stillOnSurface =
+            surface.kind === 'concierge' || surface.kind === 'gallery'
+              ? await evaluate(surfaceSignatureExpr(surface)).catch(() => false)
+              : true;
+          if (stillOnSurface) {
+            const after = await takeCensus(surface).catch(() => []);
+            admit(after, d);
+          }
         }
         await restore(surface);
       }
@@ -791,6 +866,26 @@ if (browsers.length === 0) {
         outcome: !recovered || ids.length > 0 ? `FINDING ${[...new Set(ids)].join(', ') || '(rehydrate)'}` : 'ok (root mounted, state rehydrated)',
       });
       if (!recovered) await restore(surface);
+
+      // Harness hygiene (concierge only): if no gesture happened to answer it for
+      // real (chip toggles/hostile text net out to empty, so "Send answer" often
+      // stays disabled through a whole sweep), an abandoned concierge exchange
+      // stays live forever — App.tsx renders it alongside whatever surface comes
+      // next (concierge/gallery/board all gate independently, no mutual exclusion),
+      // which would bleed its controls into every later surface's whole-document
+      // census. Resolve it for real via the same POST the studio's own Send
+      // answer button uses, so the next surface starts clean. Plumbing only —
+      // never a gesture under test, and every real gesture already exercised it.
+      if (surface.kind === 'concierge') {
+        const state = await fetchState();
+        if (state.concierge) {
+          await fetch(`${base()}/api/concierge`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: state.concierge.id, answer: 'sweep cleanup' }),
+          }).catch(() => {});
+        }
+      }
     };
 
     // =========================================================================
@@ -810,11 +905,17 @@ if (browsers.length === 0) {
 
     const surfaces = [
       { name: 'landing/new-discussion', kind: 'landing' },
+      // Intake front door (concierge-living-gallery): the concierge question
+      // then the Living Gallery pick, exactly as a real session presents them.
+      { name: 'concierge', kind: 'concierge' },
+      { name: 'gallery', kind: 'gallery' },
       ...['diverge', 'expand', 'mutate', 'wreck', 'cluster', 'converge'].map((phase) => ({
         name: phase,
         kind: 'board',
         phase,
       })),
+      // The mind-map methodology's live co-edited canvas board.
+      { name: 'mindmap', kind: 'mindmap' },
     ];
 
     for (const surface of surfaces) {

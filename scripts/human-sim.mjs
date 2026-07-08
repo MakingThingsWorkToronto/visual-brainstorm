@@ -41,7 +41,7 @@ import path from 'node:path';
 import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
-import { BoardSchema, ThemeSchema } from '../packages/protocol/dist/index.js';
+import { BoardSchema, LivingGallerySchema, ThemeSchema } from '../packages/protocol/dist/index.js';
 // Shared CDP plumbing (extracted verbatim to scripts/lib/cdp.mjs for the
 // ui-break-sweep driver — one proven implementation, two harnesses).
 import {
@@ -207,8 +207,141 @@ if (browsers.length === 0) {
       );
     });
 
+    // =========================================================================
+    // The concierge → gallery → mindmap intake (concierge-living-gallery,
+    // phase 6 — REAL-SESSION proof, not the preview player). The harness plays
+    // both ends: the Bridge side (askConcierge/presentGallery/presentAndWait,
+    // exactly the calls the MCP tools make) and the human side (real CDP driving
+    // the real studio surfaces those calls put on the wire).
+    // =========================================================================
+    let cAnswer;
+    await step('concierge appears + human answers ("who is this glyph for?")', async () => {
+      const cWait = bridge.askConcierge(
+        'Who is this glyph for?',
+        ['my team', 'developers'],
+        60_000,
+      );
+      await waitInPage(
+        'the concierge intake surface with its question',
+        `!!document.querySelector('[data-testid="concierge-intake"]') &&
+         document.body.textContent.includes('Who is this glyph for?')`,
+      );
+      await click(
+        'the "developers" suggestion chip',
+        `[...document.querySelectorAll('[data-testid="concierge-chips"] button')].find((b) => b.textContent.trim() === 'developers')`,
+      );
+      await typeInto(
+        'the concierge free-text answer',
+        `document.querySelector('[data-testid="concierge-intake"] textarea')`,
+        'shipping a CLI',
+      );
+      await click(
+        'the concierge Send answer button',
+        `[...document.querySelectorAll('[data-testid="concierge-intake"] button')].find((b) => b.textContent.trim() === 'Send answer')`,
+      );
+      cAnswer = await cWait;
+      assert.ok(cAnswer, 'askConcierge resolved with a posted answer, not a timeout');
+      assert.ok(cAnswer.includes('developers'), 'answer carries the tapped chip');
+      assert.ok(cAnswer.includes('shipping a CLI'), 'answer carries the typed free text');
+    });
+
+    let picked;
+    await step('gallery appears + human picks Mind map', async () => {
+      const gWait = bridge.presentGallery(
+        { ...loadCanonical('gallery/gallery.json', LivingGallerySchema), id: 'human-sim-gallery' },
+        60_000,
+      );
+      await waitInPage(
+        'the living gallery with its recommended ribbon (proves it renders live)',
+        `!!document.querySelector('[data-testid="living-gallery"]') &&
+         !!document.querySelector('[data-testid="recommended-ribbon"]')`,
+      );
+      await click(
+        'the Mind map method card',
+        `document.querySelector('[data-testid="method-card-mindmap"]')`,
+      );
+      picked = await gWait;
+      assert.equal(picked, 'mindmap', 'presentGallery resolved with the picked method');
+    });
+
+    const treeBoard = BoardSchema.parse({
+      id: 'human-sim-mindmap',
+      sessionId: store.info.id,
+      round: store.nextRound(),
+      kind: 'mindmap',
+      phase: 'diverge',
+      title: 'Mind map — your glyph',
+      prompt: 'Co-edit the tree.',
+      options: [],
+      tree: {
+        nodeData: {
+          id: 'root',
+          topic: 'Neon glyph',
+          children: [
+            { id: 'c1', topic: 'Mark' },
+            { id: 'c2', topic: 'Motion' },
+          ],
+        },
+        direction: 2,
+      },
+      survey: {},
+      createdAt: new Date().toISOString(),
+    });
+    let treeWait;
+    await step('mindmap board renders with the LIVE mind-elixir engine mounted', async () => {
+      treeWait = bridge.presentAndWait(treeBoard, 60_000, false);
+      await waitInPage(
+        'the mindmap canvas surface',
+        `!!document.querySelector('[data-testid="mindmap-canvas"]')`,
+      );
+      // The engine renders live DOM only in a real browser (never renderToString)
+      // — this is the first place the genuine mind-elixir instance is exercised.
+      await waitInPage(
+        'the live mind-elixir engine mounted with real DOM',
+        `(() => {
+          const el = document.querySelector('[data-testid="mindmap-engine"]');
+          return !!el && el.childElementCount > 0;
+        })()`,
+        15_000,
+      );
+    });
+
+    await step('human edits the live tree via the real engine — editedTree returns', async () => {
+      const childCount = await evaluate(
+        `(async () => {
+          const el = document.querySelector('[data-testid="mindmap-engine"]');
+          const mind = el && el.mind;
+          if (!mind) return 'no-instance';
+          mind.selectNode(mind.findEle(mind.nodeData.id));
+          await mind.addChild();
+          return mind.getData().nodeData.children.length;
+        })()`,
+        { awaitPromise: true },
+      );
+      assert.ok(
+        typeof childCount === 'number' && childCount > 2,
+        `the REAL mind-elixir engine added a child via addChild() (got ${JSON.stringify(childCount)})`,
+      );
+      await click(
+        'the mindmap composer Send & iterate button',
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Send & iterate')`,
+      );
+      const treeResp = await treeWait;
+      assert.ok(treeResp, 'presentAndWait resolved with a response for the mindmap board, not a timeout');
+      assert.ok(treeResp.editedTree, 'response carries editedTree');
+      assert.ok(
+        treeResp.editedTree.nodeData.children.length > 2,
+        'the node added by the real engine rode back in editedTree',
+      );
+      const introMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+      assert.ok(introMd.includes('Concierge Q: Who is this glyph for?'), 'brainstorm.md records the concierge question');
+      assert.ok(introMd.includes(`Concierge A: ${cAnswer}`), 'brainstorm.md records the concierge answer');
+      assert.ok(introMd.includes('Mind-map tree presented'), 'brainstorm.md records the mindmap presentation (recordBoard)');
+    });
+
     // The canonical diverge board, re-anchored to this thread (fresh id rule
-    // does not apply — this is its first presentation).
+    // does not apply — this is its first presentation). activeBoard was cleared
+    // by the mindmap submit above, so this still lands as a fresh presentation.
     const board = { ...loadCanonical('boards/diverge.json', BoardSchema), sessionId: store.info.id };
     let waitForResponse = null;
     await step('a canonical board is presented and renders as the survey', async () => {
@@ -286,8 +419,9 @@ if (browsers.length === 0) {
     passed = true;
     console.log(
       `HUMAN SIM PASS — ${stepCount} steps: real ${browserName} over raw CDP drove the built studio ` +
-        'against a real bridge (new discussion → board response → artifact visible), zero exceptions, ' +
-        'zero STUDIO CLIENT ERROR lines, root mounted throughout',
+        'against a real bridge (new discussion → concierge Q&A → gallery pick → live mindmap edit → ' +
+        'editedTree → board response → artifact visible), zero exceptions, zero STUDIO CLIENT ERROR lines, ' +
+        'root mounted throughout',
     );
   } catch (err) {
     process.exitCode = 1;

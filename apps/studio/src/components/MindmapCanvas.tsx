@@ -50,6 +50,12 @@ export function MindmapCanvas({
       mind = instance;
       bus = instance.bus;
       bus?.addListener('operation', handler);
+      // Expose the live instance on its container (mind-elixir interop convention):
+      // lets devtools + the human-sim driver inspect the tree and invoke a REAL
+      // edit (e.g. selectNode + addChild) so editedTree comes from the genuine
+      // engine → onEdit path, never a fabricated response.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (elRef.current) (elRef.current as any).mind = instance;
     })();
     return () => {
       disposed = true;
