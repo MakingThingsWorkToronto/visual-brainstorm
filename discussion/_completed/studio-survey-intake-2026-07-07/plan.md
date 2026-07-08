@@ -1,6 +1,6 @@
 # Studio intake as questions — survey/forms module + composer fixes
 
-**Status:** open — 2026-07-07 (approval-gated: implement only after operator OKs)
+**Status:** closed 2026-07-07
 **Owner persona:** inline coordinator delegating BUILD to studio work + test-engineer + wiki-librarian
 **Trigger:** operator design-review during the token-economy session (2026-07-07): four studio items.
 

@@ -1,5 +1,51 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-07 — shared-tree commit trap: a plain `git commit` grabs another session's STAGED changes
+
+- **In a shared working tree, `git add <my-files>` then `git commit` will ALSO commit whatever a
+  concurrent session left STAGED — most dangerously staged DELETIONS (`D ` in column 1 of
+  `git status --short`).** I staged my two clean files and committed; the commit swept in a peer's
+  staged `ArtifactChat.tsx`/`PreviewModal.tsx` deletions (their ArtifactFullscreen refactor),
+  contaminating my commit AND breaking HEAD (the old committed `App.tsx` still imported the now-
+  deleted files). `git status` working-tree view hides this — you must inspect the INDEX. Rule:
+  before committing in a shared tree, run `git diff --cached --name-status` and confirm ONLY your
+  paths are staged; if foreign changes are staged, either `git restore --staged .` first then
+  re-add only yours, or use `git commit --only <exact paths>` (which ignores the rest of the index).
+  Recovery from a contaminated commit: `git reset --soft HEAD~1` → `git restore --staged .` →
+  re-add only your files → recommit.
+- **The entangled-shared-file "leave it to ride their commit" pattern works in practice.** My
+  one-line `App.tsx` scroll-fade hunk (entangled with a peer's big in-flight refactor of that file)
+  and my `ui-smoke.ts` marker change were both unblocked when the peer's closeout committed those
+  files — the scroll-fade hunk landed inside their `eedece9` closeout (verified via
+  `git grep <hunk> HEAD -- App.tsx`), and ui-smoke.ts became clean-editable once they committed it.
+  In a hot tree, origin/main advances between your own pushes; each `git push` just fast-forwards
+  your stacked commit — check the `A..B` range to see what a peer landed in between.
+
+## 2026-07-07 — the preview/fixture harness was a false-confidence second path — deleted; real pathways only
+
+- **A fixture "preview" harness that renders the studio's surfaces without a real session is a
+  trap, not a safety net.** `apps/mcp/src/preview.ts` (`npm run preview`/`demo`, `engine:'preview'`)
+  played both ends with static fixtures, so a surface could look "verified in preview" while the
+  REAL agentic path (a live Claude session calling `open_studio`/`ask_concierge`/`present_gallery`/
+  `present_board`) was never exercised. The operator's rule: "if it only works in preview the app
+  is a brick." We deleted the harness AND its sole reason to exist — the `StudioState.engine`
+  `'claude'|'preview'` discriminator (protocol + bridge + studio + all harnesses + canonical
+  `state-200.json`). Sessions are now always the real Claude engine; the `enginePreview` "no
+  generator" banner in `NewDiscussionPanel` went with it.
+- **How to apply:** never add a fixture player as a proof surface. UI/behaviour is proven by the
+  REAL pathways ONLY — `npm run test:human` (real `Bridge`, real built studio dist, real browser
+  over CDP), `npm run test:human:sweep`, `npm run smoke` (real transport), or a live Claude session
+  for eyeballing. When you catch yourself building a second, generator-less path "just to see the
+  UI," stop — drive the real one. The `engine` field's deletion is the pattern: a discriminator
+  whose only values are "real" and "fake" means the fake path shouldn't exist ([[rule 6 no-fake-success]]).
+- **Verification gotcha (confirmed live):** removing a shared protocol field touches ~15 files —
+  the field's producers (bridge `state()`, studio `EMPTY`), every in-test `Bridge` construction,
+  and canonical bodies (`state-200.json`) — plus the `NewDiscussionPanel` prop threaded through
+  `App.tsx` + `ui-smoke`. Grep the field name across `apps/packages/scripts/tests` and strip the
+  property lines with a one-liner; then `node -e JSON.parse` the canonical JSON so a dangling comma
+  doesn't slip through. Product "preview" UI (`SvgPane`, `ArtifactFullscreen`, option/artifact
+  previews) is unrelated — do NOT touch it when deleting the preview HARNESS.
+
 ## 2026-07-07 — leaked headless browsers = silent token/time drain when iterating human-sim
 
 - **A subagent that re-runs the CDP human-sim many times (iterating on test authoring)

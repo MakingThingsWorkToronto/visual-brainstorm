@@ -82,12 +82,20 @@ done/skipped-with-reason.
     `--only` is file-level and cannot split hunks: if a file this plan touched ALSO
     carries another session's uncommitted edits, either wait for their loop to converge
     or commit it with the riders declared in the commit body — never present a mixed
-    diff as single-plan.
+    diff as single-plan. **Inspect the STAGED index before committing**
+    (`git diff --cached --name-status`), not just `git status`'s working-tree view: a
+    concurrent session's STAGED changes — most dangerously deletions (`D ` in column 1) —
+    ride a plain `git commit` even when you only `git add` your own paths, contaminating the
+    commit and possibly breaking HEAD. Confirm ONLY your paths are staged (or use
+    `git commit --only <paths>`, which ignores the rest of the index).
 11. **Report** — one summary: learnings count, commands improved (names), wiki pages
     touched, artifacts handed off (destination), build plan generated (target + path, or
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-07 — step 10: inspect the STAGED index before committing (`git diff --cached
+  --name-status`) — a concurrent session's staged changes/deletions ride a plain `git commit`
+  even when you only `git add` your own files (from studio-survey-intake-2026-07-07)
 - 2026-07-07 — step 4: conditional harness-parity rule — when authoritative workflows,
   protocol contracts, or harness-visible behavior change, reconcile supported adapter layers
   in the same cycle; otherwise skip with reason (Copilot support maintenance without making
