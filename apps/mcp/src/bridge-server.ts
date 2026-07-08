@@ -43,11 +43,9 @@ export interface BridgeOptions {
   theme: string;
   models: string[];
   defaultModel: string;
-  /** Who is driving — the studio adapts its promises to this. */
-  engine: 'claude' | 'preview';
   /** Default target repo/folder (config); the thread override lives in SessionInfo. */
   defaultTargetRepo?: () => string | null;
-  /** Persist a new default targetRepo to the config file — absent in the preview harness. */
+  /** Persist a new default targetRepo to the config file — absent when the server has no config writer. */
   setDefaultTargetRepo?: (path: string | null) => void;
   /**
    * Persist an edited/new theme (palette edits from the studio) to the styles
@@ -170,7 +168,6 @@ export class Bridge {
       activeBoard: this.activeBoard,
       artifacts: this.store.artifacts,
       thinking: this.thinking,
-      engine: this.options.engine,
       themes: this.themesList,
       theme: this.options.theme,
       models: this.options.models,
@@ -388,7 +385,7 @@ export class Bridge {
               res.writeHead(400, { 'content-type': 'application/json' });
               res.end(JSON.stringify({
                 ok: false,
-                error: 'this server cannot persist a default target repo (preview harness) — set targetRepo in visual-brainstorm.config.json or use thread scope',
+                error: 'this server cannot persist a default target repo (no config writer) — set targetRepo in visual-brainstorm.config.json or use thread scope',
               }));
               return;
             }

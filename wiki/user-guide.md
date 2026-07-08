@@ -23,8 +23,13 @@ claude mcp add visual-brainstorm -- node C:/Code/svgbrainstorm/apps/mcp/dist/ind
 
 Tip: raise the tool timeout so boards can wait for humans: `MCP_TOOL_TIMEOUT=1800000`.
 
-**Preview without Claude:** `npm run preview [phase]` serves static fixture boards for
-looking at the UI — it has no generator and says so in the interface.
+**Use GitHub Copilot in this workspace.** This repo now ships workspace-local Copilot prompt
+files and custom agents under `.github/`. In VS Code, open Copilot Chat, type `/`, and run
+`run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`, `diagnose-studio`,
+`artifact-chat`, `reopen`, `new-command`, or `create-dispatch-command`. These are thin
+adapters over the authoritative `.claude/` workflows and the same local MCP/studio stack.
+Current studio/runtime copy still says "Claude" because the provider-aware engine seam has
+not been widened yet; the adapter layer does not change thread or artifact semantics.
 
 ## 2. Starting a brainstorm, step by step
 
@@ -91,7 +96,7 @@ the top of the left nav; clicking it swaps the main timeline for the full brains
 automatically — it is also where a bare `/run-brainstorm` puts you. This is **Stage 1 of
 the intake** (see above). Every intake box is a **collapsible card** (same shell, caret
 toggle). Top to bottom:
-- a Claude-side intro bubble (with the honest no-generator note on the preview harness);
+- a Claude-side intro bubble;
 - five **chip-group cards** — making (icons / a logo / a ui flow / a palette / a system
   map / new feature / comparison), vibe (calm / playful / bold / minimal / neon / formal /
   professional), range (stay close to convention / go wild), audience (just me / my team /

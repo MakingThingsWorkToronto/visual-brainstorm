@@ -62,7 +62,12 @@
     intelligence lives in Claude + these layers — harness/test code stays dumb (fixtures
     only). Delegated generation goes to `svg-artisan`; diagnosis to `devops-diagnostician`;
     brainstorm orchestration has ONE owner — `brainstorm-orchestrator` — which delegates
-    the heavy procedures downward but is itself never re-delegated.
+   the heavy procedures downward but is itself never re-delegated. Workspace-local harness
+   adapters (today `.github/` for GitHub Copilot; future CODEX/Cursor layers when built)
+   are wrappers over this same authoritative layer, not parallel workflow definitions. When
+   a change affects a workflow entry point, protocol contract, or user-facing harness
+   behavior, reconcile the supported adapter layers in the same cycle so comparable results
+   remain achievable across harnesses.
 12. **Docs move with the product.** A change to what humans see or do updates
     `wiki/user-guide.md` (and its diagrams) in the same change; a change to facts or
     contracts updates the wiki (rule 2 applies).
@@ -83,6 +88,8 @@ discussion/      plans + brainstorm thread cache (dirs with session.json);
 .claude/skills/        binding craft (svg-authoring, brainstorm-phases)
 .claude/agents/        specialized subagents (brainstorm-orchestrator, devops-diagnostician,
                        svg-artisan, test-engineer, wiki-librarian)
+.github/               workspace-local GitHub Copilot adapters over the authoritative
+                       `.claude/` layer (prompts/agents/instructions, no workflow SSOT)
 tests/ + scripts/      unit tests (node:test) + smoke.mjs + ui-smoke.ts
 .mcp.json              registers this repo's own MCP server (dogfooding)
 visual-brainstorm.config.json   targetRepo / styles / theme / models / discussionDir

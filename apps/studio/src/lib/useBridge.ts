@@ -12,7 +12,6 @@ const EMPTY: StudioState = {
   artifacts: [],
   artifactChat: [],
   thinking: null,
-  engine: 'claude',
   themes: [],
   theme: 'neon-purple',
   models: [],

@@ -90,7 +90,6 @@ async function startBridge(extraOptions = {}) {
     theme: 'neon-purple',
     models: ['claude-fable-5'],
     defaultModel: 'claude-fable-5',
-    engine: 'claude',
     log: () => {},
     ...extraOptions,
   });

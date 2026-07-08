@@ -88,7 +88,6 @@ if (browsers.length === 0) {
       theme: 'aurora',
       models: ['claude-fable-5', 'claude-haiku-4-5'],
       defaultModel: 'claude-fable-5',
-      engine: 'claude',
       log: (line) => logLines.push(line),
       recentLogs: () => logLines.slice(-500),
     });

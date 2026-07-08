@@ -87,7 +87,6 @@ function strokesToSvg(strokes: Stroke[]): string {
 }
 
 export function NewDiscussionPanel({
-  enginePreview,
   themes = [],
   models = [],
   defaultModel = '',
@@ -97,7 +96,6 @@ export function NewDiscussionPanel({
   onCancel,
   onStart,
 }: {
-  enginePreview: boolean;
   themes?: Theme[];
   models?: string[];
   defaultModel?: string;
@@ -186,13 +184,6 @@ export function NewDiscussionPanel({
         </div>
         What do you want to explore? Type it, say it, scribble it, or attach a photo or file.
         Whatever arrives seeds the first board.
-        {enginePreview && (
-          <div className="mt-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-[11px] leading-snug text-ink-dim">
-            <span className="font-semibold text-ink">Preview harness: no generator attached.</span>{' '}
-            This server only shows static fixture boards. To brainstorm for real, start Claude Code
-            in this repo and ask it to brainstorm.
-          </div>
-        )}
       </Bubble>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

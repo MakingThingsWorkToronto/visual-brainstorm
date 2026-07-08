@@ -22,7 +22,6 @@ function makeBridge(root, title) {
     theme: 'aurora',
     models: ['claude-fable-5'],
     defaultModel: 'claude-fable-5',
-    engine: 'claude',
     log: () => {},
   });
   return { bridge, store };

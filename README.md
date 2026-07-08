@@ -14,6 +14,10 @@ Claude Code ◀─tool result─          ▲          ◀─── you click "S
 Mashup-culture architecture: three small pieces loosely joined — Claude Code (intelligence),
 an MCP server (glue), a local React app (surface). No accounts, no cloud, MIT.
 
+GitHub Copilot workspace adapters now live in `.github/` as thin prompts/agents that read the
+authoritative `.claude/` workflows instead of duplicating them. The current local runtime and
+studio copy are still Claude-oriented until the provider-aware engine seam lands.
+
 ## What a session feels like
 
 1. You: *"Let's design icons for my app."*
@@ -38,7 +42,6 @@ Works for the opposite pole too: system/product design via `system-map`, `storyb
 npm install
 npm run build
 npm test          # unit + integration smoke + UI render smoke
-npm run preview   # fixtures-only UI tour (no generator) → http://127.0.0.1:5199
 ```
 
 Full walkthrough of every control: **[wiki/user-guide.md](wiki/user-guide.md)**.
@@ -52,6 +55,16 @@ claude mcp add visual-brainstorm -- node C:/Code/svgbrainstorm/apps/mcp/dist/ind
 …or copy this repo's `.mcp.json` pattern. Then just ask Claude to brainstorm something
 visual. Tip: raise the MCP tool timeout so boards can wait for slow humans —
 `MCP_TOOL_TIMEOUT=1800000`.
+
+Use with GitHub Copilot in this workspace:
+
+- Open the repo in VS Code with GitHub Copilot Chat enabled.
+- Let the workspace load its `.github/` prompts and agents.
+- Type `/` and run `run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`,
+   `diagnose-studio`, `artifact-chat`, `reopen`, `new-command`, or
+   `create-dispatch-command`.
+- These prompt files are thin adapters over `.claude/commands`, `.claude/skills`, and
+   `.claude/agents`; the repo's behavior still lives there.
 
 ## MCP tools
 
@@ -80,6 +93,7 @@ apps/studio         Vite + React + Tailwind v4 survey UI (shadcn-chat-inspired)
 wiki/               authoritative facts & guardrails + user-guide.md (start: README.md there)
 discussion/         plans + the brainstorm thread cache (_completed/ = archive; .logs/ = runtime logs)
 .claude/            commands (procedures) · skills (craft) · agents (specialized roles)
+.github/            Copilot instructions + thin prompt/agent adapters over the `.claude/` SSOT
 ```
 
 Contributors: read `CLAUDE.md` first — 12 rules + the session bootstrap, all enforced.

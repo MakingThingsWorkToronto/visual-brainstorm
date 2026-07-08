@@ -16,6 +16,11 @@
 - `.claude/commands/` is the AUTHORITATIVE home of repeatable repo procedures (slash
   commands); `.claude/skills/` holds craft knowledge (SVG authoring, phase driving).
   Recurring manual work becomes a command via `/new-command` — asked twice = failure.
+- Harness adapters (`.github/` today for GitHub Copilot; future CODEX/Cursor layers when
+  support is real) are discovery/execution wrappers over the authoritative `.claude/` layer,
+  not a second source of workflow truth. If a `.claude` workflow/skill/agent, protocol
+  contract, or user-facing harness seam changes, reconcile the supported adapter files in the
+  same cycle so harnesses stay outcome-comparable.
 - Commands are living documents: `/plan-closeout` harvests session learnings and EDITS the
   commands they implicate, appending to each file's `## Changelog` footer.
 - Plans close ONLY via `/plan-closeout` (verify → harvest → improve commands → wiki → archive

@@ -1,4 +1,4 @@
 {
   "ok": false,
-  "error": "this server cannot persist a default target repo (preview harness) — set targetRepo in visual-brainstorm.config.json or use thread scope"
+  "error": "this server cannot persist a default target repo (no config writer) — set targetRepo in visual-brainstorm.config.json or use thread scope"
 }

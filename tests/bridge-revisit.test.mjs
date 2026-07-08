@@ -27,7 +27,6 @@ async function startBridge() {
     theme: 'aurora',
     models: ['claude-fable-5'],
     defaultModel: 'claude-fable-5',
-    engine: 'claude',
     log: (line) => logLines.push(line),
   });
   await bridge.start(0); // ephemeral port

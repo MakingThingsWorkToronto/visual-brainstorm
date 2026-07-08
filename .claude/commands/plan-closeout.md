@@ -30,6 +30,12 @@ done/skipped-with-reason.
    Append one line to the file's `## Changelog` footer:
    `- <date> — <improvement> (from <plan-slug>)`. This step is the point of closeout;
    skipping it silently is a rule violation.
+  - **Harness parity is conditional but mandatory when touched.** If this plan changed an
+    authoritative workflow entry point, `.claude` command/skill/agent contract,
+    `packages/protocol` shape, or user-facing harness behavior, reconcile the supported
+    harness adapters in the same cycle (today `.github/` for GitHub Copilot; future
+    registered harness layers when they are real) so comparable results remain achievable
+    across harnesses. If nothing adapter-visible changed, explicitly skip this with reason.
 5. **Update the wiki** — any fact or guardrail established by this plan moves to the
    relevant `wiki/` page; append the edit to `wiki/log.md` (rule 2).
 6. **Hand off final artifacts to the target repo** — resolve the thread's target
@@ -82,6 +88,10 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-07 — step 4: conditional harness-parity rule — when authoritative workflows,
+  protocol contracts, or harness-visible behavior change, reconcile supported adapter layers
+  in the same cycle; otherwise skip with reason (Copilot support maintenance without making
+  every plan pay the tax)
 - 2026-07-07 — step 4: improvement targets now include `.claude/agents/` living sections
   (brainstorm-orchestrator's Orchestration learnings) — agent files are living memory
   surfaces too (from brainstorm-orchestrator-2026-07-07)

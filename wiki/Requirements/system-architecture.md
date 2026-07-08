@@ -15,6 +15,9 @@ apps/mcp             @visual-brainstorm/mcp — stdio MCP server launched BY Cla
 apps/studio          @visual-brainstorm/studio — Vite + React + Tailwind v4 SPA. Built to
                      apps/studio/dist and served statically by the bridge. Never talks MCP;
                      only WS push (boards in) + HTTP POST (responses out).
+.github/             workspace-local GitHub Copilot instructions, prompts, and agents — thin
+                     adapters over `.claude/` and the MCP tool surface. They improve command
+                     discovery but do not own workflow logic or change the current engine model.
 ```
 
 ## Data flow — the mashup
@@ -90,9 +93,8 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
 - `POST /api/target-repo` — `{ path: string|null, scope: 'thread'|'default' }`. Validates the
   folder exists (honest 400; any plain folder qualifies, not necessarily a git repo).
   `thread` → `SessionInfo.targetRepo` in session.json; `default` → rewrites `targetRepo` in
-  visual-brainstorm.config.json (400 in the preview harness, which cannot persist config).
-  Broadcasts `hello` on success. `StudioState.targetRepo` carries the EFFECTIVE value
-  (thread override ?? config default).
+  visual-brainstorm.config.json. Broadcasts `hello` on success. `StudioState.targetRepo`
+  carries the EFFECTIVE value (thread override ?? config default).
 - `POST /api/themes` — `{ theme }` (full ThemeSchema, zod-validated). Persists via
   `BridgeOptions.saveTheme` (`saveThemeFile` → `<stylesDir>/<name>.json`; an edited
   built-in is shadowed by its saved copy on every future load); the bridge refreshes its
@@ -178,9 +180,5 @@ discussion/.logs/bridge-port.json   actual bridge port + pid, written on Bridge.
   MUST get a default in useBridge's EMPTY object (`apps/studio/src/lib/useBridge.ts`).
 - protocol package has zero runtime deps besides zod.
 - **One engine: Claude.** All orchestration and generation live in Claude + the
-  `.claude/{commands,skills}` procedures — NEVER in harness code. `StudioState.engine` is
-  `'claude'` (real sessions over MCP) or `'preview'` (`apps/mcp/src/preview.ts`: a dumb
-  fixtures-only harness for exercising UI surfaces; fixture threads persist to a temp dir,
-  not the discussion cache). The preview never simulates intelligence — no synthesis, no
-  pool logic, no prompt handling; it says so in the UI. Hardcoded pseudo-orchestration is
-  slop and a rule-6 fake-success.
+  `.claude/{commands,skills}` procedures — NEVER in harness code. All sessions are real
+  Claude engine over MCP. No fake-success: real generation over real tools only.

@@ -11,7 +11,6 @@
   "activeBoard": null,
   "artifacts": [],
   "thinking": null,
-  "engine": "claude",
   "themes": [
     "<<canonical:themes/theme.json>>"
   ],

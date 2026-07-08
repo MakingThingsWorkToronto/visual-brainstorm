@@ -1,5 +1,5 @@
 # Ask-a-Question — artifact chat, live progress, token meter, delegation coverage
-**Status:** open
+**Status:** closed 2026-07-07
 **Goal:** The studio becomes a two-way surface: Claude session progress streams into the UI
 deterministically (no model in the pipe), every discussion shows its cumulative token cost,
 and any generated artifact can be enlarged fullscreen and interrogated/changed through a

@@ -155,7 +155,6 @@ async function startBridge(extra = {}, distDir) {
     theme: 'aurora',
     models: ['claude-fable-5'],
     defaultModel: 'claude-fable-5',
-    engine: 'claude',
     log: (line) => logLines.push(line),
     ...extra,
   });

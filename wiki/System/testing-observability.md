@@ -36,7 +36,6 @@ Conventions:
   `vanished (transient control)`, disabled controls `inert by design` — neither is a
   finding. Proven run: 7 surfaces, 404 controls, 486 gestures, 0 findings. Ends
   `BREAK SWEEP PASS`.
-- Manual eyeballing: `npm run preview [phase]` (fixtures only).
 
 ## Comprehensive human testing (operator mandate 2026-07-07)
 
@@ -71,7 +70,7 @@ Every scaffolded plan carries a mandatory human-verification phase —
 
 ## Observability
 
-- **File logs**: `<discussionRoot>/.logs/{mcp,preview}-<yyyy-mm-dd>.log` — every line
+- **File logs**: `<discussionRoot>/.logs/mcp-<yyyy-mm-dd>.log` — every line
   timestamped + pid-tagged; events: startup/config, port conflicts (with holder pid),
   boards presented (incl. connected-client count), response summaries, WS connects,
   UI commands, `FATAL` crash stacks (uncaughtException/unhandledRejection handlers),

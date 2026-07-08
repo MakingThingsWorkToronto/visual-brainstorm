@@ -37,6 +37,13 @@ tests. Skipping a stage is a process failure, not a shortcut.
 - **Commands and skills are living documents.** Closeout step 4 exists to feed learnings
   BACK into the procedures — the same task gets easier and safer every cycle. The
   `## Changelog` footers are the visible growth rings.
+- **The authoritative layer outlives any one harness.** `.claude/commands`, `.claude/skills`,
+  `.claude/agents`, and the wiki contracts are the behavioral SSOT. Harness adapters such as
+  `.github/` for GitHub Copilot — and future CODEX/Cursor adapter layers if and when they
+  exist — reference that layer. When a workflow entry point, protocol contract, or
+  user-facing harness behavior changes, the same cycle reconciles the supported adapters so
+  comparable results remain achievable across harnesses. This is conditional, not a tax on
+  every plan: if a change does not affect adapters, no adapter work is required.
 - **The studio participates.** Plan closeout (composer More Tools menu, the + button) and
   Finalize & close out trigger stage 5 from the UI; Discover skills (same menu, web branch)
   ingests
@@ -64,6 +71,9 @@ wiki/user-guide.md    how humans use the tool (SVG-illustrated)
 .claude/commands/      repeatable procedures (self-improving)
 .claude/skills/        binding craft
 .claude/agents/        specialized roles (brainstorm-orchestrator also carries its living ## Orchestration learnings section)
+.github/               workspace-local harness adapters (GitHub Copilot today) pointing at the
+                       authoritative `.claude/` layer; future CODEX/Cursor adapters follow the
+                       same shape when support is real
 tests/ + scripts/      executable proof
 discussion/.logs runtime evidence (+ /api/health, /api/logs)
 ```

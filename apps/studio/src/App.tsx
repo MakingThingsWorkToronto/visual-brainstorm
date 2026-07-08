@@ -534,7 +534,6 @@ export default function App() {
         >
           {(newOpen || landing) && (
             <NewDiscussionPanel
-              enginePreview={state.engine === 'preview'}
               themes={state.themes}
               models={state.models}
               defaultModel={state.defaultModel}

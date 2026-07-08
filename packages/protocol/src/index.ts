@@ -439,8 +439,6 @@ export interface StudioState {
   activeBoard: Board | null;
   artifacts: Artifact[];
   thinking: string | null;
-  /** Who is driving: 'claude' (the real engine) or 'preview' (static fixture harness). */
-  engine: 'claude' | 'preview';
   /** Available themes (built-ins + ingested user styles). */
   themes: Theme[];
   /** Default theme name from config. */

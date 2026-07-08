@@ -47,7 +47,6 @@ function bridgeOptions(): BridgeOptions {
     theme: config.theme,
     models: config.models,
     defaultModel: config.defaultModel,
-    engine: 'claude',
     defaultTargetRepo: () => defaultTargetRepo,
     setDefaultTargetRepo: (p) => {
       defaultTargetRepo = p;

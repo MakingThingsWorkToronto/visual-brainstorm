@@ -23,7 +23,6 @@ const bridge = new Bridge(store, {
   theme: 'neon-purple',
   models: ['claude-fable-5', 'claude-haiku-4-5'],
   defaultModel: 'claude-fable-5',
-  engine: 'claude',
   saveTheme: (theme) => {
     const dir = path.join(scratch, 'styles');
     fs.mkdirSync(dir, { recursive: true });

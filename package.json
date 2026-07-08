@@ -15,8 +15,6 @@
   "scripts": {
     "build": "npm run build -w packages/protocol && npm run build -w apps/studio && npm run build -w apps/mcp",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "preview": "npm run preview -w apps/mcp",
-    "demo": "npm run preview -w apps/mcp",
     "smoke": "node scripts/smoke.mjs",
     "smoke:ui": "tsx scripts/ui-smoke.ts",
     "test:unit": "node --test \"tests/*.test.mjs\"",

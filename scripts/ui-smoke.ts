@@ -339,7 +339,6 @@ const { NewDiscussionPanel } = await import('../apps/studio/src/components/NewDi
 const vars = { canvas: '#fff', surface: '#fff', surface2: '#eee', line: '#ddd', ink: '#000', inkDim: '#666', accent: '#a855f7' };
 const open = renderToString(
   createElement(NewDiscussionPanel, {
-    enginePreview: false,
     themes: [{ name: 'neon-purple', label: 'Neon Purple', light: vars, dark: vars }],
     models: ['claude-fable-5'],
     defaultModel: 'claude-fable-5',
@@ -371,7 +370,6 @@ console.log('UI new-discussion panel renders ✓ (chips + colors + full composer
 // appears in the rendered <textarea> value under renderToString (no retype).
 const prefilled = renderToString(
   createElement(NewDiscussionPanel, {
-    enginePreview: false,
     themes: [{ name: 'neon-purple', label: 'Neon Purple', light: vars, dark: vars }],
     models: ['claude-fable-5'],
     defaultModel: 'claude-fable-5',
