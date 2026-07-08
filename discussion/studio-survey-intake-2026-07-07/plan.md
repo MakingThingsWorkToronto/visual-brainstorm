@@ -56,7 +56,7 @@ recommended answer carries a quoted-reason chip ("because you said: team · stri
 | # | Phase | Deliverable | Status |
 |---|---|---|---|
 | 1 | **Composer UX fixes** | Items 1 + 2: scribble collapsed by default (`NewDiscussionPanel.tsx` — `collapsed:{scribble:true}`); the `scroll-fade` mask dropped from `main` for the new/landing form surface (`App.tsx` — the mask was the "shadow" obscuring Send & iterate; removing it beats a paint-trapped `position:absolute`). Verified: build + full test suite green incl. human-sim driving the real composer in headless Chrome (Send & iterate interactable, fade gone). | done |
-| 2 | **Survey/forms module** | Item 3: a reusable `Survey`/`Question` component in `apps/studio` — tappable single/multi answer pills, free-text "other", recommended-answer accent + quoted-reason chip, adaptive "next question" affordance. Form-control patterns adapted from donor `packages/ui/src` (per the decision above). If any answer shape crosses the bridge, it lands in `packages/protocol` first (rule 5) — but default scope is a studio-side presentation component reused by the panel. ui-smoke renders it with marker assertions. | pending |
+| 2 | **Survey/forms module** | Item 3: a reusable `Survey`/`SurveyField` component in `apps/studio/src/components/Survey.tsx` — tappable single/multi answer pills (radio/checkbox semantics), free-text "other", recommended-answer accent + badge; `surveyWords` helper flattens answers for compose-to-brief. Studio-side presentation only (no protocol change). Adapted from the donor's shadcn Label/Checkbox/Input patterns, hand-rolled on the studio pill idiom. Built + typechecked (`tsc --noEmit` + vite build green). **ui-smoke coverage deferred to phase 3**: the component is inert until wired, and `ui-smoke.ts` is entangled with the concurrent ArtifactFullscreen refactor + a peer is checking out — the render test lands with the phase-3 integration into `NewDiscussionPanel` (a file we own). | done |
 | 3 | **Repurpose intake boxes as questions** | Item 4: swap the static `CHIP_GROUPS` grid for module-rendered questions faithful to `concierge-living-gallery.svg` panel 2 (question + tappable answers, comprehensive/adaptive, recommended accent). Preserve compose-to-brief so answers seed the first board exactly as chips do today. Consider unifying the live `ask_concierge` surface to render through the same module (stretch — only if clean). user-guide updated (rule 12). | pending |
 | 4 | **Comprehensive human-verification** (mandate) | API status codes + bodies proven for any changed/added endpoint or protocol shape (+ canonical bodies in `tests/canonical`); UI human-sim drives the survey (tap answers, "other", send) + break-sweep; `npm run build` + `npm test` (unit/smoke/ui-smoke) green; studio loaded for the UI clause (rule 10). wiki + `wiki/log.md` lines; interface-coverage updated if a task's owner changed. | pending |
 
@@ -83,4 +83,9 @@ recommended answer carries a quoted-reason chip ("because you said: team · stri
 - 2026-07-07 — **phase 1 DONE + verified.** Scribble collapsed by default; `scroll-fade` mask
   removed from the new/landing form surface (the "shadow" over Send & iterate). `npm run build` +
   full `npm test` green (unit, smoke, ui-smoke, human-sim + archived human-sim in real Chrome/CDP —
-  the composer is driven and Send & iterate works). Not yet committed (awaiting operator).
+  the composer is driven and Send & iterate works). Committed 089d0b7 (NewDiscussionPanel + plan;
+  the App.tsx scroll-fade hunk rides the concurrent ArtifactFullscreen refactor) + pushed.
+- 2026-07-07 — **phase 2 DONE (module built + typechecked).** `Survey.tsx` — reusable
+  single/multi question surface with recommended accent + `surveyWords` helper; `tsc --noEmit` +
+  vite build green. ui-smoke coverage deferred to phase 3 integration (ui-smoke.ts entangled +
+  peer checking out). Committed clean as a standalone module.
