@@ -53,9 +53,10 @@
    javascript: hrefs).
 9. **Surgical changes, simplicity first.** No abstractions for single-use code, no
    unrequested flexibility. Every changed line traces to the request.
-10. **Proof is a run, not a claim.** `npm run build` + `npm test` (all three layers) before
-    any completion claim; UI claims additionally need the studio loaded (`npm run preview`).
-    Features ship WITH tests.
+10. **Proof is a run, not a claim.** `npm run build` + `npm test` (all layers) before
+    any completion claim; UI claims are proven on the REAL path only — `npm run test:human`
+    (+ `:sweep`) or a live Claude-Code session driving the studio. There is no preview/fixture
+    player: "if it only works in preview the app is a brick." Features ship WITH tests.
 11. **Route work through the specialized layers.** Before doing anything by hand, check
     whether a command (`.claude/commands/`), skill (`.claude/skills/`), or agent
     (`.claude/agents/` — roster in `wiki/System/agents.md`) owns it, and use it. All
@@ -76,7 +77,7 @@
 
 ```
 packages/protocol/     zod schemas + types — THE message shapes (rule 5)
-apps/mcp/              stdio MCP server + bridge (http/WS) + session persistence + preview harness
+apps/mcp/              stdio MCP server + bridge (http/WS) + session persistence
 apps/studio/           Vite + React + Tailwind survey UI (six phase surfaces)
 wiki/                  AUTHORITATIVE facts & guardrails (log.md discipline; System/, Product/,
                        Requirements/, Research/, Meta/)

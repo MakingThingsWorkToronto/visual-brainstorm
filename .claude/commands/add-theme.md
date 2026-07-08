@@ -14,8 +14,10 @@ model: haiku
 3. **Contrast check** — ink on canvas/surface must stay readable in both schemes (AA-ish);
    accent must read against surface in both. Dark accents usually need to be LIGHTER than
    their light-mode counterpart.
-4. **Verify** — `npm run preview`, open the theme picker, apply the theme, check both OS
-   schemes (or toggle the OS setting), confirm sliders/buttons/rings recolor.
+4. **Verify** — `npm run smoke:ui` renders the theme picker; to eyeball the palette, start
+   Claude Code in this repo and open the studio (`open_studio`), apply the theme, check both
+   OS schemes (or toggle the OS setting), confirm sliders/buttons/rings recolor. (There is no
+   fixture preview harness — the studio is only ever driven by a real Claude session.)
 5. Built-in additions also need: rebuild (`npm run build -w apps/mcp`) and a smoke run.
 
 ## Changelog

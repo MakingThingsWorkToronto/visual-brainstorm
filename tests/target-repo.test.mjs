@@ -182,7 +182,7 @@ test('default scope invokes the setDefaultTargetRepo callback (set and clear)', 
   }
 });
 
-test('default scope without a persistence callback is an honest 400 (preview harness)', async () => {
+test('default scope without a persistence callback is an honest 400 (no config writer)', async () => {
   const { bridge, store } = await startBridge(); // no setDefaultTargetRepo
   try {
     const target = tmp();

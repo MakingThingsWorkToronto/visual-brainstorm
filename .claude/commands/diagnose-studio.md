@@ -2,9 +2,9 @@
 model: sonnet
 ---
 
-# /diagnose-studio — self-diagnose a "broken" studio, preview, or bridge
+# /diagnose-studio — self-diagnose a "broken" studio, bridge, or MCP server
 
-Run whenever the studio/preview/bridge "seems to have failed". Work the checks in order; each has a
+Run whenever the studio/bridge/MCP server "seems to have failed". Work the checks in order; each has a
 verdict. Most reports are a port-conflict ghost, not a failure.
 
 ## Procedure
@@ -61,7 +61,7 @@ verdict. Most reports are a port-conflict ghost, not a failure.
 | process gone, no output | crash — see FATAL in log | fix root cause |
 | page flashes, then blank / crash panel | browser-side JS crash (often hello-state version skew) | `STUDIO CLIENT ERROR` in `/api/logs`; no line → CDP headless repro (step 3); fix code, not restarts |
 | "response submitted" never detected | misread health: `awaitingResponse` is the BLOCKING present_board wait (false after tool timeout) | a user submission is `activeBoard: null`; the board stays answerable via peek_response |
-| a control "works in preview but not in a real run" | usually a `viewingLive`/live-state gate, NOT preview-only slop — the preview harness makes every answered round the LIVE round | check the `viewingLive &&` (or live-state) condition on the control before hunting for a preview conditional to delete |
+| a control appears in one session state but not another | a `viewingLive`/live-state render gate, NOT a bug — controls key off `viewingLive &&` (or live-state) conditions | check the `viewingLive &&` (or live-state) condition on the control before hunting elsewhere |
 
 ## Changelog
 - 2026-07-07 — failure table: "works in preview but not real" = a `viewingLive` state gate,

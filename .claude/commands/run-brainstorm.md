@@ -15,7 +15,8 @@ The complete operator procedure. Follow it literally; the skills carry the craft
 
 0. **Intake — hand off, clarify, then let them pick a method** (the concierge → Living
    Gallery flow, `wiki/Product/intake-methodologies.md`). This is the studio's real front
-   door — it MUST run in a real session, never a preview-only demo. Four moves:
+   door — and the ONLY way the studio ever runs: a real Claude session driving the MCP tools
+   (there is no fixture/preview harness). Four moves:
    - **a. Hand off the brief.** Call **`open_studio`** — it lands the user on the New
      Discussion panel (brief + voice, chips, colors, scribble, attachments, model, target
      folder) and blocks until they submit. **If the human ALREADY described the purpose in

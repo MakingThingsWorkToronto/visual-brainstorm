@@ -48,7 +48,7 @@ web — the goal is that brainstorm quality compounds every turn.
 | Improve craft mid-brainstorm from the web | this command, web branch |
 | Finish/close a plan or thread | `plan-closeout.md` |
 | Verify the repo works | `build-check.md` |
-| Studio/preview/bridge "seems broken" | `diagnose-studio.md` |
+| Studio/bridge/MCP "seems broken" | `diagnose-studio.md` |
 | Add or ingest a UI theme | `add-theme.md` |
 | Codify recurring work | `new-command.md` |
 | Turn an accepted idea/brainstorm into a loopable build plan | `create-dispatch-command.md` (emits `/dispatch-<slug>-next-phase`; run via `/loop`) |

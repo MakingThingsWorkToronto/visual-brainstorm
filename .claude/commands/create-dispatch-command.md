@@ -58,10 +58,12 @@ Progress persists to the plan itself — no separate progress file, no state in 
      clicking through to accomplish the goal PLUS a break-sweep iterating every button and
      every input. Both anchor to `tests/canonical/` (its README is the convention) and
      both exit criteria must be a runnable command with observable output. Owner:
-     `test-engineer`. **Prove the REAL path, never the preview harness** (operator mandate
-     2026-07-07 — "if it only works in preview the app is a brick"): the human-sim runs a real
-     `Bridge` with `engine:'claude'`; a feature green only in `npm run preview`'s fixture player
-     is NOT proven. Preview is a demo, not acceptance.
+     `test-engineer`. **Prove the REAL path — it is the ONLY path** (operator mandate
+     2026-07-07 — "if it only works in preview the app is a brick"; the preview/fixture harness
+     has since been DELETED for exactly this reason): the human-sim runs a real `Bridge` (always
+     the Claude engine), real built studio dist, real browser over CDP. There is no fixture
+     player to hide behind — a UI feature is proven by `npm run test:human` (+ `:sweep`) or not
+     at all.
      **Mandatory agentic-wiring phase for any plan that adds an MCP tool or a studio surface**
      (from concierge-living-gallery-2026-07-07): building the surface + tool + tests is NOT
      enough to make it work in a real brainstorm — a phase must WIRE the `.claude` skills/commands
