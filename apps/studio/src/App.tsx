@@ -173,6 +173,15 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false);
   const [commandStatus, setCommandStatus] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  // True from a brief submit until the intake's first stage (concierge/gallery/
+  // board) arrives — keeps the human off the New Discussion panel meanwhile.
+  const [intakeAwaiting, setIntakeAwaiting] = useState(false);
+  useEffect(() => {
+    // The real surface has taken over — drop the "preparing" veil.
+    if (state.concierge || state.gallery || state.activeBoard || state.rounds.length > 0) {
+      setIntakeAwaiting(false);
+    }
+  }, [state.concierge, state.gallery, state.activeBoard, state.rounds.length]);
   const [advanceSignal, setAdvanceSignal] = useState(0);
   const [logs, setLogs] = useState<{ file: string | null; lines: string[] } | null>(null);
   // Revisit: the previous round re-opened for re-answering (its board id).
@@ -433,7 +442,19 @@ export default function App() {
     !state.activeBoard &&
     !state.thinking &&
     !state.concierge &&
-    !state.gallery;
+    !state.gallery &&
+    !intakeAwaiting;
+  // After a brief is submitted the mandatory concierge→gallery intake is coming
+  // (run-brainstorm.md step 0; enforced by the bridge intake gate). Show a
+  // "preparing your questions" surface so the human is NEVER stranded back on the
+  // New Discussion panel while the orchestrator dispatches the first stage.
+  const intakePreparing =
+    viewingLive &&
+    intakeAwaiting &&
+    !state.concierge &&
+    !state.gallery &&
+    !state.activeBoard &&
+    history.length === 0;
 
   // Wayfinder: what the studio would do next (the orchestrator still decides).
   const proposal = useMemo(
@@ -574,6 +595,7 @@ export default function App() {
               onStart={(prompt, seed, extras) => {
                 invokeCommand('new-brainstorm', prompt || undefined, seed, extras);
                 setNewOpen(false);
+                setIntakeAwaiting(true); // the concierge→gallery intake is coming — don't fall back to the panel
               }}
             />
           )}
@@ -685,6 +707,18 @@ export default function App() {
               </div>
             </div>
           ))}
+
+          {intakePreparing && (
+            <div className="mt-3 space-y-2" data-testid="intake-preparing">
+              <Bubble side="claude">
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-dim">
+                  Intake
+                </div>
+                Got your brief — reading it and preparing your first clarifying questions…
+              </Bubble>
+              <Marker shimmer>Preparing the concierge…</Marker>
+            </div>
+          )}
 
           {viewingLive && state.concierge && (
             <div className="mt-3">
