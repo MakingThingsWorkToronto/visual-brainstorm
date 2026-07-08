@@ -122,7 +122,9 @@ export function NewDiscussionPanel({
   const [model, setModel] = useState(defaultModel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Scribble starts collapsed — it's an optional seed, not the primary intake,
+  // and expanded it pushes the composer into main's scroll-fade band.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ scribble: true });
   const toggleSection = (key: string) =>
     setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   const drawing = useRef(false);
