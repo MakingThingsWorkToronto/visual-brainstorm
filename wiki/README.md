@@ -20,6 +20,9 @@ the wiki wins until explicitly amended (and every amendment is logged in `log.md
   - [agents.md](System/agents.md) — specialized agent roster and when to use each
   - [model-tiering.md](System/model-tiering.md) — **authoritative**: `model:` tier per agent/command/skill (token efficiency; opus is the orchestrator+security+long-run carve-out)
   - [interface-coverage.md](System/interface-coverage.md) — **authoritative**: interface task → owner (zero unowned) + message → persistence recall audit
+  - **Harnesses** (per-harness entry point + adapter map; one page per harness so none bloats another's read — add `harness-<name>.md` for a new harness):
+    - [harness-claude-code.md](System/harness-claude-code.md) — native surface + authoritative SSOT (`.claude/`): agents, 15 commands, 2 skills
+    - [harness-copilot.md](System/harness-copilot.md) — GitHub Copilot adapter (`.github/`): prompts/agents mapped to `.claude/`
 - **Research/**
   - [visualization-engines.md](Research/visualization-engines.md) — engine evaluations (mindmapcn/mind-elixir)
 - **Meta/**
