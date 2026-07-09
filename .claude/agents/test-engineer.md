@@ -40,6 +40,14 @@ straggler browser (see the leaked-browser rule below).
 
 - A new feature lands with tests at the LOWEST layer that can catch its regression; add a
   smoke assertion only when the behavior spans processes.
+- **Animation / canvas / rAF features: unit-test the MATH, not the pixels.** jsdom
+  (smoke:ui) has no real `requestAnimationFrame` or `getBoundingClientRect`, so an
+  animation's motion can't be asserted there. Extract the geometry into a DOM-free module
+  (e.g. `apps/studio/src/lib/guidePath.ts`) and prove it in the **`test:ts`** layer
+  (`tsx --test tests/*.test.ts`); assert the DOM *tags* the animation reads in ui-smoke;
+  drive the visible motion on the REAL path (human-sim / live studio). The loop LIFECYCLE
+  (rAF start/stop, visibility, reduced-motion, double-loop, unmount leak) is a
+  code-review concern — no test layer here catches it, so review it explicitly.
 - A new phase/surface needs an EXPECT entry in ui-smoke with 2+ signature markers.
 - ui-smoke markers must live inside ONE JSX expression/text node: `renderToString` emits a
   comment between adjacent expressions (`{value}%` → `100<!-- -->%`), so a marker spanning
@@ -133,6 +141,9 @@ A test-honesty gap once let a whole methodology ship unproven — encode these s
      assertion.
 
 ## Changelog
+- 2026-07-09 — added the "unit-test the MATH, not the pixels" rule for animation/rAF features:
+  DOM-free geometry module → `test:ts` layer (`tsx --test`), tags in ui-smoke, motion on the
+  real path; loop lifecycle is a review concern no layer catches (from guided-pulse-wayfinder)
 - 2026-07-09 — added point 5: two live false-greens — `querySelector('svg')` passes on the
   error-fallback/loading svg (assert textContent content); an intermittent "stuck loading" surface
   is often a server hang (handler parsing OUTSIDE its try/catch), distinguished from CPU-starvation
