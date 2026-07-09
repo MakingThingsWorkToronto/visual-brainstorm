@@ -9,6 +9,15 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/pipe-progress.mjs\""
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/check-agentic-surface.mjs\" --hook"
+          }
+        ]
       }
     ],
     "SubagentStop": [

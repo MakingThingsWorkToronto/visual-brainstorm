@@ -7,6 +7,15 @@
     "agentsRoot": ".claude/agents",
     "rule": "This registry is the provider-neutral reference surface for external harness adapters. Adapters may add discovery metadata, but workflow logic stays in the referenced .claude files."
   },
+  "exclusions": {
+    "note": "Durable .claude files intentionally NOT listed in `surfaces`, matched by glob on name. The agentic-surface guard (scripts/check-agentic-surface.mjs) skips these. `copilot` lists surfaces that need no GitHub Copilot adapter (suppresses the parity warning).",
+    "commands": ["dispatch-*-next-phase"],
+    "skills": [],
+    "agents": [],
+    "copilot": {
+      "commands": ["dispatch-*-next-phase", "add-theme", "revisit-round"]
+    }
+  },
   "surfaces": [
     {
       "kind": "command",
@@ -47,6 +56,14 @@
       "model": "haiku",
       "purpose": "Route artifact questions and revisions through subagents",
       "workflow": "artifact-chat"
+    },
+    {
+      "kind": "command",
+      "name": "read-mindmap",
+      "path": ".claude/commands/read-mindmap.md",
+      "model": "sonnet",
+      "purpose": "Read a mind map off disk (tree.md/edited-tree.json/tree-ops.jsonl) and turn it into user intention that anchors the next tree, artifact-chat answers, and the build plan",
+      "workflow": "mindmap-reading"
     },
     {
       "kind": "command",
@@ -97,6 +114,30 @@
       "workflow": "wiki-maintenance"
     },
     {
+      "kind": "command",
+      "name": "add-theme",
+      "path": ".claude/commands/add-theme.md",
+      "model": "haiku",
+      "purpose": "Add or ingest a studio theme",
+      "workflow": "theme-authoring"
+    },
+    {
+      "kind": "command",
+      "name": "revisit-round",
+      "path": ".claude/commands/revisit-round.md",
+      "model": "inherit",
+      "purpose": "Handle the user returning to a previous round and re-answering it",
+      "workflow": "brainstorm-session"
+    },
+    {
+      "kind": "command",
+      "name": "read-scribble",
+      "path": ".claude/commands/read-scribble.md",
+      "model": "inherit",
+      "purpose": "Read an annotated-photo scribble seed off disk and anchor the brainstorm on the user's marks",
+      "workflow": "brainstorm-session"
+    },
+    {
       "kind": "skill",
       "name": "brainstorm-phases",
       "path": ".claude/skills/brainstorm-phases/SKILL.md",
@@ -110,6 +151,14 @@
       "path": ".claude/skills/svg-authoring/SKILL.md",
       "model": "inherit",
       "purpose": "Author divergent SVG board options and validate them",
+      "workflow": "brainstorm-session"
+    },
+    {
+      "kind": "skill",
+      "name": "reading-scribbles",
+      "path": ".claude/skills/reading-scribbles/SKILL.md",
+      "model": "inherit",
+      "purpose": "Interpret an annotated-photo scribble (arrows/boxes/highlights/notes) as user intent",
       "workflow": "brainstorm-session"
     },
     {
