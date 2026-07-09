@@ -3,6 +3,7 @@ import {
   optionChatSlug,
   type Artifact,
   type ArtifactChatMessage,
+  type BoardResponse,
   type DiscussionSummary,
   type RoundRecord,
   type SeedIntake,
@@ -193,9 +194,10 @@ export default function App() {
   // Decision-tree overlay: { title, svg } while open (svg null = loading). The
   // SVG is built server-side (GET /api/decision-tree/:id), never client-side.
   const [decisionTree, setDecisionTree] = useState<{ title: string; svg: string | null } | null>(null);
-  // Claude-message count at the moment a send succeeded; busy until it grows
-  // (one counter for whichever subject the fullscreen viewer has open).
-  const [chatSentAt, setChatSentAt] = useState<number | null>(null);
+  // Per-chat-subject Claude-message count at the moment a send succeeded; that
+  // subject is "busy" until its Claude count grows. Keyed by slug so the App
+  // fullscreen AND the live board's option preview share one busy source.
+  const [chatSentAt, setChatSentAt] = useState<Record<string, number>>({});
   // Optimistic chat echo: the user's OWN message shows instantly, before the WS
   // round-trip. The persisted copy (from state/archived) is the single truth —
   // a pending entry is dropped as soon as its persisted twin arrives, so the
@@ -250,7 +252,6 @@ export default function App() {
 
   const openArtifactChat = useCallback((artifact: Artifact) => {
     setFullscreen({ kind: 'artifact', slug: artifact.slug, displaySlug: artifact.slug });
-    setChatSentAt(null);
   }, []);
 
   // Reopen an archived thread: confirm, ask Claude to move it out of _completed
@@ -314,9 +315,23 @@ export default function App() {
     [],
   );
 
+  // Persist the live board's in-progress answer (dials/selections/notes) — the
+  // "generation meta" that must survive an artifact-chat detour and reload later.
+  // Fire-and-forget; a failed write is non-fatal (the answer stays in the UI).
+  const saveBoardDraft = useCallback(async (draft: BoardResponse) => {
+    try {
+      await fetch('/api/board-draft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+    } catch {
+      /* draft persistence is best-effort; the live UI still holds the answer */
+    }
+  }, []);
+
   const openPreview = useCallback((next: OptionView) => {
     setFullscreen({ kind: 'option', ...next });
-    setChatSentAt(null);
   }, []);
 
   // The open viewer's chat subject: an artifact's ORIGINAL slug, or an option: slug.
@@ -325,25 +340,54 @@ export default function App() {
       ? fullscreen.slug
       : fullscreen.chatSlug
     : null;
-  // Its messages — an archived thread replays reloaded dialogs; live reads state.
-  // Persisted messages first, then any still-unacknowledged optimistic echo of
-  // the user's own message (dropped once its persisted twin lands).
-  const fsMessages = useMemo(() => {
-    if (!fsChatSlug) return [];
-    const source = archived ? archived.artifactChat ?? [] : state.artifactChat;
-    const persisted = source.filter((m) => m.artifactSlug === fsChatSlug);
-    const unacked = pendingChats.filter(
-      (p) =>
-        p.artifactSlug === fsChatSlug &&
-        !persisted.some((m) => m.role === 'user' && m.text === p.text),
-    );
-    return [...persisted, ...unacked];
-  }, [fsChatSlug, archived, state.artifactChat, pendingChats]);
-  const fsClaudeCount = useMemo(
-    () => fsMessages.filter((m) => m.role === 'claude').length,
-    [fsMessages],
+  // Messages for ANY chat subject (captured artifact OR option:<board>:<opt>) —
+  // persisted first (archived snapshot or live state), then the still-unacked
+  // optimistic echo of the user's own message (dropped once its persisted twin
+  // lands). ONE source shared by the App fullscreen and the live option preview.
+  const chatMessagesFor = useCallback(
+    (slug: string): ArtifactChatMessage[] => {
+      const source = archived ? archived.artifactChat ?? [] : state.artifactChat;
+      const persisted = source.filter((m) => m.artifactSlug === slug);
+      const unacked = pendingChats.filter(
+        (p) => p.artifactSlug === slug && !persisted.some((m) => m.role === 'user' && m.text === p.text),
+      );
+      return [...persisted, ...unacked];
+    },
+    [archived, state.artifactChat, pendingChats],
   );
-  const fsBusy = chatSentAt !== null && fsClaudeCount <= chatSentAt;
+  const chatBusyFor = useCallback(
+    (slug: string): boolean => {
+      const at = chatSentAt[slug];
+      if (at === undefined) return false;
+      return chatMessagesFor(slug).filter((m) => m.role === 'claude').length <= at;
+    },
+    [chatSentAt, chatMessagesFor],
+  );
+  // Optimistic echo + send for any subject; addressed to the on-screen thread.
+  const sendChat = useCallback(
+    async (slug: string, text: string) => {
+      const optimistic: ArtifactChatMessage = {
+        artifactSlug: slug,
+        role: 'user',
+        text,
+        at: new Date().toISOString(),
+      };
+      setPendingChats((p) => [...p, optimistic]);
+      const claudeCount = chatMessagesFor(slug).filter((m) => m.role === 'claude').length;
+      if (await postChat(slug, text, archived?.session.id)) {
+        setChatSentAt((prev) => ({ ...prev, [slug]: claudeCount }));
+      } else {
+        setPendingChats((p) => p.filter((m) => m !== optimistic));
+      }
+    },
+    [chatMessagesFor, postChat, archived],
+  );
+
+  const fsMessages = useMemo(
+    () => (fsChatSlug ? chatMessagesFor(fsChatSlug) : []),
+    [fsChatSlug, chatMessagesFor],
+  );
+  const fsBusy = fsChatSlug ? chatBusyFor(fsChatSlug) : false;
 
   // A Claude reply carrying revisedSlug switches a captured-artifact viewer's
   // image to the NEW artifact (rule 7 — original untouched); dialog stays put.
@@ -368,24 +412,24 @@ export default function App() {
     );
   }, [fullscreen, archived, state.artifacts]);
 
+  // The mind-map SNAPSHOT artifact for the live board (captured on present with
+  // boardId provenance + no optionIds) — the target of the maximize→fullscreen
+  // chat. Newest match wins (a re-presented tree captures a fresh snapshot).
+  const mindmapArtifact = useMemo(() => {
+    const boardId = state.activeBoard?.id;
+    if (!boardId) return null;
+    return (
+      [...state.artifacts]
+        .reverse()
+        .find((a) => a.provenance.boardId === boardId && a.provenance.optionIds.length === 0) ?? null
+    );
+  }, [state.activeBoard, state.artifacts]);
+
   const sendFsChat = useCallback(
-    async (text: string) => {
-      if (!fsChatSlug) return;
-      // Optimistic echo: show the user's bubble immediately (it persists on the
-      // server regardless of the WS round-trip). Roll back only if the POST fails.
-      const optimistic: ArtifactChatMessage = {
-        artifactSlug: fsChatSlug,
-        role: 'user',
-        text,
-        at: new Date().toISOString(),
-      };
-      setPendingChats((p) => [...p, optimistic]);
-      // Archived threads answer in place — address the dialog to the thread on
-      // screen; the live thread needs no id.
-      if (await postChat(fsChatSlug, text, archived?.session.id)) setChatSentAt(fsClaudeCount);
-      else setPendingChats((p) => p.filter((m) => m !== optimistic));
+    (text: string) => {
+      if (fsChatSlug) void sendChat(fsChatSlug, text);
     },
-    [fsChatSlug, fsClaudeCount, postChat, archived],
+    [fsChatSlug, sendChat],
   );
 
   // Prune optimistic echoes once their persisted twin has arrived (from the live
@@ -830,6 +874,24 @@ export default function App() {
                   onCommand={invokeCommand}
                   targetRepo={state.targetRepo}
                   themes={state.themes}
+                  // While a past round is being revisited, that round's BoardSurvey
+                  // owns the wayfinding pulse — suppress this live board's guide
+                  // tags so the two don't emit duplicate step/input boxes.
+                  guide={revisitId === null}
+                  // Restore the persisted in-progress answer (dials/selections/
+                  // notes) so it survives an artifact-chat detour + reloads.
+                  initial={state.drafts.find((d) => d.boardId === state.activeBoard!.id)}
+                  onDraft={saveBoardDraft}
+                  // The live option set gets the SAME fullscreen chat as every
+                  // other artifact — ask about the current options without losing dials.
+                  optionChat={{ messagesFor: chatMessagesFor, busyFor: chatBusyFor, onSend: sendChat }}
+                  // Maximize the mind map into the SAME fullscreen viewer (SVG +
+                  // chat right) — the mindmap's captured snapshot artifact. Chatting
+                  // there iteratively improves the tree (orchestrator reads the live
+                  // tree.md/draft). Present only once the snapshot exists.
+                  onMaximizeMindmap={
+                    mindmapArtifact ? () => openArtifactChat(mindmapArtifact) : undefined
+                  }
                 />
               </div>
             </div>
@@ -842,7 +904,13 @@ export default function App() {
             />
           )}
 
-          {viewingLive && <SessionActivity events={state.progress} tokens={state.tokens} />}
+          {viewingLive && (
+            <SessionActivity
+              events={state.progress}
+              tokens={state.tokens}
+              tokensBySink={state.tokensBySink}
+            />
+          )}
             </>
           )}
           <div ref={bottomRef} />

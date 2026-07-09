@@ -13,6 +13,7 @@ import {
   ResponseAttachmentSchema,
   SeedIntakeSchema,
   ThemeSchema,
+  TokenSinkSchema,
   parseOptionChatSlug,
   type Artifact,
   type ArtifactChatMessage,
@@ -23,6 +24,7 @@ import {
   type ModelCatalogEntry,
   type ResponseAttachment,
   type RuntimeEngine,
+  type ScribbleAnnotations,
   type SeedBrief,
   type SeedIntake,
   type ServerToStudio,
@@ -99,6 +101,50 @@ function openBrowser(url: string): void {
   } catch (err) {
     console.error(`[bridge] could not open browser: ${String(err)}`);
   }
+}
+
+/** One-line human summary of a scribble's marks for the seed note. */
+function summarizeMarks(a: ScribbleAnnotations): string {
+  const counts = new Map<string, number>();
+  for (const it of a.items) counts.set(it.type, (counts.get(it.type) ?? 0) + 1);
+  const parts = [...counts.entries()].map(([t, n]) => `${n} ${t}${n === 1 ? '' : 's'}`);
+  const notes = a.items.filter((it) => it.type === 'note' && it.text).map((it) => `"${it.text}"`);
+  return [parts.join(', ') || 'no marks', notes.length ? `notes: ${notes.join(', ')}` : '']
+    .filter(Boolean)
+    .join('; ');
+}
+
+/** The model-facing README written into a scribble seed folder (how to read it). */
+function scribbleReadme(a: ScribbleAnnotations | undefined, hasComposite: boolean, photoExt?: string): string {
+  const view = hasComposite ? 'composite.png' : photoExt ? `photo.${photoExt}` : 'scribble.svg';
+  const bullets = a
+    ? a.items
+        .map((it) => {
+          const tail = it.type === 'note' && it.text ? `: "${it.text}"` : '';
+          return `- ${it.type} (${it.colorName})${tail}`;
+        })
+        .join('\n')
+    : '- (no structured annotations were captured)';
+  return `# Scribble seed — an annotated photo (user INPUT / intent)
+
+The user marked up a photo in the studio's "Scribble a seed" pad. This is their
+intent and it ANCHORS the brainstorm — round 1 and every round build on it.
+
+## Read this in order
+1. **VIEW ${view}** — the photo WITH the user's marks, exactly as they saw it.${hasComposite ? '' : ' (composite render was unavailable — reconstruct marks from scribble.json over this image.)'}
+2. **Read scribble.json** — every mark: type, palette color NAME, coordinates, and any note text.
+3. photo.${photoExt ?? 'png'} is the clean background; scribble.svg is the editable composite.
+
+## What the marks mean
+- **arrow** → points AT a target   · **box** → scopes/emphasizes a region
+- **highlighter** → mark-important  · **pen** → freehand circle / underline / cross-out
+- **note** → a LITERAL instruction the user typed (obey the words, in their palette color)
+
+## The marks${a ? ` (${a.items.length})` : ''}
+${bullets}
+
+Run \`.claude/commands/read-scribble.md\` to interpret these and write the intent into brainstorm.md.
+`;
 }
 
 /**
@@ -225,7 +271,9 @@ export class Bridge {
       targetRepo: this.store.info.targetRepo ?? this.options.defaultTargetRepo?.() ?? null,
       progress: this.store.progress.slice(-200),
       tokens: this.store.tokenTotals(),
+      tokensBySink: this.store.tokensBySink(),
       artifactChat: this.store.artifactChat,
+      drafts: this.store.drafts,
       seedBrief: this.seedBrief,
       concierge: this.concierge,
       gallery: this.gallery,
@@ -321,7 +369,15 @@ export class Bridge {
                         ? `Seed file "${saved.name || 'unnamed'}" saved at ${saved.savedPath} — Read it (vision for images) and fold it into the brief.`
                         : `Seed file "${a.name || 'unnamed'}" FAILED to persist (bad data URI or over 10MB) — tell the user honestly.`;
                     }),
-                    model ? `Model routing: the user chose ${model} — delegate round generation to it.` : undefined,
+                    // Routing is ALWAYS explicit (never by omission): a new
+                    // brainstorm without a composer pick still names the
+                    // best-SVG default itself. Non-generation commands
+                    // (plan-closeout, discover-skills) carry no routing line.
+                    model
+                      ? `Model routing: the user chose ${model} — delegate round generation to it.`
+                      : command === 'new-brainstorm'
+                        ? `Model routing: no composer pick — delegate round generation to the best-SVG default ${this.options.defaultModel} (explicit; never route by omission).`
+                        : undefined,
                     palette && palette.length > 0
                       ? `Palette: generate ALL SVGs using ONLY these colors: ${palette.map((c) => `${c.name} (${c.value})`).join(', ')}.`
                       : undefined,
@@ -519,6 +575,7 @@ export class Bridge {
                 tokens: z
                   .object({ input: z.number().min(0).default(0), output: z.number().min(0).default(0) })
                   .optional(),
+                category: TokenSinkSchema.optional(),
               })
               .parse(JSON.parse(body));
             const event = ProgressEventSchema.parse({
@@ -646,6 +703,30 @@ export class Bridge {
             const delivered = this.dispatchCommand('artifact-chat', text, seedNote);
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, delivered }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/board-draft') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            // The studio's in-progress board answer (dials/selections/notes/…),
+            // persisted so it survives an artifact-chat detour and is recallable.
+            const draft = BoardResponseSchema.parse(JSON.parse(body));
+            if (!this.store.rounds.some((r) => r.board.id === draft.boardId)) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `no board "${draft.boardId}" in the live thread` }));
+              return;
+            }
+            this.store.recordBoardDraft(draft);
+            this.broadcast({ type: 'draft', draft });
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
           } catch (err) {
             res.writeHead(400, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: false, error: String(err) }));
@@ -1143,6 +1224,19 @@ export class Bridge {
         elaboration: [prompt, seedNote].filter(Boolean).join('\n'),
         respondedAt: new Date().toISOString(),
       });
+      if (command === 'artifact-chat') {
+        // NON-DESTRUCTIVE detour: hand the chat to the blocked present_board
+        // WITHOUT recording a park response or clearing the board. The board
+        // stays live so the user's in-progress dials/selections survive the chat
+        // (they never unmount); the orchestrator answers, then re-enters
+        // present_board (same board id — recordBoard is idempotent) to re-arm the
+        // resolver. A real park/plan-closeout still goes through acceptResponse.
+        const resolve = this.pending.get(this.activeBoard.id);
+        this.pending.delete(this.activeBoard.id);
+        this.log(`artifact-chat detour delivered via present_board (board ${this.activeBoard.id} stays live)`);
+        resolve?.(response);
+        return 'via-board-response';
+      }
       this.acceptResponse(response);
       return 'via-board-response';
     }
@@ -1229,6 +1323,31 @@ export class Bridge {
       fs.mkdirSync(dir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       if (seed.kind === 'sketch') {
+        // Rich annotated-photo scribble → a traversable folder the model can fully
+        // read: composite.png (VISION-readable, unlike the SVG-as-text), photo.png,
+        // scribble.svg, scribble.json (structured marks), README.md (how to read).
+        if (seed.compositeDataUri || seed.annotations) {
+          const folder = path.join(dir, `seed-${stamp}`);
+          fs.mkdirSync(folder, { recursive: true });
+          fs.writeFileSync(path.join(folder, 'scribble.svg'), seed.svg);
+          if (seed.annotations) {
+            fs.writeFileSync(path.join(folder, 'scribble.json'), JSON.stringify(seed.annotations, null, 2));
+          }
+          const composite = seed.compositeDataUri ? this.decodeImageDataUri(seed.compositeDataUri) : null;
+          if (composite) fs.writeFileSync(path.join(folder, 'composite.png'), composite.buffer);
+          const photo = seed.photoDataUri ? this.decodeImageDataUri(seed.photoDataUri) : null;
+          if (photo) fs.writeFileSync(path.join(folder, `photo.${photo.ext}`), photo.buffer);
+          fs.writeFileSync(path.join(folder, 'README.md'), scribbleReadme(seed.annotations, !!composite, photo?.ext));
+          const view = composite ? 'composite.png' : photo ? `photo.${photo.ext}` : 'scribble.svg';
+          return (
+            `Seed scribble (annotated photo) saved at ${folder} — run .claude/commands/read-scribble.md on it: ` +
+            `VIEW ${view} (vision) + read scribble.json/README.md, then ANCHOR the brainstorm on the user's marks` +
+            (seed.annotations ? ` (${summarizeMarks(seed.annotations)})` : '') +
+            '.' +
+            (composite ? '' : ' NOTE: composite.png could not be persisted — reconstruct the marks from scribble.json over photo.png.')
+          );
+        }
+        // Legacy / blank-canvas scribble: a single self-contained SVG.
         const file = path.join(dir, `seed-${stamp}.svg`);
         fs.writeFileSync(file, seed.svg);
         return `Seed sketch (user-drawn) saved at ${file} — Read it and riff on its shapes and gesture.`;
@@ -1252,6 +1371,18 @@ export class Bridge {
       this.log(`persistSeed failed: ${String(err)}`);
       return `Seed attachment failed to persist (${String(err)}) — tell the user honestly.`;
     }
+  }
+
+  /** Decode a base64 image data URI to bytes + a normalized extension, or null. */
+  private decodeImageDataUri(dataUri: string): { buffer: Buffer; ext: string } | null {
+    const match = dataUri.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/s);
+    if (!match) return null;
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.byteLength > 10 * 1024 * 1024) {
+      this.log('scribble image rejected: over 10MB');
+      return null;
+    }
+    return { buffer, ext: match[1] === 'jpg' ? 'jpeg' : match[1] };
   }
 
   drainCommands(): CommandRequest[] {

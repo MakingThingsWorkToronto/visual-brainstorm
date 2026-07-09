@@ -5,7 +5,7 @@ makes it "brainstorming" rather than "generation".
 
 ## The funnel
 
-Boards carry a `phase` (diverge → mutate → wreck → cluster → converge); the studio
+Boards carry a `phase` (diverge → expand → mutate → wreck → cluster → converge); the studio
 re-architects per phase and each phase adds response fields Claude must honor. The
 authoritative theory→mechanic map is `wiki/Product/phase-funnel.md`; the driving recipe is
 `.claude/skills/brainstorm-phases/SKILL.md`.
@@ -41,7 +41,7 @@ Every round is persisted before the user ever responds — a closed browser lose
 | `capture_artifact` | no | persist an accepted SVG with provenance (+ copy to the EFFECTIVE targetRepo's `brainstorm-artifacts/` — thread override ?? config default); appears on the studio's artifact shelf. Optional `revises: <parent slug>` marks a revision (`Artifact.provenance.revises`) — a change is a NEW artifact linked to its parent, never an overwrite (rule 7) |
 | `list_discussions` | no | enumerate the thread cache (`discussion`) |
 | `load_discussion` | no | reload a full cached thread so a chat reinitializes without regenerating anything |
-| `session_status` | no | thread dir, round count, artifact list, effective targetRepo, pendingUiCommands |
+| `session_status` | no | thread dir, round count, artifact list, effective targetRepo, pendingUiCommands, and each board's in-progress `draft` (the user's live dials/selections/notes/model — read it to answer an artifact-chat referencing the dials they set) |
 | `compose_poster` | no | DETERMINISTIC (no model) decision-poster composition: winner embedded large + lineage tree (parents/grandparents from cached rounds) + the notes that decided it (lineage perOptionNotes + elaborations) as ONE self-contained SVG; captured via the normal artifact path (rule 7 provenance) and copied to the effective targetRepo like any artifact; throws honestly if the optionId is in no cached round |
 | `reply_artifact_chat` | no | Claude's answer channel for the artifact chat: `{artifactSlug, text, revisedSlug?, discussionId?}` — persists a `claude`-role `ArtifactChatMessage` to the owning thread's `artifacts/chat.jsonl` and broadcasts the `artifact-chat` WS envelope (carrying `discussionId`). `artifactSlug` may be an `option:<boardId>:<optionId>` slug (option chat, below) — used EXACTLY as delivered. Pass `discussionId` for an ARCHIVED thread so the reply records in place |
 
@@ -103,20 +103,37 @@ unknown slug → honest 404) → `SessionStore.updateArtifactNotes` rewrites
 envelope; `useBridge` UPSERTS artifacts by slug so every display refreshes. Notes stay
 visible while a chat reply is pending.
 
-**Option chats.** A board OPTION from ANY round — the fullscreen preview of previous
-rounds' options — carries the same channel, addressed by the synthetic slug
-`option:<boardId>:<optionId>` (`optionChatSlug`/`parseOptionChatSlug` in
-packages/protocol — rule 5). `POST /api/artifact-chat` resolves the slug against the
-thread's cached rounds (unknown board/option → honest 404); `reply_artifact_chat` accepts
-it. A requested change is captured as a NEW artifact with boardId/optionIds provenance —
-round options are never overwritten (rule 7). The round's persisted `perOptionNotes` entry
-for that option shows read-only in that round's fullscreen preview.
+**Option chats.** A board OPTION — of ANY round AND of the CURRENT (live) board — carries the
+same channel, addressed by the synthetic slug `option:<boardId>:<optionId>`
+(`optionChatSlug`/`parseOptionChatSlug` in packages/protocol — rule 5). EVERY fullscreen (a
+captured keep, a previous-round option, AND the live board's option preview inside
+`BoardSurvey`) opens the SAME `ArtifactFullscreen` with the chat docked right — the composer is
+available on the current option set so the user can ask about the artifacts as they are
+generated. `POST /api/artifact-chat` resolves the slug against the thread's cached rounds
+(unknown board/option → honest 404); `reply_artifact_chat` accepts it. A requested change is
+captured as a NEW artifact with boardId/optionIds provenance — round options are never
+overwritten (rule 7).
+
+**Non-destructive detour + board drafts (dials persist through chat).** Chatting on the LIVE
+board must not cost the user their in-progress answer. Two mechanisms guarantee it:
+1. **Non-destructive park** — when a chat arrives while `present_board` blocks, the bridge
+   resolves the wait with an `action:'park', commands:['artifact-chat']` response BUT does not
+   clear `activeBoard` or record a park response. The board stays live (the studio's
+   `BoardSurvey` never unmounts, dials intact); the orchestrator answers, then re-enters
+   `present_board` on the SAME board (`recordBoard` is idempotent by id) to re-arm the resolver.
+   Only artifact-chat is non-destructive — a real park / plan-closeout still goes through
+   `acceptResponse`.
+2. **Board draft persistence** — the studio debounce-POSTs the in-progress answer (dials/
+   selections/notes/elaboration/model — a `BoardResponse` snapshot) to `POST /api/board-draft`;
+   `SessionStore.recordBoardDraft` writes `round-NN/draft.json` (last-write-wins, one per board,
+   SEPARATE from the submitted `response.json`) and it rides `StudioState.drafts` + a `draft` WS
+   envelope. This is "the generation meta" — it restores dials on a re-presented board and
+   reloads with the thread (`session_status`/`load_discussion` surface it for recall).
 
 Chat history persists in `artifacts/chat.jsonl` and reloads with the thread —
-`GET /api/discussions/<id>` returns `artifactChat`, so archived threads replay dialogs
-read-only (no composer; WayfinderStrip's clickable keeps open artifacts with their persisted
-conversations). The chat is a detour — after replying, the orchestrator resumes whatever the
-session was doing. To send new messages, the thread must be reopened (see reopen command below).
+`GET /api/discussions/<id>` returns `artifactChat`. The chat is a detour — after replying, the
+orchestrator resumes whatever the session was doing. Archived (completed) threads are
+thread-addressed and remain interactive (answer-in-place; see the loop above).
 
 **Pinned artifacts.** A captured artifact can be pinned from the fullscreen viewer's 📌 toggle (live threads only); pinned artifacts appear in a dedicated "📌 pinned" row beneath the WayfinderStrip. Pins persist per-thread in `session.json` (`SessionInfo.pinnedSlugs: string[]`) and reload with the thread. On completed/archived threads, pinned artifacts appear read-only (no pin toggle). The pin control sends `POST /api/pinned {slug}` (validates the slug is a live-thread artifact, 404 otherwise), which `SessionStore.togglePinned(slug)` toggles, rewrites `session.json`, appends a one-line brainstorm.md note, and broadcasts `hello`.
 
@@ -142,10 +159,14 @@ The studio returns to the live view; the resumed board arrives over WebSocket an
 ## Seed intake — open with anything
 
 `SeedIntakeSchema` (packages/protocol) is a discriminated union on `kind`:
-`text` (string) | `sketch` (self-contained SVG markup) | `image` (uploaded raster) |
+`text` (string) | `sketch` (self-contained SVG markup; an annotated-photo scribble also carries
+optional `photoDataUri`, `compositeDataUri` [a browser-rendered VISION-readable composite PNG],
+and structured `annotations` [`ScribbleAnnotationsSchema`: viewBox, background, palette, items —
+each mark's type, palette color NAME, coords, note text]) | `image` (uploaded raster) |
 `voice` (speech-recognition transcript — only sent when recognition actually ran). A seed
 rides `POST /api/command` (see system-architecture endpoints); non-text seeds are persisted
-by the bridge and reach the orchestrator as a digest note pointing at the saved file. A bad
+by the bridge and reach the orchestrator as a digest note pointing at the saved file (an
+annotated scribble persists as a `.seeds/seed-<stamp>/` folder read via `/read-scribble`). A bad
 or oversized image yields an honest failure note in the digest — never fake success (rule 6).
 
 ## Attachments — files ride the response

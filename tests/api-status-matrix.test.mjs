@@ -40,6 +40,7 @@ const CENSUS = [
   ['POST /api/progress', [200, 400]],
   ['POST /api/client-log', [200, 400]],
   ['POST /api/artifact-chat', [200, 400, 404]],
+  ['POST /api/board-draft', [200, 400, 404]],
   ['POST /api/artifact-notes', [200, 400, 404]],
   ['POST /api/respond', [200, 400]],
   ['POST /api/concierge', [200, 400, 404]],
@@ -267,9 +268,39 @@ test('POST /api/command → 200 queued when no board is waiting', async () => {
     });
     assert.equal(status, 200);
     assertMatches(body, expectation('command-200-queued.json'));
-    assert.deepEqual(bridge.peekCommands(), [
-      { command: 'new-brainstorm', prompt: 'A glowing mark', seedNote: undefined },
-    ]);
+    // Routing is always explicit (token economy decision 4): a new-brainstorm
+    // without a composer pick still names the best-SVG default in its seedNote.
+    const commands = bridge.peekCommands();
+    assert.equal(commands.length, 1);
+    assert.equal(commands[0].command, 'new-brainstorm');
+    assert.equal(commands[0].prompt, 'A glowing mark');
+    assert.ok(
+      commands[0].seedNote.includes('best-SVG default claude-fable-5'),
+      `seedNote routes explicitly to the default model, got: ${commands[0].seedNote}`,
+    );
+    prove('POST /api/command', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/command → a composer model pick routes to it; non-generation commands carry no routing line', async () => {
+  const { bridge } = await startBridge();
+  try {
+    await postJson(bridge, '/api/command', {
+      command: 'new-brainstorm',
+      prompt: 'A glowing mark',
+      model: 'claude-opus-4-8',
+    });
+    await postJson(bridge, '/api/command', { command: 'discover-skills' });
+    const commands = bridge.peekCommands();
+    assert.equal(commands.length, 2);
+    assert.ok(
+      commands[0].seedNote.includes('the user chose claude-opus-4-8'),
+      `seedNote names the user's pick, got: ${commands[0].seedNote}`,
+    );
+    assert.ok(!commands[0].seedNote.includes('best-SVG default'), 'the default never doubles a real pick');
+    assert.equal(commands[1].seedNote, undefined, 'discover-skills is not a generation command — no routing line');
     prove('POST /api/command', 200);
   } finally {
     await bridge.stop();
@@ -749,6 +780,113 @@ test('POST /api/artifact-chat → 404 for option slugs with a bad board or bad o
 
     assert.deepEqual(store.artifactChat, [], 'no message recorded for unknown options');
     prove('POST /api/artifact-chat', 404);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/artifact-chat → 200 answers an ARCHIVED thread in place by discussionId', async () => {
+  const { bridge, store, root } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    // A DIFFERENT, completed thread under _completed/ — the live store is elsewhere.
+    const archived = new SessionStore('Archived thread', path.join(root, '_completed'));
+    archived.captureArtifact('Glow Mark', board.options[0].svg, 'archived capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
+    const messages = [];
+    ws.addEventListener('message', (event) => messages.push(JSON.parse(String(event.data))));
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve);
+      ws.addEventListener('error', reject);
+    });
+    await waitFor(() => messages.some((m) => m.type === 'hello'), 'ws hello');
+
+    const { status, body } = await postJson(bridge, '/api/artifact-chat', {
+      artifactSlug: 'glow-mark',
+      text: 'On this archived one — what does the filament mean?',
+      discussionId: archived.info.id,
+    });
+    assert.equal(status, 200);
+    assertMatches(body, expectation('artifact-chat-200-queued.json'));
+    // Live thread untouched; the message recorded into the ARCHIVED thread's chat.jsonl.
+    assert.deepEqual(store.artifactChat, [], 'live thread unaffected by an archived-thread chat');
+    const reopened = SessionStore.open(SessionStore.resolveDir(root, archived.info.id));
+    assert.equal(reopened.artifactChat.length, 1, 'recorded into the archived thread on disk');
+    assert.equal(reopened.artifactChat[0].role, 'user');
+    assert.equal(reopened.artifactChat[0].artifactSlug, 'glow-mark');
+    // The dispatched command names the archived thread so the orchestrator loads it.
+    const command = bridge.peekCommands()[0];
+    assert.equal(command.command, 'artifact-chat');
+    assert.ok(command.seedNote.includes(archived.info.id), 'seedNote names the archived discussionId');
+    assert.ok(command.seedNote.includes('load_discussion'), 'seedNote tells the orchestrator to load the thread');
+    // The WS envelope carries the owning thread id so the studio routes it to that view.
+    await waitFor(() => messages.some((m) => m.type === 'artifact-chat'), 'artifact-chat envelope broadcast');
+    const envelope = messages.find((m) => m.type === 'artifact-chat');
+    assert.equal(envelope.discussionId, archived.info.id, 'envelope carries the archived discussionId');
+    ws.close();
+    prove('POST /api/artifact-chat', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/artifact-chat → 404 for a discussionId that does not exist', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    const { status, body } = await postJson(bridge, '/api/artifact-chat', {
+      artifactSlug: 'glow-mark',
+      text: 'hello?',
+      discussionId: 'no-such-thread-9999',
+    });
+    assert.equal(status, 404);
+    assert.ok(body.ok === false && String(body.error).includes('no-such-thread-9999'), 'error names the missing thread');
+    assert.deepEqual(store.artifactChat, [], 'no message recorded for a missing thread');
+    prove('POST /api/artifact-chat', 404);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/board-draft — 200 (persist in-progress dials), 400, 404
+// ---------------------------------------------------------------------------
+test('POST /api/board-draft → 200 persists the in-progress answer + lands in /api/state', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.recordBoard(board);
+    const draft = { ...loadCanonical('responses/iterate.json', BoardResponseSchema), boardId: board.id, axisValues: { glow: 63 } };
+    const { status, body } = await postJson(bridge, '/api/board-draft', draft);
+    assert.equal(status, 200);
+    assert.equal(body.ok, true);
+    const state = await getJson(bridge, '/api/state');
+    assert.equal(state.body.drafts.length, 1, '/api/state carries the draft');
+    assert.equal(state.body.drafts[0].axisValues.glow, 63);
+    prove('POST /api/board-draft', 200);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('POST /api/board-draft → 404 unknown board, 400 malformed', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.recordBoard(board);
+    const missing = await postJson(bridge, '/api/board-draft', { ...loadCanonical('responses/iterate.json', BoardResponseSchema), boardId: 'nope' });
+    assert.equal(missing.status, 404);
+    prove('POST /api/board-draft', 404);
+    const bad = await postJson(bridge, '/api/board-draft', '{ not json');
+    assert.equal(bad.status, 400);
+    prove('POST /api/board-draft', 400);
   } finally {
     await bridge.stop();
   }

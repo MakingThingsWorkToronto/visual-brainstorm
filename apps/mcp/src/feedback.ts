@@ -1,15 +1,5 @@
-import type { Board, BoardResponse, MindNode } from '@visual-brainstorm/protocol';
-
-/** Node count of a mind tree (labels the mind-map edit in the digest). */
-function countTree(node: MindNode): number {
-  return 1 + (node.children ?? []).reduce((sum, k) => sum + countTree(k), 0);
-}
-
-/** Every node carrying a note, depth-first — the steering the user attached. */
-function collectNotes(node: MindNode): { topic: string; note: string }[] {
-  const here = node.note && node.note.trim() ? [{ topic: node.topic, note: node.note.trim() }] : [];
-  return [...here, ...(node.children ?? []).flatMap(collectNotes)];
-}
+import type { Board, BoardResponse } from '@visual-brainstorm/protocol';
+import { treeToOutline } from './tree-outline.js';
 
 /**
  * Package the user's survey response into labeled, executable instructions.
@@ -17,7 +7,11 @@ function collectNotes(node: MindNode): { topic: string; note: string }[] {
  * a form any model (including a delegated subagent that never saw the board)
  * can act on — labels instead of ids, deltas instead of raw values.
  */
-export function buildFeedbackDigest(board: Board, response: BoardResponse): string[] {
+export function buildFeedbackDigest(
+  board: Board,
+  response: BoardResponse,
+  defaultModel?: string,
+): string[] {
   const label = (id: string) => board.options.find((o) => o.id === id)?.label ?? id;
   const digest: string[] = [];
 
@@ -138,15 +132,15 @@ export function buildFeedbackDigest(board: Board, response: BoardResponse): stri
   // the final SHAPE; treeOps are the INTENT. A digest that omits these cannot
   // re-synthesize a mind-map round, so both are spelled out for any model.
   if (response.editedTree) {
-    const root = response.editedTree.nodeData;
-    const count = countTree(root);
-    const notes = collectNotes(root);
+    // The tree IS the feedback (rule 7): embed the FULL traversable outline (topics
+    // + ids + notes) so any model reads the exact structure the user shaped — not a
+    // count. Run .claude/commands/read-mindmap.md to turn it into user intention that
+    // anchors the next tree + the build plan.
     digest.push(
-      `Mind-map edited: root "${root.topic}", ${count} node${count === 1 ? '' : 's'} after the user's edits (this tree IS the feedback — build the next round from it).`,
+      'Mind-map edited — this tree IS the feedback; build the next round from it and, at ' +
+        'closeout, anchor the plan on it (read-mindmap):\n' +
+        treeToOutline(response.editedTree, 'Edited tree (the user\'s current structure)'),
     );
-    for (const { topic, note } of notes) {
-      digest.push(`Node note on "${topic}": ${note} — steering for any explode of this node.`);
-    }
   }
   for (const op of response.treeOps) {
     if (op.op === 'explode') {
@@ -166,11 +160,54 @@ export function buildFeedbackDigest(board: Board, response: BoardResponse): stri
     }
   }
 
+  // Tweak vs redirect (token economy): a hands-on adjustment round — dials,
+  // notes, flaws, mutation lenses, with NO structural signal (no selections,
+  // remixes, triage, deck verdicts, phase steer, tree edits) — is asking to
+  // re-tune what it SAW, not for new directions. Mutating this round's
+  // captured SVGs preserves the liked geometry exactly (continuity) and pays
+  // only the delta (tokens); a from-scratch re-authoring would pay the full
+  // generation price for a small nudge.
+  const structuralSignals =
+    response.selectedOptionIds.length > 0 ||
+    response.remixPairs.length > 0 ||
+    Object.keys(response.triage).length > 0 ||
+    response.clusters.length > 0 ||
+    response.gapNotes.length > 0 ||
+    Object.values(response.deckVerdicts).some((v) => v === 'kill') ||
+    response.duelResults.length > 0 ||
+    response.ranking.length > 0 ||
+    Boolean(response.requestedPhase) ||
+    Boolean(response.editedTree) ||
+    response.treeOps.length > 0;
+  const nudges =
+    dialLines.length > 0 ||
+    Object.keys(response.perOptionNotes).length > 0 ||
+    Object.keys(response.flaws).length > 0 ||
+    Object.values(response.mutations).some((lenses) => lenses.length > 0);
+  if (response.action === 'iterate' && !structuralSignals && nudges) {
+    const pad = String(board.round).padStart(2, '0');
+    digest.push(
+      `TWEAK, not redirect — MUTATE, don't redraw: this response only adjusts what it saw, so ` +
+        `the next round is a targeted MUTATION of THIS round's captured SVGs (thread dir ` +
+        `round-${pad}/option-<id>.svg), never a from-scratch re-authoring. Hand the artisan those ` +
+        `source files plus ONLY the deltas above; geometry the deltas don't touch is preserved ` +
+        `verbatim. Exception: if the elaboration reads as a NEW direction, treat this as a ` +
+        `redirect and author fresh.`,
+    );
+  }
+
   if (response.requestedPhase) {
     digest.push(`Phase steer: user clicked the "${response.requestedPhase}" tab — next board MUST use that phase.`);
   }
+  // Routing is ALWAYS explicit (token-economy decision 4): a response without a
+  // per-round pick still routes, by name, to the session's best-SVG default —
+  // never a model:undefined fallthrough decided by omission.
   if (response.model) {
     digest.push(`Model routing: delegate next-round generation to ${response.model}.`);
+  } else if (defaultModel) {
+    digest.push(
+      `Model routing: no per-round pick — delegate next-round generation to the best-SVG default ${defaultModel} (explicit; never route by omission).`,
+    );
   }
   for (const command of response.commands) {
     digest.push(`Command: run .claude/commands/${command === 'new-brainstorm' ? 'run-brainstorm' : command}.md NOW.`);

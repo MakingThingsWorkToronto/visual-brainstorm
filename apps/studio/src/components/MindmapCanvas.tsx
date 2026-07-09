@@ -25,12 +25,19 @@ export function MindmapCanvas({
   tree,
   onEdit,
   onOp,
+  onMaximize,
 }: {
   tree: MindTree;
   /** Fired on every node edit with the full current tree (notes folded in). */
   onEdit: (edited: MindTree) => void;
   /** Fired when the user takes a node action (explode/add/delete/note). */
   onOp: (op: TreeOp) => void;
+  /**
+   * Open the mind map in the unified fullscreen viewer (SVG left, chat right —
+   * exact same as an artifact) so the user can ask about it / iteratively improve
+   * it. Absent → no maximize control (e.g. the snapshot has not been captured).
+   */
+  onMaximize?: () => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const onEditRef = useRef(onEdit);
@@ -272,10 +279,24 @@ export function MindmapCanvas({
 
   return (
     <div data-testid="mindmap-canvas" className="rounded-2xl border border-line bg-surface p-3">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <div className="text-xs font-semibold text-ink">Mind map — one living structure</div>
-        <div className="text-[11px] text-ink-dim">
-          click a node to select · double-click to rename · tab adds a child
+        <div className="flex items-center gap-2">
+          <div className="hidden text-[11px] text-ink-dim sm:block">
+            click a node to select · double-click to rename · tab adds a child
+          </div>
+          {onMaximize && (
+            <button
+              type="button"
+              data-testid="mindmap-maximize"
+              onClick={onMaximize}
+              title="Full-screen view — ask about the map / iteratively improve it (chat on the right)"
+              aria-label="Maximize mind map"
+              className="rounded-lg border border-line px-2 py-1 text-ink-dim hover:border-accent hover:text-ink"
+            >
+              <MaximizeIcon className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -387,6 +408,14 @@ function ExplodeIcon({ className = 'h-4 w-4' }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden="true">
       <path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5L19 19M19 5l-2.5 2.5M7.5 16.5L5 19" strokeLinecap="round" />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function MaximizeIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden="true">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

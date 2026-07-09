@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  Board,
-  BoardOption,
-  BoardResponse,
-  MindTree,
-  ModelCatalogEntry,
-  PaletteColor,
-  Phase,
-  ResponseAction,
-  Theme,
-  TreeOp,
+import {
+  optionChatSlug,
+  type ArtifactChatMessage,
+  type Board,
+  type BoardOption,
+  type BoardResponse,
+  type MindTree,
+  type ModelCatalogEntry,
+  type PaletteColor,
+  type Phase,
+  type ResponseAction,
+  type Theme,
+  type TreeOp,
 } from '@visual-brainstorm/protocol';
 import { SvgPane } from './primitives';
 import { ArtifactFullscreen } from './ArtifactFullscreen';
@@ -56,11 +58,37 @@ export function BoardSurvey({
   targetRepo = null,
   themes = [],
   initial,
+  onDraft,
+  optionChat,
+  onMaximizeMindmap,
+  guide = true,
 }: {
   board: Board;
   models: Array<ModelCatalogEntry | string>;
   defaultModel: string;
   onRespond: (response: BoardResponse) => Promise<void>;
+  /**
+   * Persist the in-progress answer (dials/selections/notes/…) as it changes, so
+   * it survives an artifact-chat detour and reloads later. Debounced by the caller-
+   * agnostic effect below.
+   */
+  onDraft?: (draft: BoardResponse) => void;
+  /**
+   * Chat wiring for the fullscreen option preview — the SAME chat every other
+   * fullscreen has, so the user can ask about a LIVE option (the current set)
+   * without losing their dials. Addressed by `option:<boardId>:<optionId>`.
+   */
+  optionChat?: {
+    messagesFor: (slug: string) => ArtifactChatMessage[];
+    busyFor: (slug: string) => boolean;
+    onSend: (slug: string, text: string) => void;
+  };
+  /**
+   * Open the mind map in the unified fullscreen viewer (SVG + chat right). Present
+   * only on a mindmap board once its snapshot artifact exists. Flushes the live
+   * tree draft first so the chat/orchestrator reads the CURRENT tree.
+   */
+  onMaximizeMindmap?: () => void;
   /** Wayfinder's next-phase suggestion — Enter accepts it once you've judged. */
   proposal?: PhaseProposal | null;
   /** Bumped when the wayfinder pill is clicked — switches the local mechanic. */
@@ -76,6 +104,12 @@ export function BoardSurvey({
    * response so the user changes settings instead of re-answering from zero.
    */
   initial?: BoardResponse;
+  /**
+   * Whether this instance participates in the wayfinding pulse (data-guide tags).
+   * The live active board suppresses it while a past round is being revisited, so
+   * the two mounted BoardSurveys don't emit duplicate guide boxes.
+   */
+  guide?: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(initial?.selectedOptionIds ?? []),
@@ -260,6 +294,61 @@ export function BoardSurvey({
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  // Assemble the current answer — every mechanic the user touched, regardless of
+  // the active phase tab. Shared by Send (real submit) and the draft persistence
+  // (a snapshot of the in-progress answer). `respondedAt` stamps when it was built.
+  const buildResponse = (
+    action: ResponseAction,
+    steeredPhase: Phase,
+    selectedIds: string[],
+  ): BoardResponse => ({
+    boardId: board.id,
+    selectedOptionIds: selectedIds,
+    elaboration,
+    perOptionNotes: Object.fromEntries(Object.entries(notes).filter(([, v]) => v.trim() !== '')),
+    axisValues,
+    remixPairs,
+    action,
+    model,
+    triage,
+    mutations,
+    flaws: Object.fromEntries(Object.entries(flaws).filter(([, v]) => v.trim() !== '')),
+    positions: clusterTouched ? positions : {},
+    clusters: clusterTouched ? clusters : [],
+    gapNotes,
+    deckVerdicts,
+    duelResults,
+    ranking: deckRanking,
+    attachments: intake.attachments,
+    paletteColors,
+    commands: action === 'finalize' ? ['plan-closeout'] : [],
+    requestedPhase: steeredPhase !== board.phase ? steeredPhase : undefined,
+    finalOptionId: action === 'finalize' ? (finalId ?? undefined) : undefined,
+    editedTree,
+    treeOps,
+    respondedAt: new Date().toISOString(),
+  });
+
+  // Persist the in-progress answer as generation meta (dials/selections/notes/…,
+  // and for a mind-map the LIVE editedTree + treeOps): debounced so a drag/edit
+  // doesn't spam the bridge. The snapshot uses a neutral action — it is a draft,
+  // never a submitted response. This makes dials/tree PERSIST through an
+  // artifact-chat detour and be recallable + readable (tree.md) mid-edit.
+  // Key excludes respondedAt (which changes every render) so the effect fires
+  // only on real CONTENT change, not on a clock tick.
+  const { respondedAt: _draftAt, ...draftStable } = buildResponse('iterate', localPhase, [...selected]);
+  const draftKey = JSON.stringify(draftStable);
+  useEffect(() => {
+    if (!onDraft) return;
+    const timer = setTimeout(
+      () => onDraft({ ...(JSON.parse(draftKey) as Omit<BoardResponse, 'respondedAt'>), respondedAt: new Date().toISOString() }),
+      500,
+    );
+    return () => clearTimeout(timer);
+    // draftKey captures every field that matters; re-run only when it changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, onDraft]);
+
   const send = async (action: ResponseAction, phaseOverride?: Phase) => {
     const steeredPhase = phaseOverride ?? localPhase;
     // Back is an escape hatch — it bypasses every gate by design.
@@ -308,40 +397,7 @@ export function BoardSurvey({
     }
     setSending(true);
     try {
-      await onRespond({
-        boardId: board.id,
-        selectedOptionIds: selectedIds,
-        elaboration,
-        perOptionNotes: Object.fromEntries(
-          Object.entries(notes).filter(([, v]) => v.trim() !== ''),
-        ),
-        axisValues,
-        remixPairs,
-        action,
-        model,
-        triage,
-        mutations,
-        // Feedback is NEVER dropped: every mechanic the user touched ships its
-        // state, regardless of which phase tab is active at send time.
-        flaws: Object.fromEntries(Object.entries(flaws).filter(([, v]) => v.trim() !== '')),
-        positions: clusterTouched ? positions : {},
-        clusters: clusterTouched ? clusters : [],
-        gapNotes,
-        deckVerdicts,
-        duelResults,
-        ranking: deckRanking,
-        attachments: intake.attachments,
-        paletteColors,
-        // Finality triggers the closeout procedure on the orchestrator side.
-        commands: action === 'finalize' ? ['plan-closeout'] : [],
-        requestedPhase: steeredPhase !== board.phase ? steeredPhase : undefined,
-        finalOptionId: action === 'finalize' ? (finalId ?? undefined) : undefined,
-        // Mind-map: the user's edited tree IS the feedback (absent = untouched).
-        editedTree,
-        // Mind-map: the ordered explode/add/delete/note decisions this round.
-        treeOps,
-        respondedAt: new Date().toISOString(),
-      });
+      await onRespond(buildResponse(action, steeredPhase, selectedIds));
     } catch (err) {
       setError(String(err));
       setIterationPreview(null);
@@ -373,12 +429,29 @@ export function BoardSurvey({
 
       {/* The phase mechanic — the actionable "answer" surface. The guide pulse
           traces it until the user has touched it (or it was prefilled). */}
-      <div className="space-y-4" data-guide="step" data-guide-done={touched ? 'true' : undefined}>
+      <div
+        className="space-y-4"
+        data-guide={guide ? 'step' : undefined}
+        // Green ("done") means the send gate is actually satisfied — not merely
+        // that the user touched something (one flaw in wreck, one triage in
+        // converge leave the gate closed), so require gate.ok AND a real touch.
+        data-guide-done={guide && gate.ok && touched ? 'true' : undefined}
+      >
       {isMindmap && board.tree && (
         <MindmapCanvas
           tree={board.tree}
           onEdit={setEditedTree}
           onOp={(op) => setTreeOps((prev) => [...prev, op])}
+          onMaximize={
+            onMaximizeMindmap
+              ? () => {
+                  // Flush the live tree so the fullscreen chat / orchestrator reads
+                  // the CURRENT structure, then open the unified viewer.
+                  onDraft?.(buildResponse('iterate', localPhase, [...selected]));
+                  onMaximizeMindmap();
+                }
+              : undefined
+          }
         />
       )}
 
@@ -618,7 +691,7 @@ export function BoardSurvey({
         </div>
       )}
 
-      <div data-guide="input" className="rounded-2xl border border-line bg-surface p-4">
+      <div data-guide={guide ? 'input' : undefined} className="rounded-2xl border border-line bg-surface p-4">
         <textarea
           value={elaboration}
           onChange={(e) => setElaboration(e.target.value)}
@@ -862,6 +935,27 @@ export function BoardSurvey({
               ? (value) => setNotes({ ...notes, [previewOption.id]: value })
               : undefined,
           }}
+          // The SAME chat every fullscreen has — ask about a LIVE option (the
+          // current set). Sending flushes the draft first so the artifact-chat
+          // detour keeps the user's dials (they never unmount — non-destructive
+          // park). Slug: option:<boardId>:<optionId>.
+          chat={
+            optionChat
+              ? (() => {
+                  const slug = optionChatSlug(board.id, previewOption.id);
+                  return {
+                    messages: optionChat.messagesFor(slug),
+                    busy: optionChat.busyFor(slug),
+                    onSend: (text: string) => {
+                      onDraft?.({ ...buildResponse('iterate', localPhase, [...selected]) });
+                      optionChat.onSend(slug, text);
+                    },
+                    emptyHint:
+                      'Ask about this option — your dials and selections are kept while Claude answers.',
+                  };
+                })()
+              : undefined
+          }
           onClose={() => setPreviewId(null)}
         />
       )}

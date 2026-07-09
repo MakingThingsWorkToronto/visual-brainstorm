@@ -41,7 +41,9 @@
     "input": 0,
     "output": 0
   },
+  "tokensBySink": {},
   "artifactChat": [],
+  "drafts": [],
   "seedBrief": null,
   "concierge": null,
   "gallery": null

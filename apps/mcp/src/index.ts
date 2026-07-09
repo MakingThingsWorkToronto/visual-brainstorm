@@ -216,7 +216,7 @@ server.tool(
       response.boardId === board.id
         ? board
         : (store.rounds.find((r) => r.board.id === response.boardId)?.board ?? board);
-    const digest = buildFeedbackDigest(digestBoard, response);
+    const digest = buildFeedbackDigest(digestBoard, response, config.defaultModel);
     if (digestBoard.id !== board.id) {
       digest.unshift(
         `REWIND: the user returned to round ${digestBoard.round} ("${digestBoard.title}") and re-answered ` +
@@ -584,7 +584,10 @@ server.tool(
 
 server.tool(
   'session_status',
-  'Current brainstorm thread: directory, rounds so far (with responses), captured artifacts, studio URL.',
+  'Current brainstorm thread: directory, rounds so far (with responses), captured artifacts, studio URL, ' +
+    'and the live board DRAFTS (the user\'s in-progress dials/selections/notes/model per board — the generation ' +
+    'meta persisted to round-NN/draft.json). Read the matching draft when answering an artifact-chat so a reply ' +
+    'can reference the dials the user actually set; the draft survives the chat detour (dials persist).',
   {},
   async () => {
     if (!store) return text({ status: 'no-session', hint: 'present_board starts a thread; list_discussions shows cached ones' });
@@ -601,6 +604,8 @@ server.tool(
         optionCount: r.board.options.length,
         responded: r.response !== null,
         action: r.response?.action ?? null,
+        // The in-progress answer for this board (dials/selections/notes), if any.
+        draft: store!.drafts.find((d) => d.boardId === r.board.id) ?? null,
       })),
       artifacts: store.artifacts,
     });

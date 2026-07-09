@@ -214,6 +214,26 @@ test('seed intake round-trips all four kinds', () => {
     kind: 'sketch',
     svg: '<svg viewBox="0 0 1 1"/>',
   });
+  // Annotated-photo scribble: the sketch kind carries the photo, a vision-readable
+  // composite PNG, and the structured annotation list the model traverses.
+  const annotated = SeedIntakeSchema.parse({
+    kind: 'sketch',
+    svg: '<svg viewBox="0 0 400 240"/>',
+    photoDataUri: 'data:image/png;base64,AA==',
+    compositeDataUri: 'data:image/png;base64,BB==',
+    annotations: {
+      viewBox: { w: 400, h: 240 },
+      background: { present: true },
+      palette: [{ name: 'Ultraviolet', value: '#7c3aed' }],
+      items: [
+        { type: 'arrow', colorName: 'Ultraviolet', colorValue: '#7c3aed', from: { x: 1, y: 2 }, to: { x: 3, y: 4 } },
+        { type: 'note', colorName: 'Ultraviolet', colorValue: '#7c3aed', at: { x: 5, y: 6 }, text: 'make this bigger' },
+      ],
+    },
+  });
+  assert.equal(annotated.compositeDataUri, 'data:image/png;base64,BB==');
+  assert.equal(annotated.annotations.items[1].text, 'make this bigger');
+  assert.equal(annotated.annotations.items[0].type, 'arrow');
   const image = SeedIntakeSchema.parse({ kind: 'image', dataUri: 'data:image/png;base64,AA==' });
   assert.equal(image.dataUri, 'data:image/png;base64,AA==');
   assert.equal(image.name, '', 'image name defaults empty');

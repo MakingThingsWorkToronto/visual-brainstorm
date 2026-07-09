@@ -12,12 +12,15 @@ import {
   type Board,
   type BoardResponse,
   type DiscussionSummary,
+  type MindTree,
   type ProgressEvent,
   type RoundRecord,
   type SessionInfo,
+  type TokenSink,
 } from '@visual-brainstorm/protocol';
 import { buildFeedbackDigest } from './feedback.js';
 import { countNodes, treeToSvg } from './tree-svg.js';
+import { treeToOutline } from './tree-outline.js';
 import { buildDecisionTree, decisionTreeToSvg } from './decision-tree.js';
 
 export function slugify(text: string): string {
@@ -64,8 +67,22 @@ export class SessionStore {
   readonly artifacts: Artifact[] = [];
   /** Session-progress events (progress.jsonl) — deterministic UI feedback, reloadable. */
   readonly progress: ProgressEvent[] = [];
+  /**
+   * The sink currently in progress — declared by the last boundary event that
+   * carried a `category`. A token-bearing event that arrives without its own
+   * category is attributed to this. Undefined until the first labeled activity.
+   */
+  private currentSink: TokenSink | undefined;
   /** Artifact chat dialogs (artifacts/chat.jsonl) — append-only, reloadable (rule 7). */
   readonly artifactChat: ArtifactChatMessage[] = [];
+  /**
+   * In-progress board answers ("generation meta"): the user's dials/selections/
+   * notes/elaboration/model on a live board, persisted to `round-NN/draft.json`
+   * (last-write-wins, one per board) and reloaded so dials PERSIST through an
+   * artifact-chat detour and are recallable later. A draft is an un-submitted
+   * BoardResponse (rule 5). Keyed in memory by boardId.
+   */
+  readonly drafts: BoardResponse[] = [];
 
   /** Create a NEW thread under the discussion root. */
   constructor(title: string, root: string) {
@@ -109,6 +126,7 @@ export class SessionStore {
       artifacts: [],
       progress: [],
       artifactChat: [],
+      drafts: [],
     });
     const chatFile = path.join(dir, 'artifacts', 'chat.jsonl');
     if (fs.existsSync(chatFile)) {
@@ -126,7 +144,13 @@ export class SessionStore {
       for (const line of fs.readFileSync(progressFile, 'utf8').split('\n')) {
         if (!line.trim()) continue;
         try {
-          store.progress.push(ProgressEventSchema.parse(JSON.parse(line)));
+          const event = ProgressEventSchema.parse(JSON.parse(line));
+          store.progress.push(event);
+          // Mirror recordProgress bookkeeping so a live event after reload
+          // inherits a trailing un-consumed boundary label (persisted events are
+          // already stamped, so only currentSink needs reconstructing).
+          if (event.category && !event.tokens) store.currentSink = event.category;
+          else if (event.tokens) store.currentSink = undefined;
         } catch (err) {
           console.error(`[store] skipping progress line: ${String(err)}`);
         }
@@ -145,6 +169,15 @@ export class SessionStore {
         ? BoardResponseSchema.parse(JSON.parse(fs.readFileSync(responseFile, 'utf8')))
         : null;
       store.rounds.push({ board: board as Board, response });
+      // In-progress draft (generation meta) — restores the user's dials/notes.
+      const draftFile = path.join(dir, roundDir, 'draft.json');
+      if (fs.existsSync(draftFile)) {
+        try {
+          store.drafts.push(BoardResponseSchema.parse(JSON.parse(fs.readFileSync(draftFile, 'utf8'))));
+        } catch (err) {
+          console.error(`[store] skipping draft ${roundDir}: ${String(err)}`);
+        }
+      }
     }
     const artifactsDir = path.join(dir, 'artifacts');
     if (fs.existsSync(artifactsDir)) {
@@ -218,6 +251,10 @@ export class SessionStore {
   }
 
   recordBoard(board: Board): void {
+    // Idempotent by board id: an artifact-chat detour re-presents the SAME board
+    // to re-establish the pending resolver (non-destructive park) — that must not
+    // duplicate the round on disk or in memory.
+    if (this.rounds.some((r) => r.board.id === board.id)) return;
     this.rounds.push({ board, response: null });
     const dir = this.roundDir(board.round);
     fs.writeFileSync(path.join(dir, 'board.json'), JSON.stringify(board, null, 2));
@@ -229,6 +266,10 @@ export class SessionStore {
     // the presented structure is archived even before the user edits it.
     if (board.tree) {
       fs.writeFileSync(path.join(dir, 'tree.json'), JSON.stringify(board.tree, null, 2));
+      // The MODEL-LEGIBLE form of the map: a traversable markdown outline the
+      // orchestrator (and read-mindmap) reads without parsing JSON. Overwritten
+      // as the tree is edited (response/draft) so it always reflects the latest.
+      this.writeTreeOutline(dir, board.tree, `Presented tree — round ${board.round}`);
       const nodes = countNodes(board.tree.nodeData);
       this.captureArtifact(
         `${board.title} — round ${board.round} tree`,
@@ -244,7 +285,7 @@ export class SessionStore {
         board.prompt,
         '',
         board.tree
-          ? `### Mind-map tree presented\nRoot: **${board.tree.nodeData.topic}** — ${countNodes(board.tree.nodeData)} nodes (co-edited live; snapshot captured to artifacts/).`
+          ? treeToOutline(board.tree, 'Mind-map tree presented (co-edited live; snapshot in artifacts/)')
           : '### Options presented',
         ...(board.tree
           ? []
@@ -283,6 +324,8 @@ export class SessionStore {
     // read it without unpacking the whole response.
     if (response.editedTree) {
       fs.writeFileSync(path.join(dir, 'edited-tree.json'), JSON.stringify(response.editedTree, null, 2));
+      // Refresh the model-legible outline to the SUBMITTED shape.
+      this.writeTreeOutline(dir, response.editedTree, `Edited tree — round ${round.board.round} (submitted)`);
     }
     this.appendMd(
       [
@@ -294,6 +337,48 @@ export class SessionStore {
     // The decision tree is a derived index over every round — rebuild + persist it
     // on each response so the studio's Decision-tree view reloads with the thread.
     this.writeDecisionTree();
+  }
+
+  /**
+   * Persist a board's IN-PROGRESS answer (dials/selections/notes/elaboration/
+   * model) as `round-NN/draft.json` — last-write-wins, one per board. This is the
+   * "generation meta" that must survive an artifact-chat detour (dials persist
+   * through chat) and be recallable later. A draft is NOT a submitted response:
+   * kept in a separate file + the in-memory `drafts` list (never folded into
+   * `rounds[].response`). A later real response supersedes it (the round's
+   * `response.json` is authoritative for what was actually submitted).
+   */
+  recordBoardDraft(draft: BoardResponse): void {
+    const round = this.rounds.find((r) => r.board.id === draft.boardId);
+    if (!round) return; // no board to attach a draft to — ignore silently
+    const idx = this.drafts.findIndex((d) => d.boardId === draft.boardId);
+    if (idx >= 0) this.drafts[idx] = draft;
+    else this.drafts.push(draft);
+    try {
+      const dir = this.roundDir(round.board.round);
+      fs.writeFileSync(path.join(dir, 'draft.json'), JSON.stringify(draft, null, 2));
+      // A mind-map draft carries the LIVE in-progress tree — keep the model-legible
+      // outline current so read-mindmap/an artifact-chat reads the tree the user is
+      // actually looking at, not the originally-presented one.
+      if (draft.editedTree) {
+        this.writeTreeOutline(dir, draft.editedTree, `Live tree — round ${round.board.round} (in progress)`);
+      }
+    } catch (err) {
+      console.error(`[store] draft.json write failed: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Write the model-legible markdown outline of a mind tree to `round-NN/tree.md`
+   * — the traversable form read-mindmap and the orchestrator read (the SVG is for
+   * humans). Overwritten as the tree evolves; the newest shape always wins.
+   */
+  private writeTreeOutline(dir: string, tree: MindTree, heading: string): void {
+    try {
+      fs.writeFileSync(path.join(dir, 'tree.md'), treeToOutline(tree, heading) + '\n');
+    } catch (err) {
+      console.error(`[store] tree.md write failed: ${String(err)}`);
+    }
   }
 
   /**
@@ -341,10 +426,35 @@ export class SessionStore {
   }
 
   /**
+   * Per-sink token accounting (input+output) over every progress event. The
+   * breakdown the studio presents. Tokens with no category fold into
+   * `orchestration` — an uncategorized turn is the driver's own overhead.
+   */
+  tokensBySink(): Partial<Record<TokenSink, number>> {
+    const bySink: Partial<Record<TokenSink, number>> = {};
+    for (const e of this.progress) {
+      if (!e.tokens) continue;
+      const sink: TokenSink = e.category ?? 'orchestration';
+      bySink[sink] = (bySink[sink] ?? 0) + e.tokens.input + e.tokens.output;
+    }
+    return bySink;
+  }
+
+  /**
    * Session-progress event (rule 7 recall): kept in memory for the studio tail
    * and appended to progress.jsonl — never rewritten, reloads with the thread.
    */
   recordProgress(event: ProgressEvent): void {
+    // A boundary event (tool label) DECLARES the current sink; the NEXT
+    // token-bearing turn-end event inherits it, then the label is consumed so it
+    // attributes exactly that one turn — later uncategorized turns fold into
+    // `orchestration`. The tokens are real deltas; only the attribution is a
+    // heuristic ("what was being done when the turn ended").
+    if (event.category) this.currentSink = event.category;
+    else if (event.tokens) {
+      if (this.currentSink) event.category = this.currentSink;
+      this.currentSink = undefined;
+    }
     this.progress.push(event);
     try {
       fs.appendFileSync(path.join(this.info.dir, 'progress.jsonl'), JSON.stringify(event) + '\n');

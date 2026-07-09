@@ -18,10 +18,14 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:ui": "tsx scripts/ui-smoke.ts",
     "test:unit": "node --test \"tests/*.test.mjs\"",
+    "test:ts": "tsx --test \"tests/*.test.ts\"",
     "test:human": "node scripts/human-sim.mjs",
     "test:human:archived": "node scripts/human-sim-archived.mjs",
+    "test:human:livechat": "node scripts/human-sim-livechat.mjs",
+    "test:human:boardchat": "node scripts/human-sim-boardchat.mjs",
+    "test:human:mindchat": "node scripts/human-sim-mindchat.mjs",
     "test:human:sweep": "node scripts/ui-break-sweep.mjs",
-    "test": "npm run test:unit && npm run smoke && npm run smoke:ui && npm run test:human && npm run test:human:archived"
+    "test": "npm run test:unit && npm run test:ts && npm run smoke && npm run smoke:ui && npm run test:human && npm run test:human:archived && npm run test:human:livechat && npm run test:human:boardchat && npm run test:human:mindchat"
   },
   "devDependencies": {
     "jsdom": "^24.1.0",

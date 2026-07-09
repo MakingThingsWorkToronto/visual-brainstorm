@@ -20,7 +20,14 @@ import {
   cameraAvailable,
   useAttachments,
 } from './composer';
-import { PhotoScribble, PhotoOfferBanner } from './PhotoScribble';
+import {
+  PhotoScribble,
+  PhotoOfferBanner,
+  composeSeedSvg,
+  toScribbleAnnotations,
+  renderCompositePng,
+  type ScribbleContent,
+} from './PhotoScribble';
 import { useVoice } from '../lib/useVoice';
 import {
   SurveyField,
@@ -148,7 +155,7 @@ export function NewDiscussionPanel({
   // emits (null when there are no annotations). photoOffer holds a just-attached
   // image awaiting the "scribble on it?" decision.
   const [bgPhoto, setBgPhoto] = useState<string | null>(null);
-  const [sketchSvg, setSketchSvg] = useState<string | null>(null);
+  const [scribble, setScribble] = useState<ScribbleContent | null>(null);
   const [photoOffer, setPhotoOffer] = useState<string | null>(null);
   const [genTheme, setGenTheme] = useState<string | null>(null);
   const [palette, setPalette] = useState<PaletteColor[]>([]);
@@ -211,13 +218,36 @@ export function NewDiscussionPanel({
     prevAttachCount.current = list.length;
   }, [intake.attachments, bgPhoto]);
 
-  const hasSketch = sketchSvg !== null;
-  const seed: SeedIntake | undefined = sketchSvg ? { kind: 'sketch', svg: sketchSvg } : undefined;
+  const hasSketch = scribble !== null;
   const chipWords = surveyWords(questions, answers);
   const composedPrompt = [prompt.trim(), chipWords.length > 0 ? `(${chipWords.join(' · ')})` : '']
     .filter(Boolean)
     .join(' ');
-  const canStart = composedPrompt.length > 0 || seed !== undefined || intake.attachments.length > 0;
+  const canStart = composedPrompt.length > 0 || hasSketch || intake.attachments.length > 0;
+
+  // Build the enriched sketch seed on send: the SVG + structured annotations + a
+  // rasterized composite PNG (vision-readable, unlike the SVG-as-text). The PNG
+  // render is best-effort — on failure the seed still ships (svg + annotations),
+  // honestly without the composite (rule 6). Only annotated scribbles become a seed.
+  const buildSeed = async (): Promise<SeedIntake | undefined> => {
+    if (!scribble) return undefined;
+    const svg = composeSeedSvg(scribble);
+    if (!svg) return undefined;
+    const annotations = toScribbleAnnotations(scribble, palette);
+    let compositeDataUri: string | undefined;
+    try {
+      compositeDataUri = await renderCompositePng(svg, scribble.viewW, scribble.viewH);
+    } catch {
+      compositeDataUri = undefined;
+    }
+    return {
+      kind: 'sketch',
+      svg,
+      photoDataUri: scribble.photo ?? undefined,
+      compositeDataUri,
+      annotations,
+    };
+  };
 
   // Every intake box — survey questions, Colors, the scribble pad — is the same
   // shell. The question boxes come from the ACTIVE set (handoff or preset) and
@@ -264,7 +294,7 @@ export function NewDiscussionPanel({
         palette={palette}
         photo={bgPhoto}
         onRemovePhoto={() => setBgPhoto(null)}
-        onSvgChange={setSketchSvg}
+        onChange={setScribble}
       />
     ),
   };
@@ -317,9 +347,11 @@ export function NewDiscussionPanel({
         );
       })}
 
+      {/* The composer is the pulse's "input" finale — it stays accent (never
+          greens) like the board composer, since a typed-but-unsent brief is not
+          a completed action. Consistent across both composer surfaces. */}
       <div
         data-guide="input"
-        data-guide-done={canStart ? 'true' : undefined}
         className="sticky bottom-0 z-20 rounded-2xl border border-line bg-surface p-4 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.5)]"
       >
         <textarea
@@ -367,13 +399,17 @@ export function NewDiscussionPanel({
           <button
             type="button"
             disabled={!canStart}
-            onClick={() =>
+            onClick={async () => {
+              const seed = await buildSeed();
               onStart(composedPrompt, seed, {
                 attachments: intake.attachments,
-                model: model && model !== defaultModel ? model : undefined,
+                // Always explicit (token-economy decision 4): the seed names the
+                // generation model even when it's the default — no undefined
+                // fallthrough that leaves routing to omission.
+                model: model || defaultModel || undefined,
                 palette,
-              })
-            }
+              });
+            }}
             title={`Starts a fresh brainstorm session from this brief (requires ${runtime.label})`}
             className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-105 disabled:opacity-50"
           >

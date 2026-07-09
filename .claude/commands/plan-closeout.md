@@ -35,7 +35,9 @@ done/skipped-with-reason.
     `packages/protocol` shape, or user-facing harness behavior, reconcile the supported
     harness adapters in the same cycle (today `.github/` for GitHub Copilot; future
     registered harness layers when they are real) so comparable results remain achievable
-    across harnesses. If nothing adapter-visible changed, explicitly skip this with reason.
+    across harnesses. If a surface is intentionally unadapted in a supported harness, record
+    that in the harness exclusion mechanism so parity checks stay signalful. If nothing
+    adapter-visible changed, explicitly skip this with reason.
 5. **Update the wiki** — any fact or guardrail established by this plan moves to the
    relevant `wiki/` page; append the edit to `wiki/log.md` (rule 2). After the edits land,
    call `mcp__visual-brainstorm-wiki__wiki_reload` so the grounding index reflects them
@@ -67,6 +69,10 @@ done/skipped-with-reason.
      (mechanical rounds + the per-round decision blocks run-brainstorm step 5 appended),
      the captured artifacts, and the poster. Every phase in the generated plan must trace
      to something the human decided in the brainstorm — no invented scope.
+   - **Mind-map threads: anchor the plan on the tree.** Run `.claude/commands/read-mindmap.md`
+     on the final round FIRST — the tree's top branches become the plan's phases/sections, the
+     node notes become requirements, killed branches are explicitly out of scope, and `— thin`
+     gaps are flagged as open questions. The structure the user built IS the plan's spine.
 8. **Mark the plan** — set `**Status:** closed <date>` in `plan.md`.
 9. **Archive** — move the whole plan folder AND any brainstorm-thread folders belonging to
    this work into `discussion/_completed/`. Archived threads appear under the
@@ -91,11 +97,26 @@ done/skipped-with-reason.
     ride a plain `git commit` even when you only `git add` your own paths, contaminating the
     commit and possibly breaking HEAD. Confirm ONLY your paths are staged (or use
     `git commit --only <paths>`, which ignores the rest of the index).
+    **Resuming a closeout after a crash / dead peers:** first attribute against HEAD, not
+    `git status` — peer closeouts may have ALREADY committed parts of this plan as declared
+    riders (`git grep <plan-symbol> HEAD -- <paths>`); commit only the residue. If crashed
+    peers can't converge and the TS import graph fuses your pending diff with theirs
+    (`tsc -p` typechecks the whole project — a file-level subset can commit a snapshot
+    that doesn't build), include the minimal build-coupled closure as DECLARED riders and
+    prove the exact committed snapshot builds+tests in a fresh `git worktree` of that
+    commit before pushing.
 11. **Report** — one summary: learnings count, commands improved (names), wiki pages
     touched, artifacts handed off (destination), build plan generated (target + path, or
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 10: crash-resume attribution — check plan symbols against HEAD (peers may
+  have committed your rounds as riders) and worktree-verify the committed snapshot when the
+  TS import graph fuses pending diffs across dead peer sessions (from
+  artifact-chat-everywhere-2026-07-09)
+- 2026-07-09 — step 4: intentional harness gaps must be recorded in the harness exclusion
+  mechanism; otherwise parity warnings go noisy and hide real new gaps (from
+  copilot-slash-commands-2026-07-07)
 - 2026-07-09 — step 5: call `wiki_reload` after wiki edits so the grounding MCP index isn't
   stale (from wiki-mcp-grounding-and-maintenance-2026-07-09)
 - 2026-07-07 — step 10: inspect the STAGED index before committing (`git diff --cached

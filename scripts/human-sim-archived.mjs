@@ -10,9 +10,11 @@
  *   left-nav Completed section → open a seeded archived thread → "Completed thread"
  *   banner + WayfinderStrip renders its keep → click the keep → the unified
  *   ArtifactFullscreen viewer opens (item 5: replaces the old PreviewModal/ArtifactChat
- *   split) showing the PERSISTED chat (user + claude), read-only (no composer, no Save
- *   notes, no pin toggle — pinning is live-thread only) → the "↩ Reopen" controls
- *   (item 3) are present on the archived banner and on the round separator.
+ *   split) showing the PERSISTED chat (user + claude) WITH a live composer (ask about the
+ *   artifact anytime — answered in place; no Save notes / no pin toggle, those stay
+ *   live-thread only) → a NEW question typed there records into the archived thread and
+ *   echoes back in place → the "↩ Reopen" controls (item 3) are present on the archived
+ *   banner and on the round separator.
  *
  * The archived thread is seeded PHYSICALLY on disk under discussionRoot/_completed/
  * using the real SessionStore write helpers (recordBoard/recordResponse/
@@ -126,7 +128,7 @@ if (browsers.length === 0) {
       }
     });
 
-    const { evaluate, waitInPage, click } = makePageHelpers(cdp);
+    const { evaluate, waitInPage, click, typeInto } = makePageHelpers(cdp);
 
     const checkpoint = async (label) => {
       const rootChildren = await evaluate(
@@ -211,7 +213,7 @@ if (browsers.length === 0) {
       );
     });
 
-    await step('click the keep — the unified ArtifactFullscreen opens with the PERSISTED chat, read-only', async () => {
+    await step('click the keep — the unified ArtifactFullscreen opens with the PERSISTED chat + a live composer', async () => {
       await click(
         `the "${artifact.slug}" keep`,
         `[...document.querySelectorAll('a')].find((a) => (a.getAttribute('href') || '').includes('/api/artifact-svg/${encodeURIComponent(artifact.slug)}.svg'))`,
@@ -232,16 +234,18 @@ if (browsers.length === 0) {
         'the persisted claude message',
         `document.body.textContent.includes(${JSON.stringify(claudeText)})`,
       );
-      // Read-only replay: no composer input, no Send/Save notes buttons.
+      // Archived threads are now INTERACTIVE for questions: the chat composer is
+      // present so the user can ask about the artifact whenever they want
+      // (answered in place — 2026-07-09). Notes/pin stay live-thread-only.
       assert.equal(
         await evaluate(`!!document.querySelector('input[placeholder="Ask or ask for a change…"]')`),
-        false,
-        'no chat composer input on an archived (read-only) thread',
+        true,
+        'chat composer input present on an archived thread (ask questions anytime)',
       );
       assert.equal(
         await evaluate(`[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Save notes')`),
         false,
-        'no Save notes button on an archived (read-only) thread',
+        'no Save notes button on an archived thread (notes stay live-thread only)',
       );
       assert.equal(
         await evaluate(`document.body.textContent.includes('canonical capture')`),
@@ -263,12 +267,48 @@ if (browsers.length === 0) {
       );
     });
 
+    // A REAL question typed on the ARCHIVED thread must round-trip: recorded into
+    // that thread and echoed back into its dialog over WS (routed by discussionId).
+    // No orchestrator runs here, so only the user echo is asserted — the answer is
+    // the orchestrator's job (proven by api-status-matrix on the real bridge).
+    const followUp = 'On this archived one — could the filament read cooler-toned?';
+    await step('ask a NEW question on the archived thread — it records + echoes back in place', async () => {
+      await typeInto(
+        'the archived chat composer',
+        `document.querySelector('input[placeholder="Ask or ask for a change…"]')`,
+        followUp,
+      );
+      await click(
+        'the chat Send button',
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Send')`,
+      );
+      // The message returns over WS and lands in THIS archived thread's dialog
+      // (never the live thread) — proves thread-addressed chat + archived routing.
+      await waitInPage(
+        'the freshly-asked question appears in the archived dialog',
+        `document.body.textContent.includes(${JSON.stringify(followUp)})`,
+        8_000,
+      );
+      // It also persisted to the archived thread's own chat.jsonl on disk.
+      const reloaded = SessionStore.open(archivedStore.info.dir);
+      assert.ok(
+        reloaded.artifactChat.some((m) => m.role === 'user' && m.text === followUp),
+        'the new question persisted to the archived thread chat.jsonl (answer-in-place)',
+      );
+      assert.equal(
+        liveStore.artifactChat.length,
+        0,
+        'the live thread received nothing — the dialog is addressed to the archived thread only',
+      );
+    });
+
     passed = true;
     console.log(
       `HUMAN SIM ARCHIVED PASS — ${stepCount} steps: real ${browserName} over raw CDP opened a seeded ` +
         '_completed/ thread from the left nav (Completed thread banner, WayfinderStrip keep, reopen controls ' +
-        'present), clicked the keep into the unified ArtifactFullscreen viewer, and confirmed the PERSISTED ' +
-        'artifact chat (user + claude) replays read-only (no composer, no Save notes, no pin toggle), ' +
+        'present), clicked the keep into the unified ArtifactFullscreen viewer, confirmed the PERSISTED ' +
+        'artifact chat (user + claude) replays with a LIVE composer (no Save notes, no pin toggle), then ' +
+        'asked a NEW question that recorded into the archived thread + echoed back in place (never the live thread), ' +
         'zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout',
     );
   } catch (err) {

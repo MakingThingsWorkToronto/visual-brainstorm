@@ -172,10 +172,62 @@ export type Board = z.infer<typeof BoardSchema>;
 // uploaded image, a voice transcript, or plain text. Zero typing required.
 // ---------------------------------------------------------------------------
 
+/**
+ * Structured, model-legible description of an annotated-photo scribble — the
+ * marks the user drew over a photo, exported alongside the composite. This is
+ * what the orchestrator's /read-scribble command traverses (scribble.json) to
+ * disambiguate each mark's intent (a `<text>` note in the SVG loses which
+ * palette color / gesture it was). Coordinates are in the scribble's own
+ * viewBox space (top-left origin). Colors carry the palette NAME so the model
+ * can refer to "the ultraviolet arrow" the way the user would.
+ */
+export const ScribbleAnnotationItemSchema = z.object({
+  type: z.enum(['pen', 'highlighter', 'arrow', 'box', 'note']),
+  /** Palette name of the ink (or 'accent' when no palette was picked). */
+  colorName: z.string(),
+  /** CSS color value, e.g. "#a855f7". */
+  colorValue: z.string(),
+  /** pen/highlighter: the freehand path. */
+  points: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
+  /** arrow/box: tail/first-corner. */
+  from: z.object({ x: z.number(), y: z.number() }).optional(),
+  /** arrow/box: head/opposite-corner. */
+  to: z.object({ x: z.number(), y: z.number() }).optional(),
+  /** note: anchor point. */
+  at: z.object({ x: z.number(), y: z.number() }).optional(),
+  /** note: the verbatim text the user typed (a literal instruction). */
+  text: z.string().optional(),
+});
+export type ScribbleAnnotationItem = z.infer<typeof ScribbleAnnotationItemSchema>;
+
+export const ScribbleAnnotationsSchema = z.object({
+  /** The scribble's coordinate space (matches the composite PNG's aspect). */
+  viewBox: z.object({ w: z.number(), h: z.number() }),
+  /** Whether a photo underlies the marks (vs a blank-canvas scribble). */
+  background: z.object({ present: z.boolean() }),
+  /** The generation palette in play, so the model can reuse the user's color names. */
+  palette: z.array(z.object({ name: z.string(), value: z.string() })).default([]),
+  /** The marks, in draw order (which is also z-order, back to front). */
+  items: z.array(ScribbleAnnotationItemSchema).default([]),
+});
+export type ScribbleAnnotations = z.infer<typeof ScribbleAnnotationsSchema>;
+
 export const SeedIntakeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('text'), text: z.string() }),
-  /** Pointer-drawn scribble captured as self-contained SVG markup. */
-  z.object({ kind: z.literal('sketch'), svg: z.string() }),
+  /**
+   * Pointer-drawn scribble captured as self-contained SVG markup. When the pad
+   * has a photo background + marks, it also carries the raw photo, a rendered
+   * composite PNG (photo + marks — VISION-readable, unlike the SVG-as-text), and
+   * the structured annotation list. The bridge persists these into a traversable
+   * .seeds/seed-<stamp>/ folder the orchestrator reads via /read-scribble.
+   */
+  z.object({
+    kind: z.literal('sketch'),
+    svg: z.string(),
+    photoDataUri: z.string().optional(),
+    compositeDataUri: z.string().optional(),
+    annotations: ScribbleAnnotationsSchema.optional(),
+  }),
   /** Dropped/uploaded image as a data URI (persisted to disk by the bridge). */
   z.object({ kind: z.literal('image'), dataUri: z.string(), name: z.string().default('') }),
   /** Speech-recognition transcript (honest: only sent when recognition ran). */
@@ -552,6 +604,20 @@ export type Theme = z.infer<typeof ThemeSchema>;
  * usage this event accounts for; a thread's token meter is the sum over all
  * of its events.
  */
+/**
+ * The token "sinks" a brainstorm spends on — the accounting buckets the studio
+ * presents so the operator sees WHERE the tokens go, not just a running total.
+ * `generation` = fresh board-SVG authoring; `tweak` = mutate-don't-regenerate
+ * rounds; `intake` = gallery minis / concierge before any board; `orchestration`
+ * = the driver's own reasoning/context; `poster` = the deterministic decision
+ * poster. Attribution is a documented heuristic (the activity in progress when a
+ * turn ended), never a fabricated split — the token counts themselves are the
+ * real measured deltas.
+ */
+export const TOKEN_SINKS = ['generation', 'tweak', 'intake', 'orchestration', 'poster'] as const;
+export const TokenSinkSchema = z.enum(TOKEN_SINKS);
+export type TokenSink = z.infer<typeof TokenSinkSchema>;
+
 export const ProgressEventSchema = z.object({
   /** ISO timestamp — the bridge stamps arrival time when the sender omits it. */
   at: z.string(),
@@ -561,6 +627,13 @@ export const ProgressEventSchema = z.object({
   tokens: z
     .object({ input: z.number().min(0).default(0), output: z.number().min(0).default(0) })
     .optional(),
+  /**
+   * The sink these tokens are attributed to. A boundary event (a tool label)
+   * DECLARES the current sink; a token-bearing turn-end event without its own
+   * category is stamped by the bridge with the sink in progress when it landed.
+   * Absent on legacy events (they fold into `orchestration` in the breakdown).
+   */
+  category: TokenSinkSchema.optional(),
 });
 export type ProgressEvent = z.infer<typeof ProgressEventSchema>;
 
@@ -589,6 +662,13 @@ export interface StudioState {
   progress: ProgressEvent[];
   /** Token meter: the live thread's cumulative totals over ALL its progress events. */
   tokens: { input: number; output: number };
+  /**
+   * Per-sink token accounting (input+output) over ALL progress events — the
+   * breakdown the studio presents so the operator sees where tokens go. Keys are
+   * `TokenSink`; a missing key means zero. Uncategorized legacy tokens fold into
+   * `orchestration`.
+   */
+  tokensBySink: Partial<Record<TokenSink, number>>;
   /** Artifact chat dialogs (all slugs mixed — filter by artifactSlug client-side). */
   artifactChat: ArtifactChatMessage[];
   /**

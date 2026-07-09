@@ -1,4 +1,4 @@
 {
   "ok": false,
-  "error": "no artifact or board option \"missing\" in the live thread"
+  "error": "<<contains:no artifact or board option \"missing\" in thread>>"
 }

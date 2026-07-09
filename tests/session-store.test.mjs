@@ -144,6 +144,33 @@ test('tokenTotals sums progress events; events without tokens count zero', () =>
   assert.deepEqual(reopened.tokenTotals(), { input: 110, output: 55 }, 'totals survive reload');
 });
 
+test('tokensBySink attributes a turn-end delta to the boundary sink, consume-once', () => {
+  const root = tmp();
+  const store = new SessionStore('Sink attribution test', root);
+  // Boundary label (no tokens) declares the sink; the NEXT token event inherits it.
+  store.recordProgress(progressEvent('presented a board', { category: 'generation' }));
+  store.recordProgress(progressEvent('turn end', { source: 'hook:Stop', tokens: { input: 200, output: 800 } }));
+  // No new boundary → the label is consumed; this uncategorized turn folds into orchestration.
+  store.recordProgress(progressEvent('turn end', { source: 'hook:Stop', tokens: { input: 50, output: 50 } }));
+  // A poster boundary then its delta.
+  store.recordProgress(progressEvent('composed the poster', { category: 'poster' }));
+  store.recordProgress(progressEvent('turn end', { source: 'hook:Stop', tokens: { input: 10, output: 40 } }));
+
+  assert.deepEqual(store.tokensBySink(), { generation: 1000, orchestration: 100, poster: 50 });
+  // The stamped category is persisted, so the attribution survives reload.
+  const reopened = SessionStore.open(store.info.dir);
+  assert.deepEqual(reopened.tokensBySink(), { generation: 1000, orchestration: 100, poster: 50 });
+});
+
+test('a token event with its OWN category is attributed directly, not to the boundary', () => {
+  const root = tmp();
+  const store = new SessionStore('Explicit sink test', root);
+  store.recordProgress(
+    progressEvent('tweak round', { source: 'svg-artisan', tokens: { input: 30, output: 70 }, category: 'tweak' }),
+  );
+  assert.deepEqual(store.tokensBySink(), { tweak: 100 });
+});
+
 test('list() summaries carry per-thread token totals; 0 without a progress file', () => {
   const root = tmp();
   const counting = new SessionStore('Counting thread', root);

@@ -15,6 +15,7 @@ const EMPTY: StudioState = {
   activeBoard: null,
   artifacts: [],
   artifactChat: [],
+  drafts: [],
   thinking: null,
   runtime: { id: 'claude', label: 'Claude Code', provider: 'Anthropic' },
   themes: [],
@@ -24,6 +25,7 @@ const EMPTY: StudioState = {
   targetRepo: null,
   progress: [],
   tokens: { input: 0, output: 0 },
+  tokensBySink: {},
   seedBrief: null,
   concierge: null,
   gallery: null,
@@ -115,21 +117,45 @@ export function useBridge() {
                 return prev;
               }
               return { ...prev, artifactChat: [...prev.artifactChat, msg.message] };
+            case 'draft': {
+              // Upsert the in-progress board answer by boardId (restores dials on
+              // a re-presented board / reload). Ignore an echo of our OWN current
+              // edit only matters for cursor; drafts feed useState initializers
+              // (mount-time), so a live upsert never disrupts an in-flight edit.
+              const exists = prev.drafts.some((d) => d.boardId === msg.draft.boardId);
+              return {
+                ...prev,
+                drafts: exists
+                  ? prev.drafts.map((d) => (d.boardId === msg.draft.boardId ? msg.draft : d))
+                  : [...prev.drafts, msg.draft],
+              };
+            }
             case 'concierge':
               return { ...prev, concierge: msg.exchange };
             case 'gallery':
               return { ...prev, gallery: msg.gallery };
-            case 'progress':
+            case 'progress': {
+              const tok = msg.event.tokens;
+              // The bridge stamps `category` onto the broadcast event, so the
+              // per-sink meter mirrors the server's attribution exactly.
+              const sink = msg.event.category ?? 'orchestration';
               return {
                 ...prev,
                 progress: [...prev.progress, msg.event].slice(-200),
-                tokens: msg.event.tokens
+                tokens: tok
                   ? {
-                      input: prev.tokens.input + msg.event.tokens.input,
-                      output: prev.tokens.output + msg.event.tokens.output,
+                      input: prev.tokens.input + tok.input,
+                      output: prev.tokens.output + tok.output,
                     }
                   : prev.tokens,
+                tokensBySink: tok
+                  ? {
+                      ...prev.tokensBySink,
+                      [sink]: (prev.tokensBySink[sink] ?? 0) + tok.input + tok.output,
+                    }
+                  : prev.tokensBySink,
               };
+            }
           }
         });
       };
