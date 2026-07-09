@@ -1,5 +1,57 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — New Discussion box/layout polish: legend misalignment, sticky-flush composer, global radius, row-coupled collapse
+
+- **A native `<legend>` never aligns with padded fieldset content.** The browser renders a legend
+  specially — it breaks the top border and uses its own inline offset — so it sits left of and
+  above a `p-4` box's real content (looks "off"). If the answer group already has an `aria-label`,
+  the legend is redundant: replace it with a plain heading `<div>` inside the box. Corollary bonus
+  in this repo: the old collapsible shell used Tailwind `capitalize` on titles, which mangled
+  full-sentence question headings ("Scribble a seed" → "Scribble A Seed") — drop it.
+- **A bottom-anchored `sticky bottom-0` composer only sits FLUSH to the window if the scroll
+  container's bottom padding is zeroed.** `<main>` had `pb-8` and the content column `pb-6`; sticky
+  sticks to the padding edge, leaving a ~56px gap where lower content peeks out below the composer.
+  Zero those paddings in the landing view (`newOpen || landing ? 'pb-0' : 'pb-8'`) and it's flush.
+  Then an auto-growing `<textarea>` (height=scrollHeight on input) makes the box extend UPWARD for
+  free, because the bottom edge is pinned. Prove it by pausing at a short viewport: composer
+  `getBoundingClientRect().bottom === innerHeight` while `main.scrollTop > 0`.
+- **Reskin every corner in ONE place via Tailwind v4 `@theme --radius-*`.** Overriding
+  `--radius-xs … --radius-4xl` to a constant (5px) makes every `rounded-{sm..3xl}` uniform without
+  touching a single component; leave `rounded-full` so pills/status-dots/avatars stay circular.
+  Verify with `getComputedStyle(box).borderRadius === '5px'` and the pill still ~1e7px.
+- **Row-coupled collapse needs EXPLICIT rows in the data model, not CSS grid auto-flow.** To make
+  "collapse any box → its whole row collapses," model the panel as `rows: BoxDef[][]` and key the
+  collapse state by `row[0].id`; a single auto-flow grid can't tell you which items share a visual
+  row. Explicit rows also let a non-question box (Colors) fill the last question's empty grid slot
+  instead of dropping to its own row.
+- **How to apply:** for any "boxed form" surface, use one shared collapsible Box shell + an explicit
+  rows model; never rely on `<legend>` for visual headings; and for a pinned composer, zero the
+  scroll container's bottom padding (flush) rather than nudging the sticky offset.
+
+## 2026-07-09 — driving an SVG pointer canvas from raw CDP: three gotchas that all look like "the handler is broken"
+
+- **Context:** proving the "annotate a photo seed" pad (`PhotoScribble`) end-to-end in `human-sim.mjs` — pen drag, text note, arrow — cost ~8 failed runs, each looking like the React handler didn't fire. It always did; the harness/interaction was wrong. Diagnose these by DISPATCHING a native `PointerEvent` on the element in-page: if that opens/draws, the handler is fine and the problem is CDP input delivery or interaction timing.
+- **CDP `Input.dispatchMouseEvent` fires `pointerdown` on the first MOVE-with-button, NOT on a bare stationary press.** A long multi-move DRAG (pen/arrow) reliably triggers React `onPointerDown`; a stationary tap (press+release same point) often does not. For a click-to-place interaction (the text-note popover) don't fight it — dispatch a real `new PointerEvent('pointerdown', {clientX,clientY,buttons:1})` on the canvas (same real handler, real state, real seed). This is the SAME real-handler tradeoff the mindmap step already makes by calling `mind.selectNode()` directly ("CDP coords unreliable on the transformed canvas").
+- **`setPointerCapture` in `onPointerDown` is NOT implicitly released by CDP's synthetic `pointerup`** (real browsers release on pointerup). A pad that captures on every press then swallows the NEXT tool's `pointerdown` — pen works, the following text/arrow silently do nothing. If the drawing surface is bounded and has `onPointerLeave={end}`, capture buys nothing — drop it (fixed `PhotoScribble`). This was a real latent bug, not just a test artifact.
+- **React 18 flushes `pointerdown` synchronously, so a click-to-open-a-focused-input opens AND focuses on PRESS; the tap's own release/click then blurs the still-empty input and an `onBlur→discard` cancels it.** A human never sees this (their release lands on the input under the cursor). In a harness: open with a dispatched pointerdown (no release), type, commit, done.
+- **A drag handler that reads `draft`/state from the closure drops fast flicks.** `onMove`/`onUp` computed the arrow from the `draft` closure, which is `null` until the setState renders — a rapid CDP drag fired all moves before the first render, so the arrow stayed length-0 and never committed. Fix: functional updates (`setDraft(prev => …)`, and commit inside `setDraft(d => { …; return null })` in `onUp`). Real fast pointers hit this too.
+- **How to apply:** when a real-browser pointer test on an SVG canvas "does nothing," first dispatch a native `PointerEvent` to split handler-bug from input-delivery; prefer real CDP DRAGS for strokes and a dispatched pointerdown for taps; never `setPointerCapture` on a bounded pad; and make drag state updates functional so a flick can't outrun a render.
+
+## 2026-07-09 — "I don't see my chat bubble": a WS-echo-only chat is fragile; add optimistic echo + a REAL-browser send test
+
+- **`human-sim*.mjs` ARE real-browser harnesses (raw CDP → headless chrome.exe), NOT jsdom.** (A sibling learning below claims "this repo has NO real-browser harness" — that is WRONG; `smoke:ui` is jsdom, but `human-sim`/`human-sim-archived`/`human-sim-livechat` launch a real browser, dispatch real `Input.dispatchMouseEvent`/`insertText`, and read real `getBoundingClientRect`/`textContent`.) They DO flake in a loaded sandbox: `no DevTools endpoint within 40s` (launch) and `Input.dispatchMouseEvent: no reply within 20000ms` (input hang) are ENVIRONMENTAL (too many concurrent browser trees starving CPU), not product bugs — distinguish by the failure step (`bootstrap`/CDP = env; an assertion message = real). Retry after other browser runs finish.
+- **A chat that renders the user's OWN message only via the WS round-trip is fragile.** `postChat` deliberately did NOT append locally ("persistence is the single truth; the message returns over WS") — so the bubble's appearance depended on the envelope arriving AND passing the `discussionId` routing guard AND the fullscreen reading the right source. Any edge (reconnect, dropped frame, a snapshot-vs-live mismatch) = the user sees NOTHING after Send. Fix: **optimistic echo** — append the user message to a local `pendingChats` overlay immediately, merge it into `fsMessages` (de-duped by role+text against persisted), prune once the persisted twin arrives, roll back on POST failure. The server still persists independently (`announceArtifactChat`), so truth is unchanged; the DISPLAY just stops depending on WS timing.
+- **The happy path passing in a browser did NOT mean "ready": no browser journey TYPED a message.** `human-sim.mjs` asserted the composer EXISTS but never sent; `human-sim-archived` covered only the archived (`subscribeChat`) route. The live `useBridge`-reducer send→echo was unproven. Added `scripts/human-sim-livechat.mjs` (gated in `npm test`): seed a LIVE thread + keep on disk → default view → click keep AND a round-history option → type + Send → assert the user bubble is in frame AND persisted (`/api/state` + disk `SessionStore.open`), for BOTH the artifact slug and the `option:<boardId>:<optionId>` slug.
+- **How to apply:** any "send X and see it" UI must (a) echo optimistically so the human gets instant feedback independent of the network, and (b) have a real-browser test that actually TYPES and asserts the sender's own item renders — "the composer exists" is not "sending works."
+
+## 2026-07-09 — a single traveling "wayfinding pulse" is an OVERLAY problem, not a per-box CSS problem
+
+- **The operator framed it as "modify the generic box style + closest-point," but there is no shared box class** (boxes are ad-hoc Tailwind `rounded-* border border-line bg-surface`), and — more decisively — a single pulse that flies *between* boxes across the gaps and hands off CANNOT be a per-box `conic-gradient` border (each is independent and can't cross the gap or coordinate "one at a time"). The right shape: tag boxes with a `data-guide` attribute (`hub`|`step`|`input`) + a `data-guide-done` dirty flag, and ONE fixed full-viewport SVG overlay (`GuidePulse`) that reads those rects each frame, traces each rounded-rect perimeter, and animates a comet along perimeter-laps + straight closest-point links. Keep ALL geometry DOM-free in `apps/studio/src/lib/guidePath.ts` so it's unit-testable; the component is just DOM-read (`collectBoxes`) + rAF render.
+- **Reuse the surface's own "answered" signal for the dirty flag — don't invent one.** `BoardSurvey`'s existing `touched` is exactly "the user has acted," and it's already true when a response is prefilled via `initial` (revisit), so "prefilled = answered ⇒ skip" falls out for free. New-discussion uses `canStart` (brief typed or seed prefilled). Concierge/gallery cards unmount on answer, so presence = actionable (no flag needed).
+- **`vite dev` serves despite `tsc` errors; `vite build` does not.** The studio `build` is `tsc --noEmit && vite build`, so an in-flight WIP type error (here: a half-done `SurveyQuestion` move into `packages/protocol` left a duplicate decl in `Survey.tsx` + a cascade in `NewDiscussionPanel`) turns `npm run build` AND `npm test` (via `smoke:ui`? no — build) red across the board. To attribute a red build, filter the tsc output by file: if zero errors touch your files, it's not yours — don't "fix" the operator's WIP (rule 9). The dev server still runs the real app for a live drive.
+- **This repo has NO real-browser harness** (`smoke:ui`/`human-sim` are JSDOM + `renderToString`; rAF/`getBoundingClientRect` don't work there). So an animation's PIXELS can't be auto-verified — prove the geometry with executed unit tests (added `tests/guide-path.test.ts`, run via a new `test:ts` = `tsx --test`), prove the TAGS ship by asserting `data-guide="…"` in the real `BoardSurvey` server-render (`smoke:ui`), and owe the live visual to the operator (or a live Claude-Code drive of `vite dev`).
+- **How to apply:** for "one animated thing that moves across multiple elements," reach for a tagged-element registry + a single overlay driver, not N per-element CSS animations. Put the math in a pure module and test it; tell the operator the moving-pixels check is theirs when the repo lacks a browser runner.
+
 ## 2026-07-09 — "chat on every artifact" was already 90% built; the gap was thread-scope + an idle answerer, not the surface
 
 - **Before building a "missing" feature the operator asked for repeatedly, trace the whole existing pipe end-to-end first.** The artifact-chat surface, POST/reply/WS round-trip, and unit+smoke coverage already existed and passed — the real gaps were narrow: (1) the composer was gated to the live thread (`onSend: viewingLive ? … : undefined`), and (2) the chat was single-thread (`/api/artifact-chat` + `reply_artifact_chat` only touched the one live `store`). Fixing the gaps was ~a dozen surgical lines across protocol/bridge/studio, not a rebuild. Reading the plumbing first turned a vague "make chat work" into a precise diff.
