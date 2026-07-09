@@ -17,6 +17,9 @@ export interface Box {
   h: number;
   /** Corner radius (border-radius), clamped to half the shorter side. */
   r: number;
+  /** The card's answer is complete (or was prefilled). The pulse still visits it,
+   *  but glows green while circling it instead of skipping it. Hub is never done. */
+  done: boolean;
 }
 
 export interface Pt {
@@ -31,9 +34,13 @@ export interface Poly {
 }
 
 export interface Segment {
+  /** `loop` traces a box border; `link` flies between boxes. */
+  kind: 'loop' | 'link';
   dur: number;
   pos: (t: number) => Pt;
   end: Pt;
+  /** True only for a `loop` on a completed box — drives the green glow. */
+  done: boolean;
 }
 
 export const LAPS = 2; // laps per box before the pulse jumps to the next
@@ -147,14 +154,16 @@ export function buildTimeline(boxes: Box[], busy: boolean): Segment[] {
     if (i === 0) firstStart = startPt;
     if (prev && Math.hypot(startPt.x - prev.x, startPt.y - prev.y) > 2) {
       const a = prev;
-      segments.push({ dur: LINK_DUR, pos: (t) => lerp(a, startPt, ease(t / LINK_DUR)), end: startPt });
+      segments.push({ kind: 'link', dur: LINK_DUR, pos: (t) => lerp(a, startPt, ease(t / LINK_DUR)), end: startPt, done: false });
     }
     const lapDur = clamp(poly.total / LAP_SPEED, LAP_MIN, LAP_MAX);
     const loopDur = lapDur * LAPS;
     segments.push({
+      kind: 'loop',
       dur: loopDur,
       pos: (t) => atLength(poly, startL + (t / loopDur) * poly.total * LAPS),
       end: startPt,
+      done: seq[i].done,
     });
     prev = startPt;
   }
@@ -162,7 +171,7 @@ export function buildTimeline(boxes: Box[], busy: boolean): Segment[] {
   if (!busy && prev && firstStart && Math.hypot(prev.x - firstStart.x, prev.y - firstStart.y) > 2) {
     const a = prev;
     const b = firstStart;
-    segments.push({ dur: LINK_DUR, pos: (t) => lerp(a, b, ease(t / LINK_DUR)), end: b });
+    segments.push({ kind: 'link', dur: LINK_DUR, pos: (t) => lerp(a, b, ease(t / LINK_DUR)), end: b, done: false });
   }
   return segments;
 }

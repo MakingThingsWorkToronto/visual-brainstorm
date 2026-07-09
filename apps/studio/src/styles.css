@@ -237,14 +237,32 @@ body {
   filter:
     drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 95%, white 30%))
     drop-shadow(0 0 9px var(--accent));
+  transition: fill 200ms ease, filter 200ms ease;
 }
 .guide-pulse-halo {
   fill: color-mix(in srgb, var(--accent) 55%, transparent);
   filter: blur(3px);
+  transition: fill 200ms ease;
 }
 .guide-pulse-tail {
   fill: var(--accent);
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent));
+  transition: fill 200ms ease;
+}
+
+/* Completed-card glow — while the pulse circles a box whose answer is done it
+   turns emerald (a universal "done", legible on both light and dark themes)
+   instead of skipping the box, so finished cards read as ticked-off. */
+.guide-pulse.is-complete .guide-pulse-head {
+  fill: #ecfdf5;
+  filter: drop-shadow(0 0 4px #6ee7b7) drop-shadow(0 0 10px #10b981);
+}
+.guide-pulse.is-complete .guide-pulse-halo {
+  fill: color-mix(in srgb, #10b981 55%, transparent);
+}
+.guide-pulse.is-complete .guide-pulse-tail {
+  fill: #10b981;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, #10b981 70%, transparent));
 }
 
 @media (prefers-reduced-motion: reduce) {

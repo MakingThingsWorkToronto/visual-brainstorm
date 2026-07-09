@@ -28,19 +28,22 @@ function collectBoxes(): Box[] {
   els.forEach((el, idx) => {
     const role = el.getAttribute('data-guide') as Role | null;
     if (role !== 'hub' && role !== 'step' && role !== 'input') return;
-    if (role !== 'hub' && el.getAttribute('data-guide-done') === 'true') return;
     const rect = el.getBoundingClientRect();
     if (rect.width < 8 || rect.height < 8) return; // hidden / collapsed
     const cs = getComputedStyle(el);
     const r = parseFloat(cs.borderTopLeftRadius) || 0;
-    out.push({ key: `${role}#${idx}`, role, x: rect.x, y: rect.y, w: rect.width, h: rect.height, r });
+    // Completed cards are STILL visited — the pulse glows green while circling
+    // them instead of skipping. The hub is never "done".
+    const done = role !== 'hub' && el.getAttribute('data-guide-done') === 'true';
+    out.push({ key: `${role}#${idx}`, role, x: rect.x, y: rect.y, w: rect.width, h: rect.height, r, done });
   });
   return out;
 }
 
 const sigOf = (boxes: Box[], busy: boolean) =>
-  boxes.map((b) => `${b.key}:${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join('|') +
-  `#${busy ? 'b' : ''}`;
+  boxes
+    .map((b) => `${b.key}:${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}:${b.done ? 'd' : ''}`)
+    .join('|') + `#${busy ? 'b' : ''}`;
 
 export function GuidePulse({ busy, active = true }: { busy: boolean; active?: boolean }) {
   const headRef = useRef<SVGCircleElement>(null);
@@ -50,12 +53,12 @@ export function GuidePulse({ busy, active = true }: { busy: boolean; active?: bo
 
   useEffect(() => {
     if (!active) return;
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (reduce?.matches) return;
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 
     let raf = 0;
     let t0 = performance.now();
     let sig = '';
+    let keySig = '';
     let timeline: Segment[] = [];
     let total = 0;
     const history: Pt[] = [];
@@ -71,6 +74,18 @@ export function GuidePulse({ busy, active = true }: { busy: boolean; active?: bo
       const nextSig = sigOf(boxes, busy);
       if (nextSig !== sig) {
         sig = nextSig;
+        // Re-anchor the clock ONLY when the SET of boxes changes (a card mounts/
+        // unmounts, or the hub appears/disappears) — that restructures the
+        // timeline, so a fixed t0 would teleport the pulse mid-lap and smear the
+        // comet. A pure geometry change (scroll/resize) or a done-flip keeps
+        // `total` identical, so the box-following and the green switch stay
+        // continuous.
+        const nextKeySig = boxes.map((b) => b.key).join(',');
+        if (nextKeySig !== keySig) {
+          keySig = nextKeySig;
+          t0 = now;
+          history.length = 0;
+        }
         rebuild(boxes, busy);
       }
       const svg = rootRef.current;
@@ -82,14 +97,19 @@ export function GuidePulse({ busy, active = true }: { busy: boolean; active?: bo
       svg.style.opacity = '1';
 
       let t = ((now - t0) / 1000) % total;
-      let pos: Pt = { x: 0, y: 0 };
+      let cur: Segment | null = null;
       for (const seg of timeline) {
         if (t < seg.dur) {
-          pos = seg.pos(t);
+          cur = seg;
           break;
         }
         t -= seg.dur;
       }
+      // Fall back to the last segment's end on any floating-point spill so the
+      // pulse never blinks to the (0,0) corner for a frame.
+      const pos: Pt = cur ? cur.pos(t) : timeline[timeline.length - 1].end;
+      // Green while circling a completed box; accent everywhere else (incl. flights).
+      svg.classList.toggle('is-complete', cur?.kind === 'loop' && cur.done);
 
       history.unshift(pos);
       if (history.length > TAIL) history.pop();
@@ -116,19 +136,34 @@ export function GuidePulse({ busy, active = true }: { busy: boolean; active?: bo
       });
     };
 
-    const onVisibility = () => {
-      if (document.hidden) {
-        cancelAnimationFrame(raf);
-      } else {
-        t0 = performance.now();
-        raf = requestAnimationFrame(frame);
-      }
+    // A single GUARDED loop. start() no-ops if a loop is already pending, if the
+    // OS asks for reduced motion, or while the tab is hidden — so a mount, a
+    // visibility flip, and a reduced-motion change can never stack two rAF loops
+    // (which would run the pulse at double speed and leak past unmount).
+    const start = () => {
+      if (raf || (mq && mq.matches) || document.hidden) return;
+      t0 = performance.now();
+      history.length = 0;
+      raf = requestAnimationFrame(frame);
     };
-    document.addEventListener('visibilitychange', onVisibility);
-    raf = requestAnimationFrame(frame);
-    return () => {
+    const stop = () => {
       cancelAnimationFrame(raf);
+      raf = 0;
+      if (rootRef.current) rootRef.current.style.opacity = '0';
+    };
+    const onVisibility = () => (document.hidden ? stop() : start());
+    // Live prefers-reduced-motion: stop when it turns on, resume when it turns
+    // off. The effect deps are only [busy, active], so without this listener the
+    // pulse would stay frozen after the OS setting flips post-mount.
+    const onReduce = () => (mq && mq.matches ? stop() : start());
+
+    document.addEventListener('visibilitychange', onVisibility);
+    mq?.addEventListener?.('change', onReduce);
+    start();
+    return () => {
+      stop();
       document.removeEventListener('visibilitychange', onVisibility);
+      mq?.removeEventListener?.('change', onReduce);
     };
   }, [busy, active]);
 
