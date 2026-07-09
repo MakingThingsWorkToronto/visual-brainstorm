@@ -1,12 +1,12 @@
 ---
 description: "Diagnose the Visual Brainstorm studio, bridge, or MCP server. Use when anything seems broken, stale, hung, or miswired."
 argument-hint: "Symptom, failing behavior, or command output"
-agent: "visual-brainstorm-diagnostician"
+agent: "devops-diagnostician"
 tools: [read, search, execute, visual-brainstorm/*]
 ---
 Read and follow these files in order:
 - [Authoritative registry](../../.claude/agentic-surface-registry.json)
-- [Copilot adapter index](../agentic-surface-map.json)
+- [Copilot adapter registry](../agentic-surface-registry.json)
 - [Workflow](../../.claude/commands/diagnose-studio.md)
 - [Persona](../../.claude/agents/devops-diagnostician.md)
 - [Observability reference](../../wiki/System/testing-observability.md)

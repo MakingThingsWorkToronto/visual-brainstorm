@@ -22,6 +22,18 @@ Users can ask about any artifact whenever they want — you answer in place, in 
    answer about what is actually on disk, never from memory.
 2. **ALWAYS delegate — never answer or regenerate inline** (operator mandate: "claude code
    should always use sub agents for this chat"). Classify the message:
+   - **Mind-map snapshot FIRST** (provenance `boardId` set + `optionIds: []`, name like
+     "… round N tree"): the snapshot SVG is the tree AS PRESENTED — the user has usually
+     edited since (maximize flushes their live draft before the chat opens). **Run
+     `.claude/commands/read-mindmap.md` FIRST** (subagent) — it prefers `draft.json`'s live
+     `editedTree` and the refreshed `round-NN/tree.md`, NEVER the stale snapshot. A
+     **question** is answered from that CURRENT tree (structure, notes, thin gaps). An
+     **improvement request (LIVE thread)** improves the TREE, not the picture: reply via
+     `reply_artifact_chat` saying what you'll change, then `present_board` a NEW mindmap
+     board whose tree GROWS from the live tree per the request (honor notes, never
+     reintroduce deleted branches) — presenting auto-captures the new snapshot (rule 7).
+     Do NOT route a mind-map change to `svg-artisan`: a hand-drawn SVG revision of a tree
+     breaks the co-edit loop (the canvas edits `tree`, not the artwork).
    - **Question** → spawn a general subagent that Reads the artifact SVG plus the thread's
      `brainstorm.md` (provenance: which round, which parents, which notes decided it) and
      returns a short answer. Works on ANY thread, live or archived.
@@ -51,6 +63,9 @@ Users can ask about any artifact whenever they want — you answer in place, in 
    chat changes nothing about the funnel state.
 
 ## Changelog
+- 2026-07-09 — mind-map branch: a chat on the mindmap snapshot runs /read-mindmap FIRST (live
+  draft/tree.md, never the stale presented snapshot); improvements re-present an improved TREE
+  (auto-captured), never an svg-artisan SVG redraw (from mindmap-chat-hardening-2026-07-09)
 - 2026-07-09 — thread-addressed: chat is now available on ANY thread (live, archived,
   previous-round options); the seedNote carries an archived thread's `discussionId` and
   `reply_artifact_chat` takes it so answers record in place. Revisions stay live-only (honest

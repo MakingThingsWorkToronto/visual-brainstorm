@@ -19,6 +19,13 @@ done/skipped-with-reason.
    whose line number drifts between runs means someone is editing that file NOW). Don't
    race them — wait for their loop to converge, re-verify, and only fix what traces to
    the plan being closed.
+   **A crashed session's "verified" status is a claim, not proof.** When closing a plan
+   whose verifying session died, run `/code-review` (high) over the plan's diff BEFORE
+   archiving — tests prove only the paths they walk. The 2026-07-09 crash-resume review
+   of two "IMPLEMENTED + verified" plans confirmed 8 real defects (StrictMode
+   double-commit, async-send double-dispatch, cross-browser rasterization loss, dishonest
+   generated README, live/reload attribution divergence…); fix what traces to the plan,
+   file the rest as a follow-ups plan.
 3. **Harvest learnings** — reread the session. Every non-obvious discovery (gotcha, API
    quirk, decision + rationale, failed approach) goes to `.agents/learnings.md` (newest
    first). If nothing was learned, write nothing — no filler.
@@ -110,6 +117,9 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 2: crash-resume closeouts run /code-review (high) over the plan's diff
+  before archiving — a dead session's "verified" status line is a claim, not proof (from
+  photo-scribble-annotation-2026-07-09 + scribble-legibility-2026-07-09)
 - 2026-07-09 — step 7: mind-map threads anchor the build plan on the tree via /read-mindmap —
   top branches = phases, node notes = requirements, deleted branches = out of scope, `— thin`
   = open questions (from mindmap-model-legible-2026-07-09)

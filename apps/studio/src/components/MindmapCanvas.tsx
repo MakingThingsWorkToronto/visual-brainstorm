@@ -64,12 +64,61 @@ export function MindmapCanvas({
     };
   };
 
-  /** Lift the current engine tree (notes folded) up as editedTree. */
+  // The previous emitted shape — diffed against each new emit so RENAME and MOVE
+  // become explicit intent ops (engine-agnostic: no reliance on mind-elixir's
+  // versioned bus op names, which have bitten before; .agents/learnings.md).
+  const prevTreeRef = useRef<MindNode>(tree.nodeData);
+
+  /** id → {topic, parent} index of a tree, for the rename/move diff. */
+  const indexTree = (
+    node: MindNode,
+    parent: MindNode | null,
+    map: Map<string, { topic: string; parentId: string | null; parentTopic: string }>,
+  ) => {
+    map.set(node.id, {
+      topic: node.topic,
+      parentId: parent?.id ?? null,
+      parentTopic: parent?.topic ?? '',
+    });
+    node.children?.forEach((child) => indexTree(child, node, map));
+  };
+
+  /**
+   * Lift the current engine tree (notes folded) up as editedTree, and diff it
+   * against the previous shape to EMIT rename/move ops — a re-worded topic is
+   * the user's intent verbatim; a re-filed node is a re-classification. Without
+   * these ops the model only infers structure change from the whole tree.
+   */
   const emitEdit = () => {
     const mind = mindRef.current;
     if (!mind) return;
     const data = mind.getData();
-    onEditRef.current({ nodeData: foldNotes(data.nodeData), direction: data.direction });
+    const next = foldNotes(data.nodeData);
+    const prevMap = new Map<string, { topic: string; parentId: string | null; parentTopic: string }>();
+    const nextMap = new Map<string, { topic: string; parentId: string | null; parentTopic: string }>();
+    indexTree(prevTreeRef.current, null, prevMap);
+    indexTree(next, null, nextMap);
+    const at = new Date().toISOString();
+    for (const [id, info] of nextMap) {
+      const before = prevMap.get(id);
+      if (!before) continue; // newly added nodes ride the add/explode ops
+      if (before.topic !== info.topic) {
+        onOpRef.current({ op: 'rename', nodeId: id, topic: info.topic, note: '', oldTopic: before.topic, at });
+      }
+      if (before.parentId !== info.parentId && info.parentId !== null) {
+        onOpRef.current({
+          op: 'move',
+          nodeId: id,
+          topic: info.topic,
+          note: '',
+          newParentId: info.parentId,
+          newParentTopic: info.parentTopic,
+          at,
+        });
+      }
+    }
+    prevTreeRef.current = next;
+    onEditRef.current({ nodeData: next, direction: data.direction });
   };
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-# The Phase Funnel — five psychological routes as interface mechanics (AUTHORITATIVE)
+# The Phase Funnel — six interface phases organized as five psychological routes (AUTHORITATIVE)
 
 The studio is neither a chatbot nor a canvas clone: it is a **phase-shifting survey
 instrument**. Every board carries `phase`; the studio physically re-architects per phase.
@@ -76,8 +76,12 @@ accretes in the background without ever interrupting a drag.
 
 All phases: elaboration, perOptionNotes (editable in the fullscreen preview — click any
 option's SVG on any surface — when `survey.allowPerOptionNotes`), axisValues (persistent
-taste calibration), model (delegate), attachments (composer files/photos, persisted by the
-bridge to the thread's `attachments/` and pointed at by the digest —
+taste calibration), questionAnswers (answers to Board.questions mid-round clarifiers, keyed
+by qid), uncertainties (options flagged unsure — never a silent kill), optionAnnotations
+(marks drawn on options in fullscreen Annotate mode — arrows/boxes/notes with palette color
+names), remixNotes (recipes for remix pairs keyed "a×b" — attribute-level comparison),
+model (delegate), attachments (composer files/photos + annotated-<optionId>.png composites,
+persisted by the bridge to the thread's `attachments/` and pointed at by the digest —
 `Requirements/interaction-protocol.md` §Attachments), paletteColors (the selected theme's
 RESOLVED palette — selection is by theme, and on a live board it also sets the discussion
 theme; the digest instructs ONLY-these-colors — same page, §Generation palettes), commands

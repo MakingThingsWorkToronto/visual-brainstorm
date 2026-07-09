@@ -75,6 +75,42 @@ for (const [phase, markers] of Object.entries(EXPECT)) {
   console.log(`UI ${phase.padEnd(8)} renders ✓ (${markers.length} markers)`);
 }
 
+// Wayfinding-pulse tags on the REAL BoardSurvey render:
+//  - a normal board emits both a `step` mechanic and an `input` composer;
+//  - guide={false} (the live board during a revisit) emits NEITHER, so two
+//    mounted BoardSurveys can't double up the pulse's guide boxes;
+//  - a fresh, untouched board is NOT marked done — green only appears once the
+//    send gate is satisfied, never on mere interaction.
+{
+  const gboard = BoardSchema.parse({
+    id: 'b-guide',
+    sessionId: 's',
+    round: 1,
+    kind: 'icon-grid',
+    phase: 'diverge',
+    title: 't',
+    prompt: 'p',
+    options: [{ id: 'a', label: 'A', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>' }],
+    survey: {
+      axes: [
+        { id: 'x1', label: 'Tone', leftLabel: 'a', rightLabel: 'b' },
+        { id: 'x2', label: 'Density', leftLabel: 'a', rightLabel: 'b' },
+        { id: 'x3', label: 'Glow', leftLabel: 'a', rightLabel: 'b' },
+        { id: 'x4', label: 'Shape', leftLabel: 'a', rightLabel: 'b' },
+        { id: 'x5', label: 'Read', leftLabel: 'a', rightLabel: 'b' },
+      ],
+    },
+    createdAt: 'now',
+  });
+  const base = { board: gboard, models: ['claude-fable-5'], defaultModel: 'claude-fable-5', onRespond: async () => {} };
+  const on = renderToString(createElement(BoardSurvey, base));
+  assert.ok(on.includes('data-guide="step"') && on.includes('data-guide="input"'), 'guide on: step + input tags present');
+  assert.ok(!on.includes('data-guide-done'), 'fresh untouched board is NOT done — green only after the send gate opens');
+  const off = renderToString(createElement(BoardSurvey, { ...base, guide: false }));
+  assert.ok(!off.includes('data-guide='), 'guide=false suppresses ALL pulse tags (revisit dedup)');
+  console.log('UI guide-pulse tags ✓ (step+input on; none when guide=false; fresh board not done)');
+}
+
 // Target repo picker — composer control for the target repo/folder feature.
 const { TargetRepoPicker } = await import('../apps/studio/src/components/TargetRepoPicker.js');
 const pickerUnset = renderToString(createElement(TargetRepoPicker, { targetRepo: null }));
@@ -433,52 +469,92 @@ console.log(
   'UI new-discussion handoff ✓ (brief prefill + summary bubble + bespoke questions replace preset + pre-selected picks)',
 );
 
-// --- Scribble-a-seed photo annotation: composeSeedSvg embeds the photo + colored marks ---
-// Pure function (no DOM), the exact seed markup shipped as { kind:'sketch', svg }.
-const { composeSeedSvg } = await import('../apps/studio/src/components/PhotoScribble.js');
+// --- Scribble-a-seed photo annotation: composeSeedSvg + toScribbleAnnotations ---
+// Pure functions (no DOM). composeSeedSvg is the editable composite markup; the
+// composite PNG (renderCompositePng) needs a real browser and is proven in human-sim.
+const { composeSeedSvg, toScribbleAnnotations } = await import('../apps/studio/src/components/PhotoScribble.js');
 const PHOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
-const annotated = composeSeedSvg({
+const CONTENT = {
   photo: PHOTO,
-  strokes: [{ color: '#00ff00', points: [{ x: 10, y: 10 }, { x: 40, y: 40 }] }],
-  arrows: [{ color: '#ff0000', from: { x: 100, y: 100 }, to: { x: 200, y: 120 } }],
-  notes: [{ color: '#0000ff', at: { x: 50, y: 60 }, text: 'here' }],
-});
+  viewW: 400,
+  viewH: 240,
+  annotations: [
+    { type: 'pen', color: '#00ff00', points: [{ x: 10, y: 10 }, { x: 40, y: 40 }] },
+    { type: 'highlighter', color: '#ffff00', points: [{ x: 5, y: 5 }, { x: 60, y: 8 }] },
+    { type: 'arrow', color: '#ff0000', from: { x: 100, y: 100 }, to: { x: 200, y: 120 } },
+    { type: 'box', color: '#00aaff', from: { x: 20, y: 20 }, to: { x: 90, y: 70 } },
+    { type: 'note', color: '#0000ff', at: { x: 50, y: 60 }, text: 'make this bigger' },
+  ],
+};
+const annotated = composeSeedSvg(CONTENT);
 assert.ok(annotated, '[scribble] annotated composite must not be null');
 for (const marker of [
   `<image href="${PHOTO}"`, // photo embedded as background
-  'preserveAspectRatio="xMidYMid slice"',
   'stroke="#00ff00"', // pen stroke keeps its per-tool color
+  'stroke-opacity="0.35"', // highlighter is translucent
+  'stroke-width="14"', // highlighter is thick
   '<polygon', // arrowhead
   'fill="#ff0000"', // arrow color
-  '<rect', // note card
-  'stroke="#0000ff"', // note border color
-  '>here</text>', // note text, escaped + rendered
+  '<rect', // box + note card both use <rect>
+  'stroke="#00aaff"', // box color
+  'fill-opacity="0.12"', // box translucent fill
+  '>make this bigger</text>', // note text rendered
 ]) {
   assert.ok(annotated!.includes(marker), `[scribble] annotated seed missing "${marker}"`);
 }
-// No annotations → null (a bare photo is already carried as an attachment).
+
+// toScribbleAnnotations: the structured, model-legible export the model traverses.
+const palette = [
+  { name: 'Ion Teal', value: '#00ff00' },
+  { name: 'Alarm Red', value: '#ff0000' },
+];
+const structured = toScribbleAnnotations(CONTENT, palette);
+assert.equal(structured.viewBox.w, 400, '[scribble] structured viewBox width');
+assert.equal(structured.background.present, true, '[scribble] structured background present');
+assert.deepEqual(structured.items.map((i: { type: string }) => i.type), ['pen', 'highlighter', 'arrow', 'box', 'note'], '[scribble] structured item types in draw order');
+assert.equal(structured.items[0].colorName, 'Ion Teal', '[scribble] pen ink resolves to its palette color NAME');
+assert.equal(structured.items[2].colorName, 'Alarm Red', '[scribble] arrow ink resolves to its palette color NAME');
+assert.equal(structured.items[4].colorName, 'accent', '[scribble] a color not in the palette falls back to "accent"');
+assert.equal(structured.items[4].text, 'make this bigger', '[scribble] note text carried verbatim in the structured export');
+
+// No marks → null (a bare photo is already carried as an attachment).
 assert.strictEqual(
-  composeSeedSvg({ photo: PHOTO, strokes: [], arrows: [], notes: [] }),
+  composeSeedSvg({ photo: PHOTO, viewW: 400, viewH: 240, annotations: [] }),
   null,
   '[scribble] a bare photo (no marks) must not become a seed',
 );
 // Plain scribble (no photo) still works — the original behavior is subsumed.
 const plain = composeSeedSvg({
   photo: null,
-  strokes: [{ color: '#123456', points: [{ x: 1, y: 1 }, { x: 2, y: 2 }] }],
-  arrows: [],
-  notes: [],
+  viewW: 400,
+  viewH: 240,
+  annotations: [{ type: 'pen', color: '#123456', points: [{ x: 1, y: 1 }, { x: 2, y: 2 }] }],
 });
 assert.ok(plain && plain.includes('<polyline') && !plain.includes('<image'), '[scribble] plain scribble seed');
 // Note text is escaped, not injected as markup.
 const escaped = composeSeedSvg({
   photo: null,
-  strokes: [],
-  arrows: [],
-  notes: [{ color: '#000', at: { x: 0, y: 0 }, text: '<script>x</script>' }],
+  viewW: 400,
+  viewH: 240,
+  annotations: [{ type: 'note', color: '#000', at: { x: 0, y: 0 }, text: '<script>x</script>' }],
 });
 assert.ok(escaped && !escaped.includes('<script>'), '[scribble] note text must be escaped');
-console.log('UI scribble-a-seed composeSeedSvg ✓ (photo embed + colored pen/arrow/note, null-when-empty, escaped)');
+// The composite must be WELL-FORMED SVG or the browser's <img>→canvas rasterization
+// (renderCompositePng) fails and no vision-readable composite.png is produced. Two guards:
+// (1) no inner double-quote inside the note font-family (a quoted family name like
+// "Segoe UI" would close the attribute and malform the SVG); (2) it parses clean.
+assert.ok(annotated!.includes('font-family="ui-sans-serif'), '[scribble] note uses the app font stack');
+assert.ok(!annotated!.includes('"Segoe UI"'), '[scribble] no quoted family name inside font-family (an inner " closes the attribute → malformed SVG → composite render fails)');
+const fontAttr = annotated!.match(/font-family="([^"]*)"/);
+assert.ok(fontAttr && !fontAttr[1].includes('"'), '[scribble] the font-family value has no inner double-quote');
+const parsed = new DOMParser().parseFromString(annotated!, 'image/svg+xml');
+assert.ok(!parsed.querySelector('parsererror'), '[scribble] the composite SVG parses clean (rasterizable to composite.png)');
+assert.equal(parsed.documentElement.nodeName.toLowerCase(), 'svg', '[scribble] composite root is <svg>');
+// Explicit width/height alongside the viewBox: Firefox/Safari mis-rasterize an
+// intrinsically-unsized SVG through canvas drawImage (blank or a 300x150 default),
+// silently losing the vision composite off Chromium.
+assert.ok(annotated!.includes('width="400" height="240"'), '[scribble] composite root carries explicit width/height matching the viewBox');
+console.log('UI scribble-a-seed composeSeedSvg + toScribbleAnnotations ✓ (photo embed, pen/highlighter/arrow/box/note, palette color names, well-formed SVG, escaped)');
 
 // --- Concierge intake surface (adaptive clarifying question) ---
 // Fixture goes through the schema like every production path (defaults stay in sync).
@@ -615,6 +691,25 @@ assert.ok(activityTokens.includes('Σ 12.3k tok'), '[session-activity] token bad
 // …and without the tokens prop there is no badge at all.
 assert.ok(!activity.includes('Σ '), '[session-activity] badge must not render without tokens prop');
 console.log('UI session activity token badge ✓ (Σ 12.3k tok, absent without prop)');
+
+// Per-sink accounting: the economy view — visible without expanding — labels each
+// sink with a bar + compact count; sinks with zero tokens are omitted.
+const activitySinks = renderToString(
+  createElement(SessionActivity, {
+    events: progressEvents,
+    tokens: { input: 12000, output: 300 },
+    tokensBySink: { generation: 9000, orchestration: 3000, tweak: 300 },
+  }),
+);
+assert.ok(activitySinks.includes('Where the tokens went'), '[session-activity] sink panel header missing');
+for (const [label, count] of [['Board generation', '9k'], ['Orchestration', '3k'], ['Tweak rounds', '300']]) {
+  assert.ok(activitySinks.includes(label), `[session-activity] sink label "${label}" missing`);
+  assert.ok(activitySinks.includes(count), `[session-activity] sink count "${count}" missing`);
+}
+assert.ok(!activitySinks.includes('Poster'), '[session-activity] zero-token sink must be omitted');
+// No breakdown at all without the tokensBySink prop.
+assert.ok(!activityTokens.includes('Where the tokens went'), '[session-activity] no sink panel without tokensBySink');
+console.log('UI session activity per-sink accounting ✓ (labeled bars, zero sinks omitted)');
 
 // --- Sidebar rows: compact token count when summary.tokens > 0, hidden at 0 ---
 // Fixtures go through the schema like every production path (defaults stay in sync).

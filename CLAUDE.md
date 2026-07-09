@@ -78,8 +78,9 @@
     only). Delegated generation goes to `svg-artisan`; diagnosis to `devops-diagnostician`;
     brainstorm orchestration has ONE owner — `brainstorm-orchestrator` — which delegates
    the heavy procedures downward but is itself never re-delegated. Workspace-local harness
-   adapters (today `.github/` for GitHub Copilot; future CODEX/Cursor layers when built)
-   are wrappers over this same authoritative layer, not parallel workflow definitions. When
+   adapters (today `.github/` for GitHub Copilot; `.codex/` + `.agents/skills` for Codex;
+   future Cursor layers when built) are wrappers over this same authoritative layer, not
+   parallel workflow definitions. When
    a change affects a workflow entry point, protocol contract, or user-facing harness
    behavior, reconcile the supported adapter layers in the same cycle so comparable results
    remain achievable across harnesses.
@@ -107,6 +108,8 @@ discussion/      plans + brainstorm thread cache (dirs with session.json);
                        svg-artisan, test-engineer, wiki-librarian)
 .github/               workspace-local GitHub Copilot adapters over the authoritative
                        `.claude/` layer (prompts/agents/instructions, no workflow SSOT)
+.codex/                workspace-local Codex project config, hooks, and custom agents
+.agents/skills/        Codex-discoverable skill mirror of `.claude/skills`
 tests/ + scripts/      unit tests (node:test) + smoke.mjs + ui-smoke.ts
 .mcp.json              registers this repo's own MCP servers (dogfooding): product
                        `visual-brainstorm` + read-only `visual-brainstorm-wiki` (apps/wiki-mcp)

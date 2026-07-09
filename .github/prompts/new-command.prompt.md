@@ -1,12 +1,12 @@
 ---
 description: "Codify recurring work as a new Visual Brainstorm command. Use when the same manual procedure has been needed twice."
 argument-hint: "Recurring task to codify"
-agent: "visual-brainstorm-operator"
+agent: "brainstorm-orchestrator"
 tools: [read, search, edit, agent, todo]
 ---
 Read and follow these files in order:
 - [Authoritative registry](../../.claude/agentic-surface-registry.json)
-- [Copilot adapter index](../agentic-surface-map.json)
+- [Copilot adapter registry](../agentic-surface-registry.json)
 - [Workflow](../../.claude/commands/new-command.md)
 - [Skill discovery map](../../.claude/commands/discover-skills.md)
 

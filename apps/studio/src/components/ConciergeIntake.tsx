@@ -14,7 +14,8 @@ export function ConciergeIntake({
   onAnswer,
 }: {
   exchange: ConciergeExchange;
-  onAnswer: (id: string, answer: string) => Promise<void>;
+  /** picked = tapped chips; typed = the user's own words — structure preserved. */
+  onAnswer: (id: string, answer: string, picked: string[], typed: string) => Promise<void>;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [freeText, setFreeText] = useState('');
@@ -32,7 +33,7 @@ export function ConciergeIntake({
     setSending(true);
     setError(null);
     try {
-      await onAnswer(exchange.id, assembled);
+      await onAnswer(exchange.id, assembled, picked, freeText.trim());
       // The surface clears when the next question (or none) arrives over WS.
     } catch (err) {
       setError(String(err));

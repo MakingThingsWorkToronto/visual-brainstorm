@@ -26,6 +26,10 @@ apps/wiki-mcp        @visual-brainstorm/wiki-mcp — read-only stdio MCP server 
                      adapters over `.claude/`, `.claude/agentic-surface-registry.json`, and the
                      MCP tool surface. They improve command discovery but do not own workflow
                      logic or change the current engine model.
+.codex/              workspace-local Codex project config, hooks, and custom-agent `.toml`
+                     files. Thin adapter over `.claude/`; no duplicated workflow logic.
+.agents/skills/      Codex-discoverable skill mirror of `.claude/skills/` so Codex loads the
+                     same craft rules natively while `.claude/` remains the source of truth.
 ```
 
 ## Data flow — the mashup
@@ -65,25 +69,41 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
   + `artifactChat` dialog replay + `tokens` totals); resolves live root first, then
   `_completed/`.
 - `POST /api/respond` — BoardResponse (zod-validated), incl. the user's `model` choice,
-  per-phase fields (triage/mutations/flaws/positions/clusters/gapNotes), and `attachments`
-  (data URIs persisted by the bridge to `<thread dir>/attachments/` before the response is
-  recorded/broadcast — see interaction-protocol §Attachments). A response whose `boardId`
-  names an already-answered round is a REVISIT: `acceptRevisit` rewrites that round's
-  `response.json` and routes the rewind (interaction-protocol §Return to a previous round).
+  per-phase fields (triage/mutations/flaws/positions/clusters/gapNotes/questionAnswers/
+  uncertainties/optionAnnotations/remixNotes), and `attachments` (data URIs persisted by the
+  bridge to `<thread dir>/attachments/` before the response is recorded/broadcast — see
+  interaction-protocol §Attachments). Logs any unknown keys zod strips (schema-drift tripwire).
+  A response whose `boardId` names an already-answered round is a REVISIT: `acceptRevisit`
+  rewrites that round's `response.json` and routes the rewind (interaction-protocol §Return
+  to a previous round).
+- `POST /api/concierge` — `{ id, answer, picked?: string[], typed?: string }` — the user's
+  answer to a concierge question (picked = suggestion chips tapped, typed = their own words).
+  If no waiter is blocked (MCP process restarted), the answer persists to `<thread>/
+  intake-pending.json` and the MCP tool returns `pending`; when re-called, the stored answer
+  returns immediately. Durable recovery path.
+- `POST /api/gallery-pick` — `{ method, label, recommended }` — the user picked a method
+  card. If no waiter is blocked, the pick persists to `<thread>/intake-pending.json`; when
+  re-called, the stored pick returns immediately (crash recovery). Also records the intake
+  completion to `session.json` (`SessionInfo.intake={complete, method}`).
 - `POST /api/command` — UI-invoked procedures (plan-closeout, discover-skills,
   new-brainstorm). If a board is awaiting a response the wait resolves immediately (action
   `park` + `commands`); if `waitForCommand` is blocked (open_studio landing flow) the waiter
-  takes it directly; otherwise queued and drained into the next present_board tool result.
-  Either way Claude runs `.claude/commands/<command>.md`. Optional payload fields, all
-  compiled into `CommandRequest.seedNote` lines for the orchestrator:
-  - `seed` (SeedIntake, see interaction-protocol): non-text seeds persist to
-    `<discussionRoot>/.seeds/seed-<stamp>.(svg|png|jpeg|…)` with a note pointing at the
-    file; a bad or oversized image (10 MB cap) produces an honest failure note (rule 6).
+  takes it directly; otherwise queued to `<discussionRoot>/.logs/pending-commands.jsonl`
+  (undrained on MCP restart) and drained into the next present_board tool result. Either way
+  Claude runs `.claude/commands/<command>.md`. Optional payload fields, all compiled into
+  `CommandRequest.seedNote` lines for the orchestrator:
+  - `seed` (SeedIntake, see interaction-protocol): non-text seeds persist as either a single
+    file `<discussionRoot>/.seeds/seed-<stamp>.(svg|png|jpeg|…)` (plain images or legacy
+    sketches) OR a folder `<discussionRoot>/.seeds/seed-<stamp>/` (annotated scribbles with
+    compositeDataUri or annotations: composite.png, photo.<ext>, scribble.svg, scribble.json,
+    README.md); a bad or oversized image (10 MB cap) produces an honest failure note (rule 6).
   - `attachments` (ResponseAttachment[], new-brainstorm): persisted via persistAttachment;
     per-file "Seed file … saved at <path> — Read it" or honest FAILED note.
   - `model`: "Model routing: the user chose <model> — delegate round generation to it."
   - `palette` (PaletteColor[], max 64): "Palette: generate ALL SVGs using ONLY these
     colors: …".
+  - `intakeAnswers` (new-brainstorm): `[{question, answers[]}]` — the intake survey answers,
+    per-question (distinct from flattened prompt) — compiles per-question seedNote lines.
 - `GET /api/artifact-svg/<slug>.svg` — serves live-thread artifact SVGs (used by the
   wayfinder strip's drag-out/download); 404 for an unknown slug.
 - `POST /api/artifact-chat` — `{artifactSlug, text}` from the fullscreen artifact chat
@@ -163,22 +183,28 @@ reloadable in the UI (left nav) and by Claude (`list_discussions` / `load_discus
 ```
 discussion/<yyyy-mm-dd-hhmm>-<slug>/
   session.json                 thread meta (id = directory basename; incl. optional
-                               targetRepo override)
+                               targetRepo override + intake gate: {complete, method?})
   brainstorm.md                append-only TEXT memory: every round's options (labels,
                                lineage) + every response digest — the re-synthesis source
   thinking.jsonl               append-only chain-of-thought stream (previously ephemeral;
                                bridge record_thinking → SessionStore.recordThinking)
-  round-01/board.json          full board payload
+  round-01/board.json          full board payload (incl. questions for mid-round asks,
+                               option rationale)
   round-01/option-<id>.svg     every presented SVG, individually cached
-  round-01/response.json       the user's survey response (incl. chosen model); rewritten
+  round-01/response.json       the user's survey response (incl. chosen model, questionAnswers,
+                               uncertainties, optionAnnotations, remixNotes); rewritten
                                in place on a revisit (brainstorm.md appends — never erased)
   round-01/tree-ops.jsonl      mind-map methodology: append-only node-op log (TreeOp:
                                explode|delete|add|note|rename|move, nodeId, topic, note?,
-                               count?, at?) — the INTENT trail
+                               count?, oldTopic?, newParentId?, newParentTopic?, at?) — the
+                               INTENT trail (old/newParent fields support rename/move ops)
   round-01/edited-tree.json    mind-map final structure with folded notes (MindNode tree;
                                only written for tree-payload rounds)
-  attachments/<stamp>-<name>   composer file/photo attachments, decoded from response data
-                               URIs by the bridge (savedPath in the recorded response)
+  attachments/<stamp>-<name>   composer file/photo attachments + annotated-<optionId>.png
+                               (composite PNGs from option annotations), decoded from response
+                               data URIs by the bridge (savedPath in the recorded response)
+  intake-pending.json          pending concierge question or gallery pick (overwritten per
+                               Q/pick, cleared on success, rehydrated on MCP restart)
   progress.jsonl               append-only session-progress events (SessionActivity strip,
                                token meter) — never rewritten, reloads with the thread
   artifacts/<slug>.svg         accepted/final artifacts
@@ -194,10 +220,25 @@ discussion/<yyyy-mm-dd-hhmm>-<slug>/
                                sanitized (rule 8) SVG, served at GET /api/decision-tree/:id
 
 discussion/.seeds/seed-<stamp>.(svg|png|jpeg|…)   non-text seed intake files (root-level,
-                               not per-thread — the seed precedes the thread)
+                               not per-thread — the seed precedes the thread) OR
+discussion/.seeds/seed-<stamp>/  annotated-scribble folder (composite.png, photo.<ext>,
+                               scribble.svg, scribble.json, README.md) for sketches
+                               carrying annotations or a composite
 discussion/.logs/bridge-port.json   actual bridge port + pid, written on Bridge.start()
                                (pipe-progress port discovery — see Ports & endpoints)
+discussion/.logs/pending-commands.jsonl   append-only journal of UI commands queued while
+                               no tool blocks them (pending-commands, drained on next
+                               present_board/open_studio, undrained entries reload on MCP
+                               restart to prevent loss of plan-closeout/discover-skills/etc)
+discussion/.logs/pending-brief.json   the open_studio seedBrief (brief, summary, questions,
+                               picks) persists until consumed on round 1, rehydrated if MCP
+                               restarts before the user submits
 ```
+
+**Atomicity guardrail.** All JSON and SVG writes use atomic write (tmp + rename) via
+`writeFileAtomic` in `SessionStore`. On `open()` reload, `board.json` and `response.json`
+are parsed per-round with a try-catch: if a round is corrupt (partial write from a crash),
+it is skipped and logged honestly (never bricking the thread).
 
 ## Non-negotiables
 
@@ -208,6 +249,7 @@ discussion/.logs/bridge-port.json   actual bridge port + pid, written on Bridge.
   (`{ ...EMPTY, ...msg.state }`). Any field added to `StudioState` in packages/protocol
   MUST get a default in useBridge's EMPTY object (`apps/studio/src/lib/useBridge.ts`).
 - protocol package has zero runtime deps besides zod.
-- **One engine: Claude.** All orchestration and generation live in Claude + the
-  `.claude/{commands,skills}` procedures — NEVER in harness code. All sessions are real
-  Claude engine over MCP. No fake-success: real generation over real tools only.
+- **One authoritative workflow layer.** All orchestration and generation procedures live in
+  `.claude/{commands,skills,agents}` and are wrapped by supported harness adapters
+  (`.github/` for Copilot, `.codex/` + `.agents/skills/` for Codex). No fake-success:
+  real generation over real tools only.

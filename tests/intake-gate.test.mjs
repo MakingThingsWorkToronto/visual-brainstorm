@@ -44,10 +44,15 @@ test('intake gate: false on a fresh thread, true only after a real gallery pick,
       body: JSON.stringify({ id: 'intake-gate-gallery', method: 'mindmap' }),
     });
     assert.equal(res.status, 200, 'gallery pick accepted');
-    assert.equal(await wait, 'mindmap', 'presentGallery resolved with the pick');
+    assert.equal((await wait)?.method, 'mindmap', 'presentGallery resolved with the pick');
 
     // The gate is now satisfied — boards may present.
     assert.equal(bridge.intakeComplete, true, 'a real gallery pick satisfies the intake gate');
+    // …and DURABLY: the pick persists to session.json so the gate survives an
+    // MCP restart (a bridge rebuilt over the reopened store is still complete).
+    const reopened = SessionStore.open(store.info.dir);
+    assert.equal(reopened.info.intake?.complete, true, 'the intake gate persists to session.json');
+    assert.equal(reopened.info.intake?.method, 'mindmap', 'the picked methodology persists');
 
     // Attaching a fresh thread re-arms the gate (the new thread must walk intake again).
     const store2 = new SessionStore('Second thread', scratch);

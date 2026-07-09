@@ -1,5 +1,34 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — a NEW artifact KIND must be routed in every command that handles artifacts generically
+
+- **The trap:** the mindmap snapshot became a new KIND of artifact (provenance `boardId` +
+  `optionIds: []`, target of the maximize→chat), but `.claude/commands/artifact-chat.md`
+  still classified every artifact alike: questions answered from the artifact's SVG (for a
+  mindmap that's the STALE presented tree, not the user's current edits) and change requests
+  routed to `svg-artisan` for an SVG redraw (the WRONG channel — a tree improves by
+  re-presenting an improved TREE, which auto-captures its own snapshot). The code, skill,
+  and run-brainstorm wiring were all correct; the generic COMMAND was the silent gap — found
+  only by an "assume nothing works" review of the full chain.
+- **How to apply:** when a feature mints a new artifact kind (or provenance shape), sweep
+  `.claude/commands/` for every command that handles artifacts generically and add the
+  kind's branch (or state why generic handling is right). A feature "wired into the skills"
+  can still be mis-handled by a sibling command that never learned the kind exists. Prove
+  chat-adjacent flows with a journey step that EDITS state first (the mindchat sim now makes
+  a real engine edit before maximizing — stale-snapshot bugs are invisible to no-edit runs).
+
+## 2026-07-09 — a crashed session's "verified" plan status is a claim, not proof: review-harden before closing; and four UI/persistence traps the review confirmed
+
+- **A plan.md that says "IMPLEMENTED + verified" from a session that CRASHED gets a fresh adversarial review before closeout, not a rubber stamp.** The pre-crash status was green, yet an 8-angle review with per-candidate verification confirmed 8 real defects in the "verified" diff (double-dispatch, StrictMode duplication, cross-browser rasterization loss, dishonest generated README, sink-attribution divergence…). Tests passing proves the paths the tests walk — a recall-biased review walks the others.
+- **React StrictMode double-invokes state updaters: NEVER call setState inside another updater.** PhotoScribble committed arrow/box marks via `setAnnotations` inside the `setDraft` updater — dev double-committed every mark (invisible perfect overlap; undo removed only the phantom), while production (what human-sims test) invoked once, so no test could catch it. Commit gestures from a synchronous `useRef` mirror of the in-flight value; keep every updater pure.
+- **Turning a sync submit handler async opens a double-dispatch window — add the in-flight guard in the same change.** Send & iterate gained `await renderCompositePng(...)` (hundreds of ms on a big photo); the button stayed enabled during the await, so a double-click POSTed two new-brainstorm commands → two seed folders, two threads. Any `onClick` that becomes async needs `disabled`/re-entry state as part of the same diff.
+- **An SVG headed for canvas `drawImage` needs explicit root `width`/`height`, not just a viewBox.** Firefox/Safari mis-rasterize intrinsically-unsized SVGs (blank or 300×150 default) — the vision composite would silently vanish off Chromium while the all-Edge/Chrome test fleet stays green. Emit `width`/`height` matching the viewBox on any SVG that will be rasterized.
+- **Generated model-facing docs must be conditional on what was actually written.** The seed folder's README said "photo.png is the clean background" unconditionally — every blank-canvas scribble sent /read-scribble to Read a nonexistent file. When code writes prose that names sibling files, derive the prose from the same booleans that gated the writes (and resolve shared values — the VIEW target — ONCE, passed to every consumer).
+- **Stateful replay bookkeeping must be one logic, not two mirrors.** `recordProgress` (live) and `SessionStore.open` (reload) disagreed on whether a category+tokens event consumes the armed sink label → identical progress.jsonl produced different tokensBySink live vs reloaded. When a reducer runs both live and in replay, share the transition (or add a test asserting live == reopened, as now).
+
+- **Verify each phase green AT LANDING TIME** (workspace-scoped tsc + the affected test files). A later full-tree red whose error lines sit in fields/files your diff never touched belongs to the parallel session's in-flight work — record the honest state in the plan and do NOT "fix" their half-landed feature (collision); their errors shift minute to minute while they work.
+- **A model QUALITY bake-off needs no live human session:** parallel `svg-artisan` subagents with Agent-tool model overrides on the SAME terse brief give a real generation-path ranking. 2026-07-09 result: fable > opus > sonnet — sonnet violated the JSON-only output contract (prose preamble), opus drifted board-level stroke style (3 vs the skill's 2.5); judge against the svg-authoring checklist, not taste alone.
+
 ## 2026-07-09 — resuming a closeout after a crash: peers may have ALREADY committed parts of your plan; attribute against HEAD symbols, then verify the commit as a standalone snapshot
 
 - **Don't assume your plan's work is still uncommitted after a crash/resume.** Peer sessions' closeouts commit shared files with declared riders — here rounds 1–3 of `artifact-chat-everywhere` (protocol `discussionId`+`drafts`, `resolveChatStore`, `pendingChats`, ArtifactFullscreen, wiki log lines, user-guide) were already in HEAD via peer commits; only round 4 was pending. Attribute by checking each plan SYMBOL against HEAD (`git grep <symbol> HEAD -- <paths>`) instead of trusting `git status` or the plan's progress log — then commit only the residue.

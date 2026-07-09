@@ -91,6 +91,14 @@ const OptionInputSchema = z.object({
   svg: z.string().describe('Self-contained SVG markup with viewBox; no external refs or raster'),
   tags: z.array(z.string()).optional(),
   parents: z.array(z.string()).optional().describe('Option ids from earlier rounds this descends from'),
+  rationale: z
+    .string()
+    .optional()
+    .describe(
+      'Why you drew THIS option — 1–2 sentences QUOTING the user feedback it responds to ' +
+        '("your \'too corporate\' flaw → stripped the gradient"). Rendered under the option; ' +
+        'it is how the human SEES their feedback driving the round. Fill it from round 2 on.',
+    ),
 });
 
 server.tool(
@@ -98,11 +106,19 @@ server.tool(
   'Present an SVG option board to the user in the Visual Brainstorm studio and BLOCK until they respond ' +
     '(multi-select + per-option notes + remix pairs + axis dials + elaboration + model choice + action). ' +
     'Pre-phrase with AskUserQuestion first; make options meaningfully divergent. ' +
-    'PHASE FUNNEL (see .claude/skills/brainstorm-phases): diverge (airy grid, expand freely) → mutate ' +
+    'PHASE FUNNEL (see .claude/skills/brainstorm-phases): diverge (airy grid; selections REPLACE the pool with ' +
+    'syntheses) → expand (amplifier: the pool GROWS with syntheses of the selections; nothing removed) → mutate ' +
     '(SCAMPER lenses on one option at a time; honor response.mutations) → wreck (saboteur mode; convert ' +
     'response.flaws into fixes next round) → cluster (proximity field; response.positions/clusters/gapNotes ' +
-    'encode the user’s implicit mental model — the gaps between clusters are where breakthroughs live) → ' +
+    'encode the user’s implicit mental model — the digest carries a spatial read of the drag geometry; the gaps ' +
+    'between clusters are where breakthroughs live) → ' +
     'converge (triage gate: response.triage keep/kill/merge is final). ' +
+    'MID-ROUND QUESTIONS: pass `questions` (same shape as open_studio questions) when a signal is ambiguous — an ' +
+    'unsure flag, a contradictory dial — and the studio renders a "Claude asks" box beside the options; answers ' +
+    'return in response.questionAnswers and the digest. Never gate the round on them. ' +
+    'The user can also ANNOTATE directly on any option (arrows/boxes/notes drawn on the SVG) — ' +
+    'response.optionAnnotations + an annotated-<optionId>.png attachment carry the marks; response.uncertainties ' +
+    'lists options flagged "unsure" (answer with a clarifying variant, never a silent kill). ' +
     'AXIS DELTAS ARE A COMPLETE INSTRUCTION: if axisValues moved versus their defaults — even with zero ' +
     'selections and no elaboration — regenerate the SAME concepts re-tuned to the new dial values and say so ' +
     'in the next prompt. A dial-only response must NEVER produce a no-op. ' +
@@ -112,7 +128,8 @@ server.tool(
     'REQUIRED: at least 5 axes TAILORED to the domain of the prompt — never absolutes, always a range ' +
     'between two poles (icons: e.g. playful↔serious, flat↔glowing, geometric↔organic; ' +
     'system design: e.g. low↔high cloud cost, simple↔complex, monolith↔distributed, managed↔self-hosted). ' +
-    'If the response carries a `model`, DELEGATE the next round’s generation to that model (subagent with model override). ' +
+    'Generation is ALWAYS delegated to an EXPLICIT model: the feedbackDigest carries a "Model routing" line every round ' +
+    '(the response `model` when the user picked, else the best-SVG default) — subagent with that model override, never an unnamed fallthrough. ' +
     'MIND MAP: to present the mindmap methodology, pass a `tree` (mind-elixir-compatible {nodeData,direction?}) with kind="mindmap" ' +
     'and NO options — the studio renders it as ONE live co-edited canvas; the user’s edits return in response.editedTree (the artifact IS the feedback). ' +
     'Every presented tree is snapshotted to the thread’s artifacts/ automatically (rule 7). A tree board needs no axes. ' +
@@ -138,6 +155,15 @@ server.tool(
       .default([])
       .describe('Range dials tailored to the domain — minimum 5 for an OPTION board; a tree board needs none'),
     survey: SurveyConfigSchema.omit({ axes: true }).partial().optional(),
+    questions: z
+      .array(SurveyQuestionSchema)
+      .max(4)
+      .default([])
+      .describe(
+        'Mid-round clarifying questions (0–4) rendered as a "Claude asks" box beside the options. Use when a ' +
+          'prior signal was ambiguous (an unsure flag, contradictory dials, a gap note you need unpacked). ' +
+          'Answers ride back in response.questionAnswers keyed by question id. Optional — never required to send.',
+      ),
     discussionId: z.string().optional().describe('Resume this prior thread (id from list_discussions)'),
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
     openBrowser: z.boolean().default(true),
@@ -183,6 +209,7 @@ server.tool(
       svg: option.svg,
       tags: option.tags ?? [],
       parents: option.parents ?? [],
+      ...(option.rationale ? { rationale: option.rationale } : {}),
     }));
     const board: Board = {
       id: `board-r${round}-${Date.now()}`,
@@ -194,6 +221,7 @@ server.tool(
       prompt: args.prompt,
       options,
       ...(args.tree ? { tree: args.tree } : {}),
+      questions: args.questions,
       survey: SurveyConfigSchema.parse({ ...(args.survey ?? {}), axes: args.axes }),
       createdAt: new Date().toISOString(),
     };
@@ -359,15 +387,17 @@ server.tool(
     if (!bridge) {
       return text({ status: 'no-studio', hint: 'open_studio or present_board first to attach the studio bridge' });
     }
-    const answer = await bridge.askConcierge(question, suggestions, timeoutSeconds * 1000);
-    if (answer === null) {
+    const result = await bridge.askConcierge(question, suggestions, timeoutSeconds * 1000);
+    if (result === null) {
       return text({
         status: 'pending',
         studioUrl: bridge.url,
-        hint: 'User has not answered yet. The question is still live in the studio; call ask_concierge again to re-ask, or proceed if you have enough.',
+        hint: 'User has not answered yet. The question is still live in the studio (it survives an MCP restart); call ask_concierge again with the SAME question to keep waiting or collect a stored answer, or proceed if you have enough.',
       });
     }
-    return text({ status: 'answered', question, answer });
+    // Structure preserved: `picked` = suggestion chips the user TAPPED (they
+    // endorsed YOUR framing); `typed` = their OWN words (weight highest).
+    return text({ status: 'answered', question, answer: result.answer, picked: result.picked, typed: result.typed });
   },
 );
 
@@ -415,24 +445,56 @@ server.tool(
         reason: c.reason,
       })),
     };
-    const method = await bridge.presentGallery(gallery, timeoutSeconds * 1000);
-    if (method === null) {
+    // Intake content economy (token economy): the minis are premium-model SVGs
+    // spent before any commitment — cache them with the thread so a re-present
+    // (timeout, resume) reuses the SAME cards instead of re-delegating
+    // generation. Also rule 7: presented SVGs persist.
+    let cachedAt: string | undefined;
+    if (store) {
+      try {
+        cachedAt = store.cacheIntakeGallery(gallery);
+      } catch (err) {
+        console.error(`[mcp] intake-gallery cache write failed: ${String(err)}`);
+      }
+    }
+    const pick = await bridge.presentGallery(gallery, timeoutSeconds * 1000);
+    if (pick === null) {
       return text({
         status: 'pending',
         studioUrl: bridge.url,
-        hint: 'User has not picked yet. The gallery is still live; call present_gallery again to re-present, or proceed.',
+        ...(cachedAt ? { cardsCachedAt: cachedAt } : {}),
+        hint:
+          'User has not picked yet. The gallery is still live (it survives an MCP restart); call present_gallery ' +
+          'again to re-present with the SAME cards (cached at cardsCachedAt — NEVER regenerate the minis), or proceed.',
       });
     }
-    return text({ status: 'picked', method });
+    // `recommended` = the user took YOUR recommendation (calibrates future recs);
+    // false means they chose their own path — note which in brainstorm.md.
+    return text({
+      status: 'picked',
+      method: pick.method,
+      label: pick.label,
+      recommended: pick.recommended,
+      reason: pick.reason,
+      ...(cachedAt ? { cardsCachedAt: cachedAt } : {}),
+    });
   },
 );
 
 server.tool(
   'peek_response',
-  'Non-blocking: fetch the user response for a board that previously returned {status:"pending"}.',
+  'Non-blocking: fetch the user response for a board that previously returned {status:"pending"}. ' +
+    'Crash-safe: falls back to the persisted round-NN/response.json when the in-memory record is gone ' +
+    '(e.g. the MCP server restarted after the user answered) — resume the thread first ' +
+    '(present_board.discussionId / session_status) so the store is attached.',
   { boardId: z.string() },
   async ({ boardId }) => {
-    const response = bridge?.peekResponse(boardId) ?? null;
+    // Memory first (the live path), then disk — a response persisted just
+    // before a crash must still be recoverable (durability contract).
+    const response =
+      bridge?.peekResponse(boardId) ??
+      store?.rounds.find((r) => r.board.id === boardId)?.response ??
+      null;
     return text(response ? { status: 'responded', boardId, response } : { status: 'pending', boardId });
   },
 );

@@ -10,11 +10,21 @@ import {
   type PaletteColor,
   type Phase,
   type ResponseAction,
+  type ResponseAttachment,
+  type ScribbleAnnotations,
   type Theme,
   type TreeOp,
 } from '@visual-brainstorm/protocol';
 import { SvgPane } from './primitives';
 import { ArtifactFullscreen } from './ArtifactFullscreen';
+import {
+  composeSeedSvg,
+  renderCompositePng,
+  toScribbleAnnotations,
+  type Annotation,
+  type ScribbleContent,
+} from './PhotoScribble';
+import { SurveyField, answerOf, pickAnswer, setOtherAnswer, type SurveyAnswers } from './Survey';
 import { TargetRepoPicker } from './TargetRepoPicker';
 import { PalettePicker } from './PalettePicker';
 import {
@@ -44,6 +54,29 @@ function scatter(board: Board): Record<string, { x: number; y: number }> {
 }
 
 /**
+ * Inverse of toScribbleAnnotations: restore a draft/revisit's persisted
+ * optionAnnotations into editable pad content (photo omitted — the annotate
+ * view re-rasterizes the option SVG for its background).
+ */
+function toScribbleContent(ann: ScribbleAnnotations): ScribbleContent {
+  const annotations = ann.items.map((item): Annotation => {
+    if (item.type === 'pen' || item.type === 'highlighter') {
+      return { type: item.type, color: item.colorValue, points: item.points ?? [] };
+    }
+    if (item.type === 'arrow' || item.type === 'box') {
+      return {
+        type: item.type,
+        color: item.colorValue,
+        from: item.from ?? { x: 0, y: 0 },
+        to: item.to ?? { x: 0, y: 0 },
+      };
+    }
+    return { type: 'note', color: item.colorValue, at: item.at ?? { x: 0, y: 0 }, text: item.text ?? '' };
+  });
+  return { photo: null, viewW: ann.viewBox.w, viewH: ann.viewBox.h, annotations };
+}
+
+/**
  * The active board rendered as the phase's interface mechanic + shared composer.
  * The studio physically re-architects per phase (wiki/Product/phase-funnel.md).
  */
@@ -62,6 +95,7 @@ export function BoardSurvey({
   optionChat,
   onMaximizeMindmap,
   guide = true,
+  lineageLabels,
 }: {
   board: Board;
   models: Array<ModelCatalogEntry | string>;
@@ -110,6 +144,12 @@ export function BoardSurvey({
    * the two mounted BoardSurveys don't emit duplicate guide boxes.
    */
   guide?: boolean;
+  /**
+   * Option id → label across ALL cached rounds, so an option's `parents` render
+   * as readable lineage chips ("descends from Meridian") instead of raw ids —
+   * the human SEES their earlier feedback driving this round.
+   */
+  lineageLabels?: Record<string, string>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(initial?.selectedOptionIds ?? []),
@@ -174,6 +214,34 @@ export function BoardSurvey({
   // Mind-map node ops (explode/add/delete/note) accumulate this round; they ship
   // as treeOps and persist to tree-ops.jsonl. editedTree is the SHAPE, ops the INTENT.
   const [treeOps, setTreeOps] = useState<TreeOp[]>(() => initial?.treeOps ?? []);
+  // Answers to Claude's mid-round clarifying questions (Board.questions) — the
+  // Survey shape locally; flattened to Record<qid,string[]> on send. Restored
+  // values not among a question's options land in its free-text "other".
+  const [questionAnswers, setQuestionAnswers] = useState<SurveyAnswers>(() => {
+    const restored: SurveyAnswers = {};
+    for (const q of board.questions) {
+      const stored = initial?.questionAnswers?.[q.id];
+      if (stored && stored.length > 0) {
+        restored[q.id] = {
+          picked: stored.filter((v) => q.options.includes(v)),
+          other: stored.filter((v) => !q.options.includes(v)).join(' '),
+        };
+      }
+    }
+    return restored;
+  });
+  // "Unsure" flags: can't judge yet — NOT a kill; Claude answers with a
+  // clarifying variant or a follow-up question.
+  const [unsure, setUnsure] = useState<Set<string>>(() => new Set(initial?.uncertainties ?? []));
+  // Remix recipes: what to take from each side of a remix pair, keyed "a×b".
+  const [remixNotes, setRemixNotes] = useState<Record<string, string>>(initial?.remixNotes ?? {});
+  // Marks drawn ON an option's SVG in the fullscreen Annotate view — per-element
+  // feedback. Keyed by option id; an entry exists only while it has real marks.
+  const [optionMarks, setOptionMarks] = useState<Record<string, ScribbleContent>>(() =>
+    Object.fromEntries(
+      Object.entries(initial?.optionAnnotations ?? {}).map(([id, ann]) => [id, toScribbleContent(ann)]),
+    ),
+  );
 
   const { multiSelect, minSelect, maxSelect } = board.survey;
   const phase = localPhase;
@@ -274,6 +342,8 @@ export function BoardSurvey({
     clusterTouched ||
     !!editedTree ||
     treeOps.length > 0 ||
+    unsure.size > 0 ||
+    Object.keys(optionMarks).length > 0 ||
     Object.values(flaws).some((f) => f.trim() !== '') ||
     Object.values(mutations).some((l) => l.length > 0);
   useEffect(() => {
@@ -308,6 +378,26 @@ export function BoardSurvey({
     perOptionNotes: Object.fromEntries(Object.entries(notes).filter(([, v]) => v.trim() !== '')),
     axisValues,
     remixPairs,
+    remixNotes: Object.fromEntries(
+      remixPairs
+        .map(([a, b]): [string, string] => [`${a}×${b}`, (remixNotes[`${a}×${b}`] ?? '').trim()])
+        .filter(([, v]) => v !== ''),
+    ),
+    questionAnswers: Object.fromEntries(
+      Object.entries(questionAnswers)
+        .map(([qid, a]): [string, string[]] => [
+          qid,
+          [...a.picked, ...(a.other.trim() ? [a.other.trim()] : [])],
+        ])
+        .filter(([, v]) => v.length > 0),
+    ),
+    uncertainties: [...unsure],
+    optionAnnotations: Object.fromEntries(
+      Object.entries(optionMarks).map(([id, content]) => [
+        id,
+        toScribbleAnnotations(content, paletteColors),
+      ]),
+    ),
     action,
     model,
     triage,
@@ -397,7 +487,25 @@ export function BoardSurvey({
     }
     setSending(true);
     try {
-      await onRespond(buildResponse(action, steeredPhase, selectedIds));
+      // Annotated options ship BOTH forms: the structured marks (optionAnnotations,
+      // in buildResponse) AND a rasterized composite PNG per option riding the
+      // normal attachments channel — persisted by the bridge, VISION-readable.
+      // Best-effort: a failed render still sends the structured marks.
+      const annotationPngs: ResponseAttachment[] = [];
+      for (const [id, content] of Object.entries(optionMarks)) {
+        const composedSvg = composeSeedSvg(content);
+        if (!composedSvg) continue;
+        try {
+          annotationPngs.push({
+            name: `annotated-${id}.png`,
+            dataUri: await renderCompositePng(composedSvg, content.viewW, content.viewH, 2),
+          });
+        } catch {
+          /* structured marks still ride optionAnnotations */
+        }
+      }
+      const response = buildResponse(action, steeredPhase, selectedIds);
+      await onRespond({ ...response, attachments: [...response.attachments, ...annotationPngs] });
     } catch (err) {
       setError(String(err));
       setIterationPreview(null);
@@ -427,6 +535,32 @@ export function BoardSurvey({
         </div>
       </div>
 
+      {/* Claude's mid-round clarifying questions — answered WITHOUT leaving the
+          round; answers ride response.questionAnswers. Never gates the send. */}
+      {board.questions.length > 0 && (
+        <div className="rounded-2xl border border-accent/40 bg-accent/5 p-4" data-testid="claude-asks">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent">
+            Claude asks
+          </div>
+          <div className="space-y-4">
+            {board.questions.map((question) => (
+              <div key={question.id}>
+                <div className="mb-1.5 text-sm font-medium">{question.question}</div>
+                <SurveyField
+                  question={question}
+                  answer={answerOf(questionAnswers, question.id)}
+                  onPick={(option) => setQuestionAnswers((prev) => pickAnswer(prev, question, option))}
+                  onOther={(other) => setQuestionAnswers((prev) => setOtherAnswer(prev, question.id, other))}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-[11px] text-ink-dim">
+            optional — answers ride along with your next send
+          </div>
+        </div>
+      )}
+
       {/* The phase mechanic — the actionable "answer" surface. The guide pulse
           traces it until the user has touched it (or it was prefilled). */}
       <div
@@ -439,7 +573,10 @@ export function BoardSurvey({
       >
       {isMindmap && board.tree && (
         <MindmapCanvas
-          tree={board.tree}
+          // Seed from the restored draft when one exists: the canvas mounts once,
+          // and seeding from board.tree after a reload would show (then silently
+          // overwrite) a tree that contradicts the edits the draft carries.
+          tree={editedTree ?? board.tree}
           onEdit={setEditedTree}
           onOp={(op) => setTreeOps((prev) => [...prev, op])}
           onMaximize={
@@ -570,6 +707,27 @@ export function BoardSurvey({
                       {option.description && (
                         <div className="mt-0.5 text-xs text-ink-dim">{option.description}</div>
                       )}
+                      {option.rationale && (
+                        <div
+                          className="mt-1 text-[11px] italic leading-snug text-accent/90"
+                          title="Why Claude drew this — which of your feedback it responds to"
+                        >
+                          ↳ {option.rationale}
+                        </div>
+                      )}
+                      {option.parents.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {option.parents.map((pid) => (
+                            <span
+                              key={pid}
+                              title="Descends from this earlier option of yours"
+                              className="rounded-full border border-line bg-surface-2 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-ink-dim"
+                            >
+                              ↑ {lineageLabels?.[pid] ?? pid}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div
                       className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs ${
@@ -607,6 +765,35 @@ export function BoardSurvey({
                       remix{remixIndex >= 0 ? ` #${Math.floor(remixIndex / 2) + 1}` : ''}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    data-testid="option-unsure"
+                    onClick={() =>
+                      setUnsure((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(option.id)) next.delete(option.id);
+                        else next.add(option.id);
+                        return next;
+                      })
+                    }
+                    aria-pressed={unsure.has(option.id)}
+                    className={`rounded-md border px-2 py-1 text-xs ${
+                      unsure.has(option.id)
+                        ? 'border-amber-500 text-amber-500'
+                        : 'border-line text-ink-dim hover:text-ink'
+                    }`}
+                    title="Can't judge this yet — Claude brings a clarifying variant instead of dropping it"
+                  >
+                    unsure{unsure.has(option.id) ? ' ✓' : ''}
+                  </button>
+                  {optionMarks[option.id] && (
+                    <span
+                      className="rounded-md border border-accent/50 bg-accent/10 px-1.5 py-1 text-[10px] text-accent"
+                      title="You annotated this option — the marks ride your response"
+                    >
+                      ✏️ annotated
+                    </span>
+                  )}
                   {option.tags.map((tag) => (
                     <span key={tag} className="text-[10px] uppercase tracking-wide text-ink-dim">
                       {tag}
@@ -625,6 +812,33 @@ export function BoardSurvey({
                   />
                 )}
               </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Remix recipes: attribute-level comparison the bare pair can't express —
+          "layout from A, palette from B" rides response.remixNotes. */}
+      {(phase === 'diverge' || phase === 'expand') && remixPairs.length > 0 && (
+        <div className="rounded-2xl border border-line bg-surface p-4" data-testid="remix-recipes">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-dim">
+            Remix recipes — what should each mashup take from each side?
+          </div>
+          {remixPairs.map(([a, b]) => {
+            const key = `${a}×${b}`;
+            const labelFor = (id: string) => board.options.find((o) => o.id === id)?.label ?? id;
+            return (
+              <label key={key} className="mb-2 block last:mb-0">
+                <span className="text-xs text-ink-dim">
+                  {labelFor(a)} × {labelFor(b)}
+                </span>
+                <input
+                  value={remixNotes[key] ?? ''}
+                  onChange={(e) => setRemixNotes((prev) => ({ ...prev, [key]: e.target.value }))}
+                  placeholder={`e.g. layout from ${labelFor(a)}, palette from ${labelFor(b)} — optional`}
+                  className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs outline-none focus:border-accent"
+                />
+              </label>
             );
           })}
         </div>
@@ -956,6 +1170,19 @@ export function BoardSurvey({
                 })()
               : undefined
           }
+          // Draw ON the option (arrows/boxes/highlights/notes) — per-element
+          // feedback riding response.optionAnnotations + a composite PNG.
+          annotate={{
+            palette: paletteColors,
+            value: optionMarks[previewOption.id] ?? null,
+            onChange: (content) =>
+              setOptionMarks((prev) => {
+                const next = { ...prev };
+                if (content) next[previewOption.id] = content;
+                else delete next[previewOption.id];
+                return next;
+              }),
+          }}
           onClose={() => setPreviewId(null)}
         />
       )}

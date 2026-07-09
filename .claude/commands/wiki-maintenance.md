@@ -118,8 +118,8 @@ point per harness. Enumerate the real files on disk and reconcile against the wi
     `.claude/` layer (rule 11), NOT parallel workflow definitions. Adapter files added/removed
     without the wiki reflecting the mapping is a gap.
 16. **Per-harness authoritative starting points** — the wiki states, per supported harness
-    (Claude Code → `.claude/` + this CLAUDE.md; GitHub Copilot → `.github/`; future
-    CODEX/Cursor when built), where an agent on that harness starts and which layer is the
+    (Claude Code → `.claude/` + this CLAUDE.md; GitHub Copilot → `.github/`;
+    Codex → `.codex/` + `.agents/skills/`; future Cursor when built), where an agent on that harness starts and which layer is the
     behavioral SSOT. Missing/ambiguous → fix obvious, else `AskUserQuestion`.
 17. **Reconcile obligation is bounded (rule 11).** Every `.claude`↔`.github` pair should stay
     outcome-comparable; if the sweep finds an adapter that has diverged from its `.claude`

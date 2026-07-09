@@ -5,7 +5,11 @@ Subagents with scoped tools and embedded procedure. Use them instead of ad-hoc w
 **MCP tool-scoping guardrail:** An agent with an explicit `tools:` allowlist gets ONLY those tools — MCP tools do not inherit implicitly (despite `.mcp.json` registration). Add MCP tool names explicitly (e.g., `mcp__visual-brainstorm-wiki__wiki_reload`); agents with `tools: All tools` or `*` get them free. Corollary: when a scoped agent gains an MCP-backed duty, add its tools to `tools:` frontmatter in the SAME edit or the duty is dead letter.
 
 The full interface-task → owner map (which agent/command/script owns every UI mechanic)
-is `wiki/System/interface-coverage.md`.
+is `wiki/System/interface-coverage.md`. The full `.claude` command + skill enumeration, plus
+per-harness entry points, is in the harness pages:
+[harness-claude-code.md](harness-claude-code.md) (native/SSOT) and
+[harness-copilot.md](harness-copilot.md) (Copilot adapter) and
+[harness-codex.md](harness-codex.md) (Codex adapter).
 
 Every agent (and command/skill) pins a `model:` tier — see
 [model-tiering.md](model-tiering.md) for the rule. Opus is the reserved carve-out

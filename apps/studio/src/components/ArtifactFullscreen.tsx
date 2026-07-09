@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ArtifactChatMessage } from '@visual-brainstorm/protocol';
+import type { ArtifactChatMessage, PaletteColor } from '@visual-brainstorm/protocol';
 import { BodyPortal, SvgPane } from './primitives';
+import { PhotoScribble, renderCompositePng, type ScribbleContent } from './PhotoScribble';
+
+/** Parse an SVG's viewBox into {w,h}; falls back to a square-ish default. */
+function svgDims(svg: string): { w: number; h: number } {
+  const match = svg.match(/viewBox\s*=\s*"\s*[\d.eE+-]+[\s,]+[\d.eE+-]+[\s,]+([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*"/);
+  const w = match ? Number(match[1]) : 400;
+  const h = match ? Number(match[2]) : 400;
+  return { w: w > 0 ? w : 400, h: h > 0 ? h : 400 };
+}
 
 /**
  * The chat half of the fullscreen dock — message list + simplified composer
@@ -130,6 +139,17 @@ export type FullscreenChat = {
 };
 
 /**
+ * Annotate-on-option: draw arrows/boxes/highlights/notes directly ON the shown
+ * SVG (per-element feedback — an arrow AT a shape beats a paragraph ABOUT it).
+ * The marks ride BoardResponse.optionAnnotations; the caller owns the content.
+ */
+export type FullscreenAnnotate = {
+  palette: PaletteColor[];
+  value: ScribbleContent | null;
+  onChange: (content: ScribbleContent | null) => void;
+};
+
+/**
  * The ONE fullscreen surface for any artifact or round-history option — the
  * single path every click opens (captured keeps, pinned artifacts, previous-
  * round options). A zoom/pan SVG stage on the left, a right dock with the
@@ -146,6 +166,7 @@ export function ArtifactFullscreen({
   revised = false,
   notes,
   chat,
+  annotate,
   pin,
   onClose,
 }: {
@@ -157,6 +178,8 @@ export function ArtifactFullscreen({
   notes: FullscreenNotes;
   /** Present → a chat dock under the notes; absent → notes only (live board option). */
   chat?: FullscreenChat;
+  /** Present → an ✏️ Annotate toggle: scribble directly on this SVG (live options). */
+  annotate?: FullscreenAnnotate;
   /** Present → a Pin/Unpin toggle in the header (live captured artifacts). */
   pin?: { pinned: boolean; onToggle: () => void };
   onClose: () => void;
@@ -169,6 +192,12 @@ export function ArtifactFullscreen({
   // Fetched SVG (captured artifacts live on disk, rule 7); inline `svg` wins.
   const [fetched, setFetched] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState(notes.value);
+  // Annotate mode: the SVG is rasterized once into the pad's background (the
+  // pad measures it for aspect; marks land in its coordinate space). Auto-on
+  // when reopening a view that already has marks.
+  const [annotating, setAnnotating] = useState(Boolean(annotate?.value));
+  const [annotateBg, setAnnotateBg] = useState<string | null>(annotate?.value?.photo ?? null);
+  const [annotateError, setAnnotateError] = useState<string | null>(null);
 
   const clamp = (s: number) => Math.min(24, Math.max(0.2, s));
   const reset = () => {
@@ -209,6 +238,26 @@ export function ArtifactFullscreen({
 
   const shown = svg ?? fetched;
 
+  // Rasterize the shown SVG for the annotation pad the first time it's needed —
+  // an <image href> background must be a raster so the pad measures a real
+  // aspect and the composite PNG later re-rasterizes identically.
+  useEffect(() => {
+    if (!annotating || annotateBg || !shown || !annotate) return;
+    const { w, h } = svgDims(shown);
+    const scaleTo = Math.min(4, Math.max(1, 800 / Math.max(w, h)));
+    let stale = false;
+    renderCompositePng(shown, w, h, scaleTo)
+      .then((png) => {
+        if (!stale) setAnnotateBg(png);
+      })
+      .catch((err) => {
+        if (!stale) setAnnotateError(`could not prepare the annotation canvas: ${String(err)}`);
+      });
+    return () => {
+      stale = true;
+    };
+  }, [annotating, annotateBg, shown, annotate]);
+
   return (
     <BodyPortal>
       <div className="fixed inset-0 z-50 flex bg-black">
@@ -241,6 +290,24 @@ export function ArtifactFullscreen({
                 }`}
               >
                 {pin.pinned ? '📌 Pinned' : '📌 Pin'}
+              </button>
+            )}
+            {annotate && (
+              <button
+                type="button"
+                data-testid="fullscreen-annotate-toggle"
+                onClick={() => setAnnotating((a) => !a)}
+                aria-pressed={annotating}
+                title={
+                  annotating
+                    ? 'Back to zoom/pan view (your marks are kept and sent with your response)'
+                    : 'Draw arrows, boxes, highlights and notes directly ON this option — per-element feedback Claude reads'
+                }
+                className={`ml-1 rounded-lg px-2 py-0.5 text-xs ${
+                  annotating ? 'bg-accent/30 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                {annotating ? '🖼 View' : '✏️ Annotate'}
               </button>
             )}
             <span className="ml-2 rounded bg-white/10 px-2 py-0.5 text-xs tabular-nums">
@@ -303,7 +370,35 @@ export function ArtifactFullscreen({
             }}
           >
             <div className="flex h-full w-full items-center justify-center">
-              {shown ? (
+              {annotate && annotating ? (
+                annotateBg ? (
+                  <div
+                    className="m-auto flex max-h-full w-full max-w-3xl flex-col overflow-y-auto rounded-2xl border border-line bg-surface p-4"
+                    // The stage behind is the zoom/pan surface — a drawing stroke
+                    // must not ALSO pan it, so pointer events stop here.
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerMove={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
+                    onWheel={(e) => e.stopPropagation()}
+                  >
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-dim">
+                      Annotate "{title}" — arrows point AT what to change; notes are literal instructions
+                    </div>
+                    <PhotoScribble
+                      palette={annotate.palette}
+                      photo={annotateBg}
+                      lockPhoto
+                      initial={annotate.value?.annotations}
+                      onRemovePhoto={() => {}}
+                      onChange={annotate.onChange}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-sm text-white/50">
+                    {annotateError ?? 'preparing the annotation canvas…'}
+                  </div>
+                )
+              ) : shown ? (
                 <div
                   className="h-full w-full text-white"
                   style={{

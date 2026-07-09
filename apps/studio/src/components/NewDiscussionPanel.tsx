@@ -53,6 +53,13 @@ export interface NewDiscussionExtras {
   attachments: ResponseAttachment[];
   model?: string;
   palette: PaletteColor[];
+  /**
+   * The intake survey STRUCTURED (question text → picked answers + typed
+   * "other") — the composed prompt flattens answers into a parenthetical,
+   * losing which question each belonged to; this preserves the mapping for
+   * the orchestrator's seed note.
+   */
+  intakeAnswers?: { question: string; answers: string[] }[];
 }
 
 // The panel's intake questions come from ONE of two sources: a run-brainstorm
@@ -162,6 +169,10 @@ export function NewDiscussionPanel({
   const [model, setModel] = useState(defaultModel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  // Send became async (buildSeed rasterizes the composite PNG, hundreds of ms on
+  // a big photo) — without this guard a second click mid-await dispatched a
+  // duplicate new-brainstorm command (two seed folders, two threads).
+  const [sending, setSending] = useState(false);
   // Collapse is coupled by ROW, keyed by the row's first box id. Scribble starts
   // collapsed (optional seed); every other row starts open.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ scribble: true });
@@ -398,22 +409,38 @@ export function NewDiscussionPanel({
           )}
           <button
             type="button"
-            disabled={!canStart}
+            disabled={!canStart || sending}
             onClick={async () => {
-              const seed = await buildSeed();
-              onStart(composedPrompt, seed, {
-                attachments: intake.attachments,
-                // Always explicit (token-economy decision 4): the seed names the
-                // generation model even when it's the default — no undefined
-                // fallthrough that leaves routing to omission.
-                model: model || defaultModel || undefined,
-                palette,
-              });
+              if (sending) return;
+              setSending(true);
+              try {
+                const seed = await buildSeed();
+                // Q→A structure travels beside the flattened prompt: the seed
+                // note tells the orchestrator WHICH question each answer met.
+                const intakeAnswers = questions
+                  .map((q) => {
+                    const a = answerOf(answers, q.id);
+                    const picked = [...a.picked, ...(a.other.trim() ? [a.other.trim()] : [])];
+                    return { question: q.question, answers: picked };
+                  })
+                  .filter((qa) => qa.answers.length > 0);
+                onStart(composedPrompt, seed, {
+                  attachments: intake.attachments,
+                  // Always explicit (token-economy decision 4): the seed names the
+                  // generation model even when it's the default — no undefined
+                  // fallthrough that leaves routing to omission.
+                  model: model || defaultModel || undefined,
+                  palette,
+                  ...(intakeAnswers.length > 0 ? { intakeAnswers } : {}),
+                });
+              } finally {
+                setSending(false);
+              }
             }}
             title={`Starts a fresh brainstorm session from this brief (requires ${runtime.label})`}
             className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-105 disabled:opacity-50"
           >
-            Send & iterate
+            {sending ? 'Sending…' : 'Send & iterate'}
           </button>
           <TargetRepoPicker targetRepo={targetRepo} />
           <div className="relative">

@@ -177,15 +177,23 @@ export function useBridge() {
     if (!res.ok) throw new Error(`respond failed: ${res.status} ${await res.text()}`);
   }, []);
 
-  /** Answer the pending concierge question (adaptive intake). */
-  const answerConcierge = useCallback(async (id: string, answer: string) => {
-    const res = await fetch('/api/concierge', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id, answer }),
-    });
-    if (!res.ok) throw new Error(`concierge answer failed: ${res.status} ${await res.text()}`);
-  }, []);
+  /**
+   * Answer the pending concierge question (adaptive intake). `picked` (tapped
+   * chips) and `typed` (the user's own words) ride ALONGSIDE the assembled
+   * answer — the structure is a different signal than the joined string
+   * (endorsement of Claude's framing vs original input) and must survive.
+   */
+  const answerConcierge = useCallback(
+    async (id: string, answer: string, picked: string[] = [], typed = '') => {
+      const res = await fetch('/api/concierge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, answer, picked, typed }),
+      });
+      if (!res.ok) throw new Error(`concierge answer failed: ${res.status} ${await res.text()}`);
+    },
+    [],
+  );
 
   /** Pick a methodology from the Living Gallery — routes the session into it. */
   const pickMethod = useCallback(async (id: string, method: string) => {

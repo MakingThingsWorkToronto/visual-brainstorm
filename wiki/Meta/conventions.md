@@ -24,8 +24,8 @@
 - `.claude/commands/` is the AUTHORITATIVE home of repeatable repo procedures (slash
   commands); `.claude/skills/` holds craft knowledge (SVG authoring, phase driving).
   Recurring manual work becomes a command via `/new-command` — asked twice = failure.
-- Harness adapters (`.github/` today for GitHub Copilot; future CODEX/Cursor layers when
-  support is real) are discovery/execution wrappers over the authoritative `.claude/` layer,
+- Harness adapters (`.github/` for GitHub Copilot; `.codex/` + `.agents/skills/` for Codex;
+  future Cursor layers when support is real) are discovery/execution wrappers over the authoritative `.claude/` layer,
   not a second source of workflow truth. If a `.claude` workflow/skill/agent, protocol
   contract, or user-facing harness seam changes, reconcile the supported adapter files in the
   same cycle so harnesses stay outcome-comparable.
@@ -45,5 +45,5 @@
 - apps/mcp logs to stderr only (plus the FileLog ring/file — System/testing-observability.md).
 - **Features ship with tests** at the lowest layer that catches their regression
   (unit `tests/` → smoke → ui-smoke); `npm test` green before any completion claim.
-- All orchestration/generation lives in Claude + `.claude/{commands,skills,agents}` —
-  harness code stays dumb (fixtures only). Human-facing docs live in `wiki/user-guide.md`.
+- All orchestration/generation lives in the authoritative `.claude/{commands,skills,agents}`
+  layer — harness code stays dumb (fixtures only). Human-facing docs live in `wiki/user-guide.md`.

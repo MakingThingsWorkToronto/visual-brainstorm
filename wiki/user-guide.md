@@ -35,13 +35,22 @@ adapter layer does not change thread or artifact semantics. Repo tests prove the
 adapter-map → prompt/agent chain stays aligned; whether those slash entries are shown in the
 Copilot `/` menu itself is still a VS Code host behavior and should be spot-checked after host upgrades.
 
+**Use Codex in this workspace.** This repo also ships a Codex adapter: `.codex/config.toml`
+registers the local `visual-brainstorm` and `visual-brainstorm-wiki` MCP servers, `.codex/hooks.json`
+pipes progress and runs the agentic-surface guard, `.codex/agents/*.toml` adapts the five
+specialist personas, and `.agents/skills/` mirrors the authoritative `.claude/skills/` craft.
+Trust the project in Codex, restart the task, then check `/mcp` for both servers. The Codex
+layer is intentionally a wrapper: read and execute `.claude/commands/*.md` for procedures.
+
 ## 2. Starting a brainstorm, step by step
 
 1. **Open a terminal in the project you want artifacts saved to.** In this repo the MCP
    server auto-loads via `.mcp.json`; in any other project register it first (see §1).
-2. **Start Claude Code:** `claude`
+2. **Start Claude Code or Codex:** `claude` for the native harness; Codex after trusting the
+   repo so `.codex/` project config loads.
 3. **Check the connection (first time):** type `/mcp` — `visual-brainstorm` should be listed
-   as connected. If it isn't, the register step didn't take; re-run it and restart `claude`.
+   as connected. If it isn't, the register step didn't take or the Codex project config did
+   not load; re-run setup and restart the client.
 4. **Say what you want, prefixed however feels natural:**
    - *"brainstorm: app icons for a note-taking tool — warm, hand-drawn, must read at 16px"*
    - *"let's visually brainstorm the architecture for our search feature"*
@@ -87,7 +96,7 @@ Copilot `/` menu itself is still a VS Code host behavior and should be spot-chec
      as your brainstorm "response" (structure IS the response). The **maximize** icon (top-right
      of the map) opens the map full-screen with a **chat on the right** — ask about it or ask
      Claude to improve it in words, exactly like any artifact; the map stays put while Claude
-     answers. Your tree is saved with the thread in a form Claude reads and builds the next
+     answers. Claude reads your current tree — your latest edits are saved the moment you maximize — and can grow you an improved map. Your tree is saved with the thread in a form Claude reads and builds the next
      round + the final plan directly from — the structure you draw anchors everything.
    - **Funnel, Wreck, or Cluster:** The brainstorm continues into the standard funnel:
      diverge, expand, mutate, wreck, cluster, converge. You'll select options, move dials,
@@ -253,10 +262,35 @@ discussion — orchestrator and subagents alike, captured deterministically from
 transcripts — accumulate and persist with the thread. The running total shows as a
 `Σ … tok` badge on the activity strip (there even before the first live event arrives), as
 a per-thread `… tok` badge in the sidebar, and on an archived thread's banner as its `Σ`
-total.
+total. When any token sink has recorded usage, the expanded activity list also shows a
+**"Where the tokens went"** panel — labeled horizontal bars per sink (generation, tweak,
+intake, orchestration, poster) with their proportional token counts — so you see not just
+the total spend but which activities consumed the most.
 
 **Every gesture counts** — this is the core contract:
 - **Dials** (min 5 per board, tailored to your topic): each dial shows its current numeric value in a bordered tag right-aligned next to the heading (turns accent-coloured when moved off its default). Moving a dial and sending — with nothing else — is a complete instruction; the next round is visibly re-tuned. Moved dials show a ● and "steers next round".
+- **Claude asks** (a "Claude asks" box on certain boards, beside the options): when Claude needs
+  a clarifying detail mid-round (Is it for mobile or desktop? How much interaction?), you can
+  answer right there without leaving the round — tap suggested answers or type your own. Your
+  answer flows into Claude's next thinking without any context loss. Never required; skip if
+  you already know what to say next.
+- **Unsure** (a toggle on each card in Converge, and sometimes elsewhere): if you can't decide
+  yet (looks good but not ready, or needs something you can't name), click **unsure** instead
+  of keep/kill — that's not a hidden kill. Claude responds with a clarifying variant of that
+  option so you can judge better, or asks a mid-round question to unblock you.
+- **Remix recipes** (a text field next to a remix pair when you mark two options to mash up):
+  instead of just "take layout from A, palette from B", you can spell it out — "use A's grid
+  but with B's color language" — so Claude knows exactly what synthesis you want. A remix pair
+  with a recipe is higher-fidelity than a pair without.
+- **Annotate an option** (the **✏️ Annotate** toggle in the fullscreen option viewer): draw
+  directly on the option — arrows (tail→head) pointing at what to change, boxes circling a
+  region, notes anchoring ideas to spots — in the current palette colors. Your marks stay
+  with your response so Claude reads exactly what you meant to highlight. The composite PNG
+  (what Claude sees) and the structured mark data travel with your answer.
+- **Lineage + rationale** (chips under each option when available): see why each option was
+  drawn by reading its rationale (1–2 sentences quoting your feedback from earlier rounds),
+  and click the lineage chips to jump back to the earlier round it descended from. Claude's
+  thinking is visible — your feedback is driving the round.
 - **Click any option's SVG** — on every phase surface, and on round-history thumbnails (on
   the cluster field, a click without a drag) — to open it full screen with wheel zoom, drag
   pan, and pinch on mobile — built for dense system diagrams. The preview also shows the
@@ -289,7 +323,11 @@ total.
   color — edits are saved as a drop-in theme JSON, so your color names persist and you can
   refer to them by name in conversation.
 - **model** picker (in the composer's **More Tools** menu): the next round's generation is
-  delegated to the model you choose.
+  delegated to the model you choose. Routing is always explicit: if you never touch the
+  picker, generation runs on the configured best-SVG default (the best available drawing
+  model) — never an accidental fallthrough. Nudge-only replies (dials, notes, flaws — no new
+  direction) are honored as *mutations* of the very SVGs you reacted to, so what you liked
+  survives unchanged and only your adjustments are redrawn.
 - **Back**: this round didn't work — re-present the previous board (bypasses all gates).
 - **⟲ return to this round** (hover any past round's separator in the timeline; always
   visible on touch): reopens that round's answers exactly as you sent them — change

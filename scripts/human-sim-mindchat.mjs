@@ -132,14 +132,60 @@ if (browsers.length === 0) {
       assert.ok(treeMd.includes(`- ${rootTopic}`), 'tree.md lists the root topic (traversable)');
     });
 
-    await step('maximize → the SAME fullscreen viewer (SVG + Notes + chat composer)', async () => {
+    const simTopic = 'Kinetic afterglow (sim edit)';
+    await step('a REAL engine edit lands on the canvas (mind-elixir addChild, no fabrication)', async () => {
+      // The canvas exposes its live instance on the engine container (interop
+      // convention) — drive the GENUINE engine→onEdit path, never a fake response.
+      const added = await evaluate(
+        `(async () => {
+          const mind = document.querySelector('[data-testid="mindmap-engine"]')?.mind;
+          if (!mind) return 'no engine instance on the container';
+          const el = mind.findEle(mind.nodeData.id);
+          if (!el) return 'root element not found';
+          const node = mind.generateNewObj();
+          node.topic = ${JSON.stringify(simTopic)};
+          await mind.addChild(el, node);
+          return 'ok';
+        })()`,
+        { awaitPromise: true },
+      );
+      assert.equal(added, 'ok', `the engine accepted a real addChild edit (${added})`);
+      await waitInPage(
+        'the new node renders on the canvas',
+        `document.body.textContent.includes(${JSON.stringify(simTopic)})`,
+        8_000,
+      );
+    });
+
+    await step('maximize → the SAME fullscreen viewer; the flush persists the LIVE tree (draft.json + tree.md)', async () => {
       await click('the mind-map maximize button', `document.querySelector('[data-testid="mindmap-maximize"]')`);
       await waitInPage(
-        'the unified fullscreen viewer with a chat composer',
+        'the unified fullscreen viewer with a chat composer + the mindmap-aware hint',
         `!!document.querySelector('.tabular-nums') &&
          document.body.textContent.includes('Notes') &&
-         !!document.querySelector('input[placeholder="Ask or ask for a change…"]')`,
+         !!document.querySelector('input[placeholder="Ask or ask for a change…"]') &&
+         document.body.textContent.includes('Claude reads your CURRENT tree')`,
       );
+      // Maximize flushes the live draft (fire-and-forget POST + a 500ms debounce
+      // backstop) — poll the store's files: this is EXACTLY what /read-mindmap and
+      // an artifact-chat answer read mid-edit.
+      const draftFile = path.join(roundDir, 'draft.json');
+      const deadline = Date.now() + 8_000;
+      let flushed = false;
+      while (Date.now() < deadline) {
+        if (fs.existsSync(draftFile)) {
+          const draft = JSON.parse(fs.readFileSync(draftFile, 'utf8'));
+          if (JSON.stringify(draft.editedTree ?? {}).includes(simTopic)) {
+            flushed = true;
+            break;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      assert.ok(flushed, 'draft.json carries the live editedTree with the sim edit (flushed on maximize)');
+      const treeMd = fs.readFileSync(path.join(roundDir, 'tree.md'), 'utf8');
+      assert.ok(treeMd.includes('### Live tree'), 'tree.md refreshed to the LIVE heading (mid-edit legibility)');
+      assert.ok(treeMd.includes(simTopic), 'tree.md contains the edited node (what read-mindmap reads)');
     });
 
     const mindQ = 'Can the “Motion” branch lean more kinetic?';
@@ -176,9 +222,10 @@ if (browsers.length === 0) {
     passed = true;
     console.log(
       `HUMAN SIM MINDCHAT PASS — ${stepCount} steps: real ${browserName} over raw CDP rendered a live mind map, ` +
-        'confirmed round-NN/tree.md (model-legible outline), maximized into the unified fullscreen viewer with a chat ' +
-        'composer, and asked a question that persisted under the mindmap snapshot artifact while the board stayed live; ' +
-        'zero exceptions, zero STUDIO CLIENT ERROR lines',
+        'confirmed round-NN/tree.md (model-legible outline), made a REAL engine edit, maximized into the unified ' +
+        'fullscreen viewer (mindmap-aware hint) and confirmed the flush persisted the LIVE tree (draft.json + tree.md ' +
+        'Live heading with the edit — what read-mindmap reads), then asked a question that persisted under the mindmap ' +
+        'snapshot artifact while the board stayed live; zero exceptions, zero STUDIO CLIENT ERROR lines',
     );
   } catch (err) {
     process.exitCode = 1;

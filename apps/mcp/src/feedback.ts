@@ -57,14 +57,52 @@ export function buildFeedbackDigest(
     digest.push(`Note on "${label(id)}": ${note}`);
   }
 
+  // Answers to Claude's mid-round clarifying questions (Board.questions).
+  for (const [qid, answers] of Object.entries(response.questionAnswers)) {
+    if (answers.length === 0) continue;
+    const question = board.questions.find((q) => q.id === qid)?.question ?? qid;
+    digest.push(`Answer — "${question}": ${answers.join(' · ')} — fold this into the next round's direction.`);
+  }
+
+  // Marks drawn ON an option's SVG — per-element intent (an arrow AT a shape
+  // beats a paragraph ABOUT it). The composite PNG attachment is the eyes; the
+  // structured field is the coordinates/colors.
+  for (const [id, ann] of Object.entries(response.optionAnnotations)) {
+    if (ann.items.length === 0) continue;
+    const counts = new Map<string, number>();
+    for (const item of ann.items) counts.set(item.type, (counts.get(item.type) ?? 0) + 1);
+    const summary = [...counts.entries()].map(([t, n]) => `${n} ${t}${n === 1 ? '' : 's'}`).join(', ');
+    const notes = ann.items
+      .filter((item) => item.type === 'note' && item.text?.trim())
+      .map((item) => `"${item.text!.trim()}"`)
+      .join('; ');
+    const composite = response.attachments.find((a) => a.name === `annotated-${id}.png` && a.savedPath);
+    digest.push(
+      `Annotated ON "${label(id)}" (marks drawn directly on the option): ${summary}${notes ? ` — notes: ${notes}` : ''}. ` +
+        `Arrows point AT the element to change (tail→head); structure with coordinates + palette color names is in ` +
+        `this round's response.json under optionAnnotations["${id}"]` +
+        (composite ? `; VIEW ${composite.savedPath} to SEE the marks in place.` : '.'),
+    );
+  }
+
   for (const [a, b] of response.remixPairs) {
-    digest.push(`Remix: mash up "${label(a)}" × "${label(b)}" — next round must show offspring of BOTH.`);
+    const recipe = response.remixNotes[`${a}×${b}`] ?? response.remixNotes[`${b}×${a}`];
+    digest.push(
+      `Remix: mash up "${label(a)}" × "${label(b)}" — next round must show offspring of BOTH.` +
+        (recipe ? ` Recipe (what to take from each): ${recipe}` : ''),
+    );
   }
 
   if (response.ranking.length > 0) {
     digest.push(
       `Deck ranking (strongest pull first): ${response.ranking.map(label).join(' > ')} — top ranks lead the synthesis vector.`,
     );
+  }
+  const deckKeeps = Object.entries(response.deckVerdicts)
+    .filter(([, v]) => v === 'keep')
+    .map(([id]) => label(id));
+  if (deckKeeps.length > 0) {
+    digest.push(`Deck KEEP (flicked toward — these directions resonate): ${deckKeeps.join(', ')}.`);
   }
   const deckKills = Object.entries(response.deckVerdicts)
     .filter(([, v]) => v === 'kill')
@@ -107,6 +145,7 @@ export function buildFeedbackDigest(
       .join('; ');
     digest.push(`Proximity clusters (the user's implicit taxonomy): ${named}.`);
   }
+  digest.push(...positionNarrative(response, label));
   for (const gap of response.gapNotes) {
     digest.push(
       `Gap between cluster ${gap.between[0] + 1} and ${gap.between[1] + 1}: "${gap.note}" — generate the hybrid living there (highest-value signal).`,
@@ -118,6 +157,13 @@ export function buildFeedbackDigest(
   if (triageGroups.keep.length) digest.push(`Triage KEEP (capture as artifacts): ${triageGroups.keep.join(', ')}.`);
   if (triageGroups.kill.length) digest.push(`Triage KILL (never regenerate this direction): ${triageGroups.kill.join(', ')}.`);
   if (triageGroups.merge.length) digest.push(`Triage MERGE (produce ONE synthesis of): ${triageGroups.merge.join(', ')}.`);
+
+  if (response.uncertainties.length > 0) {
+    digest.push(
+      `UNSURE (the user can't judge these yet — NOT a kill): ${response.uncertainties.map(label).join(', ')}. ` +
+        'Next round include a clarifying variant of each, or ask a Board.questions clarifier probing what makes it hard to judge.',
+    );
+  }
 
   if (response.action === 'finalize' && response.finalOptionId) {
     const viaBracket = response.duelResults.length > 0 ? ' It won the sudden-death bracket.' : '';
@@ -154,9 +200,12 @@ export function buildFeedbackDigest(
     } else if (op.op === 'note') {
       digest.push(`NOTE set on "${op.topic || op.nodeId}": ${op.note} — steers future expansion of this node.`);
     } else if (op.op === 'rename') {
-      digest.push(`RENAME: "${op.nodeId}" → "${op.topic}".`);
+      digest.push(`RENAME: "${op.oldTopic || op.nodeId}" → "${op.topic}" — the new wording IS the intent; use it verbatim.`);
     } else if (op.op === 'move') {
-      digest.push(`MOVE: "${op.topic || op.nodeId}" was re-parented — respect the new structure.`);
+      const dest = op.newParentTopic || op.newParentId;
+      digest.push(
+        `MOVE: "${op.topic || op.nodeId}" now lives under ${dest ? `"${dest}"` : 'a new parent'} — the user re-filed this idea; respect the new structure.`,
+      );
     }
   }
 
@@ -183,6 +232,8 @@ export function buildFeedbackDigest(
     dialLines.length > 0 ||
     Object.keys(response.perOptionNotes).length > 0 ||
     Object.keys(response.flaws).length > 0 ||
+    Object.values(response.optionAnnotations).some((ann) => ann.items.length > 0) ||
+    response.uncertainties.length > 0 ||
     Object.values(response.mutations).some((lenses) => lenses.length > 0);
   if (response.action === 'iterate' && !structuralSignals && nudges) {
     const pad = String(board.round).padStart(2, '0');
@@ -214,4 +265,90 @@ export function buildFeedbackDigest(
   }
 
   return digest;
+}
+
+/**
+ * Read the cluster field's raw drag GEOMETRY into instructions — distance IS
+ * data (phase-funnel), so the digest must carry more than the discrete cluster
+ * sets: how tight each cluster is, which cross-cluster options nearly touch,
+ * and which options sit alone. Coordinates are field-percent (0–100).
+ */
+function positionNarrative(
+  response: BoardResponse,
+  label: (id: string) => string,
+): string[] {
+  const entries = Object.entries(response.positions);
+  if (entries.length < 2) return [];
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.round(Math.hypot(a.x - b.x, a.y - b.y));
+  const pos = new Map(entries);
+  const clusterOf = new Map<string, number>();
+  response.clusters.forEach((cluster, i) => cluster.forEach((id) => clusterOf.set(id, i)));
+  const lines: string[] = [];
+
+  // Per-cluster tightness — a welded cluster is ONE fused direction, a loose
+  // one is "related but distinct".
+  const tightness = response.clusters
+    .map((cluster, i) => {
+      const pts = cluster.map((id) => pos.get(id)).filter(Boolean) as { x: number; y: number }[];
+      if (pts.length < 2) return null;
+      let spread = 0;
+      for (let a = 0; a < pts.length; a++)
+        for (let b = a + 1; b < pts.length; b++) spread = Math.max(spread, dist(pts[a], pts[b]));
+      const reading = spread < 14 ? 'welded — treat as ONE fused direction' : spread < 30 ? 'close' : 'loose — related but distinct ideas';
+      return `cluster ${i + 1} is ${reading} (spread ${spread})`;
+    })
+    .filter(Boolean);
+  if (tightness.length > 0) lines.push(`Cluster geometry: ${tightness.join('; ')}.`);
+
+  // Closest CROSS-cluster pair — the near-join the discrete sets erase.
+  let bridge: { a: string; b: string; d: number } | null = null;
+  // Isolation — nearest neighbor per option.
+  const isolates: string[] = [];
+  for (const [id, p] of entries) {
+    let nearest = Infinity;
+    for (const [otherId, q] of entries) {
+      if (otherId === id) continue;
+      const d = dist(p, q);
+      nearest = Math.min(nearest, d);
+      const ca = clusterOf.get(id);
+      const cb = clusterOf.get(otherId);
+      if (ca !== undefined && cb !== undefined && ca !== cb && (!bridge || d < bridge.d) && id < otherId) {
+        bridge = { a: id, b: otherId, d };
+      }
+    }
+    if (nearest >= 35) isolates.push(`"${label(id)}" (nearest neighbor ${nearest} away)`);
+  }
+  if (bridge && bridge.d < 40) {
+    lines.push(
+      `Closest cross-cluster neighbors: "${label(bridge.a)}" ↔ "${label(bridge.b)}" (distance ${bridge.d}) — ` +
+        'the user ALMOST joined these; a hybrid of the two is a low-risk bet.',
+    );
+  }
+  if (isolates.length > 0) {
+    lines.push(
+      `Spatial outliers (parked far from everything): ${isolates.join(', ')} — either uniquely valued or ` +
+        'unclassifiable; probe with a clarifying variant or question rather than dropping.',
+    );
+  }
+
+  // Positions WITHOUT clusters: the user arranged but never grouped — surface
+  // the near-pairs so the arrangement isn't silently lost.
+  if (response.clusters.length === 0) {
+    const pairs: string[] = [];
+    for (let a = 0; a < entries.length; a++) {
+      for (let b = a + 1; b < entries.length; b++) {
+        const d = dist(entries[a][1], entries[b][1]);
+        if (d < 22) pairs.push(`"${label(entries[a][0])}" ↔ "${label(entries[b][0])}" (${d})`);
+      }
+    }
+    if (pairs.length > 0) {
+      lines.push(
+        `Spatial read (no clusters formed, but the arrangement speaks): near pairs ${pairs.join(', ')} — ` +
+          'the user relates these; treat each pair as an implicit cluster.',
+      );
+    }
+  }
+
+  return lines;
 }

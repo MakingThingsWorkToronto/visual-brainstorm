@@ -21,19 +21,19 @@ Copilot agent:
 
 | Copilot prompt | → `.claude` command | Copilot agent |
 |---|---|---|
-| run-brainstorm | run-brainstorm | visual-brainstorm-operator |
-| plan-closeout | plan-closeout | visual-brainstorm-operator |
-| discover-skills | discover-skills | visual-brainstorm-operator |
-| diagnose-studio | diagnose-studio | visual-brainstorm-diagnostician |
-| artifact-chat | artifact-chat | visual-brainstorm-operator |
-| read-mindmap | read-mindmap | visual-brainstorm-operator |
-| read-scribble | read-scribble | visual-brainstorm-operator |
-| reopen | reopen | visual-brainstorm-operator |
-| build-check | build-check | visual-brainstorm-test-engineer |
-| new-command | new-command | visual-brainstorm-operator |
-| create-dispatch-command | create-dispatch-command | visual-brainstorm-operator |
-| compress-learnings | compress-learnings | visual-brainstorm-operator |
-| wiki-maintenance | wiki-maintenance | visual-brainstorm-wiki-librarian |
+| run-brainstorm | run-brainstorm | brainstorm-orchestrator |
+| plan-closeout | plan-closeout | brainstorm-orchestrator |
+| discover-skills | discover-skills | brainstorm-orchestrator |
+| diagnose-studio | diagnose-studio | devops-diagnostician |
+| artifact-chat | artifact-chat | brainstorm-orchestrator |
+| read-mindmap | read-mindmap | brainstorm-orchestrator |
+| read-scribble | read-scribble | brainstorm-orchestrator |
+| reopen | reopen | brainstorm-orchestrator |
+| build-check | build-check | test-engineer |
+| new-command | new-command | brainstorm-orchestrator |
+| create-dispatch-command | create-dispatch-command | brainstorm-orchestrator |
+| compress-learnings | compress-learnings | brainstorm-orchestrator |
+| wiki-maintenance | wiki-maintenance | wiki-librarian |
 
 **Not adapted (4):** `add-theme`, `revisit-round`,
 `dispatch-comprehensive-human-testing-next-phase`, `dispatch-concierge-living-gallery-next-phase`.
@@ -48,13 +48,13 @@ on those known gaps while still surfacing any newly-unreconciled durable command
 
 | `.claude` agent | → Copilot agent (`.github/agents/`) |
 |---|---|
-| brainstorm-orchestrator | visual-brainstorm-operator |
-| devops-diagnostician | visual-brainstorm-diagnostician |
-| svg-artisan | visual-brainstorm-svg-artisan |
-| test-engineer | visual-brainstorm-test-engineer |
-| wiki-librarian | visual-brainstorm-wiki-librarian |
+| brainstorm-orchestrator | brainstorm-orchestrator |
+| devops-diagnostician | devops-diagnostician |
+| svg-artisan | svg-artisan |
+| test-engineer | test-engineer |
+| wiki-librarian | wiki-librarian |
 
-`visual-brainstorm-operator` fronts both the orchestrator persona and most operator commands —
+`brainstorm-orchestrator` fronts both the orchestrator persona and most operator commands —
 Copilot has no separate orchestrator/generalist split.
 
 ## Coverage honesty (rule 6)

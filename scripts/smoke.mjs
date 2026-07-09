@@ -343,11 +343,98 @@ seedCmd = await (
 ).json();
 assert.equal(seedCmd.ok, true, 'bad seed is not a transport error');
 [seedReq] = bridge.drainCommands();
-assert.ok(seedReq.seedNote.includes('could not be decoded'), 'honest failure note (no fake success)');
+assert.ok(seedReq.seedNote.includes('could not be used'), 'honest failure note (no fake success)');
 assert.equal(
   fs.readdirSync(path.join(scratch, '.seeds')).length, 1,
   'no file written for the rejected image',
 );
+
+// Rich annotated-photo scribble → a TRAVERSABLE folder the model can fully read:
+// composite.png (vision), photo.png, scribble.svg, scribble.json, README.md — and a
+// seedNote that routes the orchestrator to /read-scribble (rule 6/7 legibility).
+const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+seedCmd = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/command`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      command: 'new-brainstorm',
+      prompt: 'riff on my marks',
+      seed: {
+        kind: 'sketch',
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240"><image href="' + tinyPng + '"/></svg>',
+        photoDataUri: tinyPng,
+        compositeDataUri: tinyPng,
+        annotations: {
+          viewBox: { w: 400, h: 240 },
+          background: { present: true },
+          palette: [{ name: 'Ion Teal', value: '#00ff00' }],
+          items: [
+            { type: 'arrow', colorName: 'Ion Teal', colorValue: '#00ff00', from: { x: 1, y: 2 }, to: { x: 3, y: 4 } },
+            { type: 'note', colorName: 'Ion Teal', colorValue: '#00ff00', at: { x: 5, y: 6 }, text: 'make this bigger' },
+          ],
+        },
+      },
+    }),
+  })
+).json();
+assert.equal(seedCmd.ok, true, 'rich scribble seed accepted');
+const scribbleFolder = fs
+  .readdirSync(path.join(scratch, '.seeds'))
+  .find((f) => /^seed-/.test(f) && fs.statSync(path.join(scratch, '.seeds', f)).isDirectory());
+assert.ok(scribbleFolder, 'rich scribble persisted as a folder (not a single .svg)');
+const folderPath = path.join(scratch, '.seeds', scribbleFolder);
+for (const f of ['composite.png', 'photo.png', 'scribble.svg', 'scribble.json', 'README.md']) {
+  assert.ok(fs.existsSync(path.join(folderPath, f)), `scribble folder has ${f}`);
+}
+assert.ok(fs.statSync(path.join(folderPath, 'composite.png')).size > 0, 'composite.png has real bytes (vision-readable)');
+const scribbleJson = JSON.parse(fs.readFileSync(path.join(folderPath, 'scribble.json'), 'utf8'));
+assert.equal(scribbleJson.items.length, 2, 'scribble.json carries the structured marks');
+assert.equal(scribbleJson.items[1].text, 'make this bigger', 'scribble.json carries the note text');
+assert.ok(fs.readFileSync(path.join(folderPath, 'README.md'), 'utf8').includes('read-scribble'), 'README routes to /read-scribble');
+[seedReq] = bridge.drainCommands();
+assert.ok(seedReq.seedNote.includes('read-scribble.md'), 'scribble seedNote routes the orchestrator to /read-scribble');
+assert.ok(seedReq.seedNote.includes(scribbleFolder), 'scribble seedNote names the seed folder');
+
+// Blank-canvas scribble (annotations, no photo/composite) → still a folder, but
+// README/seedNote must say "blank canvas" and never reference a photo.<ext> file
+// that was never written (Fix 3: scribbleReadme/persistSeed honesty).
+seedCmd = await (
+  await fetch(`http://127.0.0.1:${bridge.port}/api/command`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      command: 'new-brainstorm',
+      prompt: 'riff on my blank-canvas marks',
+      seed: {
+        kind: 'sketch',
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240"><polyline points="0,0 10,10" fill="none" stroke="#00ff00"/></svg>',
+        annotations: {
+          viewBox: { w: 400, h: 240 },
+          background: { present: false },
+          palette: [{ name: 'Ion Teal', value: '#00ff00' }],
+          items: [
+            { type: 'pen', colorName: 'Ion Teal', colorValue: '#00ff00', points: [{ x: 0, y: 0 }, { x: 10, y: 10 }] },
+          ],
+        },
+      },
+    }),
+  })
+).json();
+assert.equal(seedCmd.ok, true, 'blank-canvas scribble seed accepted');
+const blankFolder = fs
+  .readdirSync(path.join(scratch, '.seeds'))
+  .filter((f) => /^seed-/.test(f) && fs.statSync(path.join(scratch, '.seeds', f)).isDirectory())
+  .find((f) => f !== scribbleFolder);
+assert.ok(blankFolder, 'blank-canvas scribble also persisted as a folder');
+const blankFolderPath = path.join(scratch, '.seeds', blankFolder);
+assert.ok(!fs.readdirSync(blankFolderPath).some((f) => /^photo\./.test(f)), 'no photo.* file when there was no photo');
+const blankReadme = fs.readFileSync(path.join(blankFolderPath, 'README.md'), 'utf8');
+assert.ok(blankReadme.includes('blank canvas'), 'README says "blank canvas"');
+assert.ok(!blankReadme.includes('photo.'), 'README never references a photo.<ext> file that was not written');
+[seedReq] = bridge.drainCommands();
+assert.ok(seedReq.seedNote.includes('annotated blank canvas'), 'seedNote says "annotated blank canvas"');
+assert.ok(!seedReq.seedNote.includes('photo.'), 'seedNote never references a photo.<ext> file that was not written');
 
 // New Discussion composer extras: attachments/model/palette ride the command as seed notes.
 seedCmd = await (
@@ -631,6 +718,37 @@ await expectTokens(
   'the undelivered delta (11/4) rode along with the next one (2/1) — nothing lost',
 );
 
+// Per-sink attribution: a boundary label DECLARES a sink; the NEXT token-bearing
+// event inherits it (consume-once); an uncategorized token folds into orchestration.
+// Everything posted above was uncategorized, so orchestration currently holds it all.
+const sinkBase = (await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json()).tokensBySink;
+// Everything posted so far is uncategorized → it all folds into orchestration,
+// which therefore equals the live total (250 + 83).
+assert.equal(sinkBase.orchestration, 333, 'uncategorized tokens folded into orchestration');
+assert.equal(sinkBase.generation ?? 0, 0, 'nothing attributed to generation yet');
+await fetch(`http://127.0.0.1:${bridge.port}/api/progress`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ note: 'presented a board', category: 'generation' }),
+});
+await fetch(`http://127.0.0.1:${bridge.port}/api/progress`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ note: 'turn end', source: 'hook:Stop', tokens: { input: 400, output: 600 } }),
+});
+await fetch(`http://127.0.0.1:${bridge.port}/api/progress`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ note: 'turn end', source: 'hook:Stop', tokens: { input: 25, output: 25 } }),
+});
+const sinkState = (await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json()).tokensBySink;
+assert.equal(sinkState.generation, 1000, 'board delta attributed to the generation boundary');
+assert.equal(
+  sinkState.orchestration,
+  sinkBase.orchestration + 50,
+  'the following uncategorized delta consumed the label and folded into orchestration',
+);
+
 // WS broadcast delivery is async — give it a beat before asserting.
 for (let i = 0; i < 20 && !seen.includes('progress'); i++) await new Promise((r) => setTimeout(r, 50));
 assert.ok(
@@ -838,7 +956,8 @@ const cPost = await fetch(`http://127.0.0.1:${bridge.port}/api/concierge`, {
 assert.equal(cPost.status, 200, 'answering the pending concierge question is accepted');
 assert.deepEqual(await cPost.json(), { ok: true }, 'concierge POST body is {ok:true}');
 const cAnswer = await cWait;
-assert.equal(cAnswer, 'customers · founders', 'askConcierge resolves with the posted answer');
+// Structured answer: the assembled string + chips tapped vs words typed.
+assert.equal(cAnswer.answer, 'customers · founders', 'askConcierge resolves with the posted answer');
 const s2 = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
 assert.equal(s2.concierge, null, 'concierge surface clears after the answer');
 const conciergeMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
@@ -872,7 +991,8 @@ const gPick = await fetch(`http://127.0.0.1:${bridge.port}/api/gallery-pick`, {
 assert.equal(gPick.status, 200, 'picking a real method resolves the gallery');
 assert.deepEqual(await gPick.json(), { ok: true }, 'gallery-pick body is {ok:true}');
 const gPicked = await gWait;
-assert.equal(gPicked, 'mindmap', 'presentGallery resolves with the picked method');
+// Structured pick: method + label + whether the recommendation was taken.
+assert.equal(gPicked.method, 'mindmap', 'presentGallery resolves with the picked method');
 gState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
 assert.equal(gState.gallery, null, 'living gallery surface clears after the pick');
 const galleryMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
@@ -907,7 +1027,7 @@ const gFix = await fetch(`http://127.0.0.1:${bridge.port}/api/gallery-pick`, {
   body: JSON.stringify({ id: g2Id, method: 'funnel' }),
 });
 assert.equal(gFix.status, 200, 'a valid follow-up pick resolves the second gallery');
-assert.equal(await gWait2, 'funnel', 'the second gallery resolves with the real pick');
+assert.equal((await gWait2).method, 'funnel', 'the second gallery resolves with the real pick');
 
 ws.close();
 await bridge.stop();

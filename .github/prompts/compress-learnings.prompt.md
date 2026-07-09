@@ -1,12 +1,12 @@
 ---
 description: "Weekly maintenance: compact the agentic learnings log without losing facts (recent verbatim, older distilled, originals archived)."
 argument-hint: "(none — operates on .agents/learnings.md)"
-agent: "visual-brainstorm-operator"
+agent: "brainstorm-orchestrator"
 tools: [read, edit, search, execute, todo]
 ---
 Read and follow these files in order:
 - [Authoritative registry](../../.claude/agentic-surface-registry.json)
-- [Copilot adapter index](../agentic-surface-map.json)
+- [Copilot adapter registry](../agentic-surface-registry.json)
 - [Workflow](../../.claude/commands/compress-learnings.md)
 - [Agentic loop — Weekly maintenance](../../wiki/Meta/agentic-loop.md)
 

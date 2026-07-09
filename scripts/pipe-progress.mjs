@@ -56,12 +56,30 @@ const port = Number(arg('--port') ?? process.env.VIBR_PORT ?? discoverPort() ?? 
 const TOOL_LABELS = {
   mcp__visual_brainstorm__present_board: 'presented a board to the studio',
   'mcp__visual-brainstorm__present_board': 'presented a board to the studio',
+  'mcp__visual-brainstorm__present_gallery': 'presented the living gallery',
+  'mcp__visual-brainstorm__ask_concierge': 'asked a concierge question',
   'mcp__visual-brainstorm__capture_artifact': 'captured an artifact',
   'mcp__visual-brainstorm__compose_poster': 'composed the decision poster',
   'mcp__visual-brainstorm__load_discussion': 'reloaded a cached thread',
   Agent: 'a subagent finished its task',
   Task: 'a subagent finished its task',
 };
+
+/**
+ * Token-sink DECLARED by a tool boundary — the bridge attributes the FOLLOWING
+ * turn-end token delta to it (see session-store attribution). A boundary carries
+ * no tokens itself; it only names what the just-finished turn was doing. `tweak`
+ * can't be told from `generation` mechanically, so a tweak round is labeled by
+ * the orchestrator via CLI `--category tweak`; a bare present_board is generation.
+ */
+const TOOL_SINKS = {
+  mcp__visual_brainstorm__present_board: 'generation',
+  'mcp__visual-brainstorm__present_board': 'generation',
+  'mcp__visual-brainstorm__present_gallery': 'intake',
+  'mcp__visual-brainstorm__ask_concierge': 'intake',
+  'mcp__visual-brainstorm__compose_poster': 'poster',
+};
+const SINKS = new Set(['generation', 'tweak', 'intake', 'orchestration', 'poster']);
 
 async function readStdin() {
   if (process.stdin.isTTY) return '';
@@ -145,13 +163,17 @@ function fromHook(payload) {
     (event === 'Stop' || event === 'SubagentStop') && payload.session_id && payload.transcript_path
       ? tokenDelta(payload.session_id, payload.transcript_path)
       : { delta: undefined, commit: () => {} };
-  return { note, source: `hook:${event}`, tokens: usage.delta, commitTokens: usage.commit };
+  // A boundary tool declares the sink for the next turn-end delta; token-bearing
+  // Stop events carry no category and are attributed by the bridge.
+  const category = TOOL_SINKS[tool];
+  return { note, source: `hook:${event}`, tokens: usage.delta, category, commitTokens: usage.commit };
 }
 
 try {
   let note = arg('--note');
   let source = arg('--source');
   let tokens;
+  let category = arg('--category');
   let commitTokens = () => {};
   if (!note) {
     const raw = await readStdin();
@@ -160,18 +182,21 @@ try {
       note = hook.note;
       source ??= hook.source;
       tokens = hook.tokens;
+      category ??= hook.category;
       commitTokens = hook.commitTokens;
     }
   }
   const tokensIn = Number(arg('--in') ?? 0);
   const tokensOut = Number(arg('--out') ?? 0);
   if (tokensIn || tokensOut) tokens = { input: tokensIn, output: tokensOut };
+  if (category && !SINKS.has(category)) category = undefined; // ignore an unknown label
   if (note) {
     const body = {
       at: new Date().toISOString(),
       source: source ?? 'orchestrator',
       note,
       ...(tokens ? { tokens } : {}),
+      ...(category ? { category } : {}),
     };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1500);

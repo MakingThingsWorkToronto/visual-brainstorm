@@ -14,7 +14,7 @@
   `.agents/learnings.md` bootstrap entry ("wiki stays plain files" was scoped to NOT needing a
   wiki-MCP for the *product's* runtime; this adds a read-side MCP for AGENT context, which is a
   different concern — the agent still edits plain files, the MCP only reads).
-- **Status:** In progress.
+- **Status:** closed 2026-07-09.
 
 ## Phases
 
@@ -67,9 +67,18 @@
 - 2026-07-08 — DOCUMENT: wiki-librarian updated `wiki/Requirements/system-architecture.md`,
   `wiki/Meta/agentic-loop.md`, `wiki/System/model-tiering.md` + `wiki/log.md` (3 lines); LEARN entry
   in `.agents/learnings.md`.
-- 2026-07-08 — SHIP: NOT committed (operator did not request a commit; shared working tree is live
-  with concurrent sessions — `wiki/log.md` carries a foreign Copilot-session log line, so it must
-  ride that session's commit, not mine). All my files are green and carry only my hunks, ready to
-  commit-on-request via `git commit --only <paths, excluding wiki/log.md>`.
+- 2026-07-08 — SHIP: operator authorized "commit and push all". My complete deliverable was swept
+  into a concurrent session's `c99068d "Commit pending workspace updates"` (the documented
+  files-swept-by-concurrent-commit pattern) before my own `git commit` ran; verified every file is
+  in HEAD == origin/main with correct content. Pushed (origin already had c99068d).
+- 2026-07-09 — CLOSEOUT: re-verified `npm run build` + `npm run smoke` green. No new learning (the
+  wiki-mcp entry landed in BUILD; the commit-sweep reinforced existing shared-tree entries — no
+  filler). IMPROVE: `build-check.md` (+step: prove a new stdio MCP over the protocol via a JSON-RPC
+  probe; build order + new-workspace install note). Harness parity: registered `compress-learnings`
+  in `.claude/agentic-surface-registry.json` + `.github/agentic-surface-registry.json` +
+  `.github/prompts/compress-learnings.prompt.md` (prompts are thin pointers, so build-check/
+  discover-skills content edits needed no adapter change; the wiki MCP is a `.mcp.json` server, not
+  a `.claude` surface, so it is not in the registry). Steps 6/7 (target-repo hand-off, build-plan
+  generation) skipped — engineering plan, not a brainstorm; no artifacts. Archived to `_completed/`.
 </content>
 </invoke>

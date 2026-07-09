@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const ROOT = process.cwd();
 const REGISTRY_PATH = path.join(ROOT, '.claude', 'agentic-surface-registry.json');
-const MAP_PATH = path.join(ROOT, '.github', 'agentic-surface-map.json');
+const COPILOT_REGISTRY_PATH = path.join(ROOT, '.github', 'agentic-surface-registry.json');
 const PROMPTS_DIR = path.join(ROOT, '.github', 'prompts');
 const AGENTS_DIR = path.join(ROOT, '.github', 'agents');
 
@@ -23,9 +23,9 @@ function promptAgent(filePath) {
   return match[1];
 }
 
-test('Copilot adapter map stays aligned with the authoritative registry and wrapper files', () => {
+test('Copilot adapter registry stays aligned with the authoritative registry and wrapper files', () => {
   const registry = readJson(REGISTRY_PATH);
-  const map = readJson(MAP_PATH);
+  const copilotRegistry = readJson(COPILOT_REGISTRY_PATH);
   const registryCommands = new Map(registry.surfaces.filter((s) => s.kind === 'command').map((s) => [s.name, s]));
   const registryAgents = new Map(registry.surfaces.filter((s) => s.kind === 'agent').map((s) => [s.name, s]));
   const promptFiles = new Set(fs.readdirSync(PROMPTS_DIR).filter((name) => name.endsWith('.prompt.md')));
@@ -34,7 +34,7 @@ test('Copilot adapter map stays aligned with the authoritative registry and wrap
   const mappedPromptFiles = new Set();
   const mappedCopilotAgents = new Set();
 
-  for (const entry of map.commands) {
+  for (const entry of copilotRegistry.commands) {
     const surface = registryCommands.get(entry.name);
     assert.ok(surface, `registry contains command ${entry.name}`);
 
@@ -55,7 +55,7 @@ test('Copilot adapter map stays aligned with the authoritative registry and wrap
     mappedCopilotAgents.add(`${entry.copilotAgent}.agent.md`);
   }
 
-  for (const entry of map.agents) {
+  for (const entry of copilotRegistry.agents) {
     assert.ok(registryAgents.has(entry.name), `registry contains agent ${entry.name}`);
     const agentFile = `${entry.copilotAgent}.agent.md`;
     const agentPath = path.join(AGENTS_DIR, agentFile);
@@ -66,7 +66,7 @@ test('Copilot adapter map stays aligned with the authoritative registry and wrap
       agentText.includes('../../.claude/agentic-surface-registry.json'),
       `${entry.copilotAgent} reads the authoritative registry`,
     );
-    assert.ok(agentText.includes('../agentic-surface-map.json'), `${entry.copilotAgent} reads the adapter index`);
+    assert.ok(agentText.includes('../agentic-surface-registry.json'), `${entry.copilotAgent} reads the adapter registry`);
 
     mappedCopilotAgents.add(agentFile);
   }

@@ -1,12 +1,12 @@
 ---
 description: "Handle Visual Brainstorm artifact chat the repo-native way. Use for artifact questions, revision requests, or option-chat follow-up from the studio."
 argument-hint: "Artifact slug, option slug, or the user's artifact request"
-agent: "visual-brainstorm-operator"
+agent: "brainstorm-orchestrator"
 tools: [read, search, execute, agent, visual-brainstorm/*]
 ---
 Read and follow these files in order:
 - [Authoritative registry](../../.claude/agentic-surface-registry.json)
-- [Copilot adapter index](../agentic-surface-map.json)
+- [Copilot adapter registry](../agentic-surface-registry.json)
 - [Workflow](../../.claude/commands/artifact-chat.md)
 - [Persona](../../.claude/agents/brainstorm-orchestrator.md)
 - [SVG delegate](../../.claude/agents/svg-artisan.md)

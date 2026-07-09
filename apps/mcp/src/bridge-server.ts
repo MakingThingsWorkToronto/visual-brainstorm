@@ -41,7 +41,40 @@ export interface CommandRequest {
   prompt?: string;
   /** Where a non-text seed (sketch/image/voice) landed + how to use it. */
   seedNote?: string;
+  /** Journal id (pending-commands.jsonl) — set for queued commands so the drain is durable. */
+  id?: string;
 }
+
+/** Structured concierge answer — chips tapped vs words typed are different signals. */
+export interface ConciergeAnswer {
+  /** The assembled answer (chips + free text) — what legacy consumers read. */
+  answer: string;
+  /** Suggestion chips the user TAPPED (endorsement of Claude's framing). */
+  picked: string[];
+  /** What the user TYPED in their own words (weight above chips). */
+  typed: string;
+}
+
+/** Structured Living Gallery pick — which card, and whether it was the recommended one. */
+export interface GalleryPick {
+  method: string;
+  label: string;
+  /** True when the user took Claude's recommendation (calibrates future recs). */
+  recommended: boolean;
+  /** The recommendation reason that was on the card (context for the routing). */
+  reason: string;
+}
+
+/**
+ * Durable in-flight intake (persisted to <thread>/intake-pending.json): the
+ * pending concierge question / gallery, or an answer/pick that arrived while
+ * no tool call was blocked (post-crash) — so intake survives an MCP restart.
+ */
+type IntakePending =
+  | { kind: 'concierge'; exchange: ConciergeExchange }
+  | { kind: 'concierge-answered'; exchange: ConciergeExchange; picked: string[]; typed: string }
+  | { kind: 'gallery'; gallery: LivingGallery }
+  | { kind: 'gallery-picked'; gallery: LivingGallery; method: string };
 
 export interface BridgeOptions {
   /** Discussion root scanned for reloadable threads. */
@@ -114,9 +147,10 @@ function summarizeMarks(a: ScribbleAnnotations): string {
     .join('; ');
 }
 
-/** The model-facing README written into a scribble seed folder (how to read it). */
-function scribbleReadme(a: ScribbleAnnotations | undefined, hasComposite: boolean, photoExt?: string): string {
-  const view = hasComposite ? 'composite.png' : photoExt ? `photo.${photoExt}` : 'scribble.svg';
+/** The model-facing README written into a scribble seed folder (how to read it).
+ *  `view` is the caller-resolved file to VIEW first — one resolver feeds both the
+ *  README and the seed note, so the two can never point the model at different files. */
+function scribbleReadme(a: ScribbleAnnotations | undefined, hasComposite: boolean, photoExt: string | undefined, view: string): string {
   const bullets = a
     ? a.items
         .map((it) => {
@@ -125,15 +159,16 @@ function scribbleReadme(a: ScribbleAnnotations | undefined, hasComposite: boolea
         })
         .join('\n')
     : '- (no structured annotations were captured)';
-  return `# Scribble seed — an annotated photo (user INPUT / intent)
+  const surface = photoExt ? 'photo' : 'blank canvas';
+  return `# Scribble seed — an annotated ${surface} (user INPUT / intent)
 
-The user marked up a photo in the studio's "Scribble a seed" pad. This is their
+The user marked up a ${surface} in the studio's "Scribble a seed" pad. This is their
 intent and it ANCHORS the brainstorm — round 1 and every round build on it.
 
 ## Read this in order
-1. **VIEW ${view}** — the photo WITH the user's marks, exactly as they saw it.${hasComposite ? '' : ' (composite render was unavailable — reconstruct marks from scribble.json over this image.)'}
+1. **VIEW ${view}** — the ${surface} WITH the user's marks, exactly as they saw it.${hasComposite ? '' : ' (composite render was unavailable — reconstruct marks from scribble.json' + (photoExt ? ' over this image.)' : '.)')}
 2. **Read scribble.json** — every mark: type, palette color NAME, coordinates, and any note text.
-3. photo.${photoExt ?? 'png'} is the clean background; scribble.svg is the editable composite.
+3. ${photoExt ? `photo.${photoExt} is the clean background; ` : 'No photo background on this seed; '}scribble.svg is the editable composite.
 
 ## What the marks mean
 - **arrow** → points AT a target   · **box** → scopes/emphasizes a region
@@ -181,11 +216,13 @@ export class Bridge {
   private seedBrief: SeedBrief | null = null;
   /** Pending concierge question + its answer resolver (adaptive intake). */
   private concierge: ConciergeExchange | null = null;
-  private conciergeResolve: ((answer: string | null) => void) | null = null;
+  private conciergeResolve: ((answer: ConciergeAnswer | null) => void) | null = null;
   private conciergeSeq = 1;
   /** Pending Living Gallery + its pick resolver (methodology chooser). */
   private gallery: LivingGallery | null = null;
   private galleryResolve: ((method: string | null) => void) | null = null;
+  /** Monotonic id source for the pending-commands journal. */
+  private commandSeq = 1;
   /**
    * Intake gate (structural lock, run-brainstorm.md step 0): true once a Living
    * Gallery pick has been made for THIS thread, i.e. the mandatory concierge→
@@ -214,15 +251,22 @@ export class Bridge {
     this.modelsList = options.models
       .map((model) => this.engine.normalizeModel(model))
       .filter((model) => model.engineIds.includes(this.runtime.id));
+    // Crash durability: reload the undrained UI-command queue, the seedBrief
+    // handoff, and any in-flight intake question so a restart resumes rather
+    // than forgets (durability contract — interaction-protocol §Durability).
+    this.reloadCommandJournal();
+    this.reloadSeedBrief();
+    this.rehydrateIntake();
   }
 
   /**
    * True once the mandatory concierge→gallery intake has been walked for this
    * thread (a gallery pick was made). The present_board tool gates the first
-   * board on it (structural lock — run-brainstorm.md step 0).
+   * board on it (structural lock — run-brainstorm.md step 0). Reads bridge
+   * memory OR the durable session.json record, so the gate survives a restart.
    */
   get intakeComplete(): boolean {
-    return this.galleryPicked;
+    return this.galleryPicked || Boolean(this.store.info.intake?.complete);
   }
 
   private log(message: string): void {
@@ -239,8 +283,30 @@ export class Bridge {
     this.responses.clear();
     this.pending.clear();
     this.galleryPicked = false; // a fresh thread must walk the intake front door again
+    // (the durable record travels with the thread: store.info.intake)
+    this.concierge = null;
+    this.gallery = null;
+    this.rehydrateIntake(); // the NEW thread may have its own in-flight intake on disk
     this.log(`attached new thread "${store.info.id}" — response state cleared`);
     this.broadcast({ type: 'hello', state: this.state() });
+  }
+
+  /**
+   * Restore an in-flight intake question (concierge/gallery) from the thread's
+   * intake-pending.json so a restarted studio re-shows the SAME question and
+   * the user's time is never lost. Answered/picked records stay on disk for
+   * the next ask_concierge/present_gallery call to collect.
+   */
+  private rehydrateIntake(): void {
+    const pending = this.store.readIntakePending<IntakePending>();
+    if (!pending) return;
+    if (pending.kind === 'concierge') {
+      this.concierge = pending.exchange;
+      this.log(`rehydrated pending concierge question "${pending.exchange.question.slice(0, 60)}" from disk`);
+    } else if (pending.kind === 'gallery') {
+      this.gallery = pending.gallery;
+      this.log('rehydrated pending living gallery from disk');
+    }
   }
 
   /** Live progress feedback — shown as the shimmer marker in the studio. */
@@ -341,7 +407,7 @@ export class Bridge {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            const { command, prompt, seed, attachments, model, palette, discussionId, round } = z
+            const { command, prompt, seed, attachments, model, palette, discussionId, round, intakeAnswers } = z
               .object({
                 command: z.enum(['plan-closeout', 'discover-skills', 'new-brainstorm', 'reopen']),
                 prompt: z.string().max(2000).optional(),
@@ -356,12 +422,35 @@ export class Bridge {
                 discussionId: z.string().max(200).optional(),
                 /** reopen: the round to resume the brainstorm at. */
                 round: z.number().int().min(1).optional(),
+                /**
+                 * new-brainstorm: the intake survey STRUCTURED (question → picked
+                 * answers), so the question each answer belonged to survives —
+                 * the flattened parenthetical in `prompt` loses that mapping.
+                 */
+                intakeAnswers: z
+                  .array(
+                    z.object({
+                      question: z.string().max(500),
+                      answers: z.array(z.string().max(500)).max(16),
+                    }),
+                  )
+                  .max(16)
+                  .optional(),
               })
               .parse(JSON.parse(body));
             const seedNote = command === 'reopen'
               ? this.reopenSeedNote(discussionId, round)
               : ((): string | undefined => {
                   const notes = [
+                    // Q→A structure beats the word-soup parenthetical: the model
+                    // knows WHICH question each answer addressed.
+                    intakeAnswers && intakeAnswers.length > 0
+                      ? 'Intake survey (question → the user\'s answer):\n' +
+                        intakeAnswers
+                          .filter((qa) => qa.answers.length > 0)
+                          .map((qa) => `- ${qa.question} → ${qa.answers.join(' · ')}`)
+                          .join('\n')
+                      : undefined,
                     seed ? this.persistSeed(seed) : undefined,
                     ...(attachments ?? []).map((a) => {
                       const saved = this.persistAttachment(a);
@@ -764,7 +853,18 @@ export class Bridge {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            const response = BoardResponseSchema.parse(JSON.parse(body));
+            const raw = JSON.parse(body) as Record<string, unknown>;
+            // Schema-drift tripwire: zod silently STRIPS unknown fields, so a
+            // studio ahead of the protocol would lose gestures with no trace.
+            // Log what got stripped so the drift is visible in /api/logs.
+            const known = new Set(Object.keys(BoardResponseSchema.shape));
+            const unknown = Object.keys(raw).filter((k) => !known.has(k));
+            if (unknown.length > 0) {
+              this.log(
+                `WARNING /api/respond: unknown response field(s) stripped — studio ahead of protocol? [${unknown.join(', ')}]`,
+              );
+            }
+            const response = BoardResponseSchema.parse(raw);
             this.acceptResponse(response);
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true }));
@@ -780,15 +880,34 @@ export class Bridge {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            const { id, answer } = z
-              .object({ id: z.string(), answer: z.string().max(4000) })
+            const { id, answer, picked, typed } = z
+              .object({
+                id: z.string(),
+                answer: z.string().max(4000),
+                /** Which suggestion chips were tapped (structure preserved, not just the joined string). */
+                picked: z.array(z.string().max(1000)).max(32).default([]),
+                /** What the user typed in their own words. */
+                typed: z.string().max(4000).default(''),
+              })
               .parse(JSON.parse(body));
-            if (!this.concierge || this.concierge.id !== id || !this.conciergeResolve) {
+            if (!this.concierge || this.concierge.id !== id) {
               res.writeHead(404, { 'content-type': 'application/json' });
               res.end(JSON.stringify({ ok: false, error: 'no concierge question awaiting this id' }));
               return;
             }
-            this.conciergeResolve(answer);
+            if (this.conciergeResolve) {
+              this.conciergeResolve({ answer, picked, typed });
+            } else {
+              // No blocked tool call (the MCP restarted after asking): record the
+              // answer durably; the next ask_concierge with this question collects
+              // it instead of re-asking — the user's answer is never lost.
+              const exchange = { ...this.concierge, answer, picked, typed };
+              this.store.recordConcierge(exchange.question, answer, picked, typed);
+              this.store.writeIntakePending({ kind: 'concierge-answered', exchange, picked, typed } satisfies IntakePending);
+              this.concierge = null;
+              this.broadcast({ type: 'concierge', exchange: null });
+              this.log(`concierge answered with no live waiter — stored durably for the next ask_concierge`);
+            }
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true }));
           } catch (err) {
@@ -806,7 +925,7 @@ export class Bridge {
             const { id, method } = z
               .object({ id: z.string(), method: z.string().max(200) })
               .parse(JSON.parse(body));
-            if (!this.gallery || this.gallery.id !== id || !this.galleryResolve) {
+            if (!this.gallery || this.gallery.id !== id) {
               res.writeHead(404, { 'content-type': 'application/json' });
               res.end(JSON.stringify({ ok: false, error: 'no living gallery awaiting this id' }));
               return;
@@ -816,7 +935,20 @@ export class Bridge {
               res.end(JSON.stringify({ ok: false, error: `method "${method}" is not a card in this gallery` }));
               return;
             }
-            this.galleryResolve(method);
+            if (this.galleryResolve) {
+              this.galleryResolve(method);
+            } else {
+              // No blocked tool call (post-restart): record the pick durably —
+              // the intake gate opens (session.json) and the next present_gallery
+              // returns this pick instead of re-presenting.
+              const gallery = this.gallery;
+              this.galleryPicked = true;
+              this.store.recordGalleryPick(method, gallery.cards.map((c) => c.method));
+              this.store.writeIntakePending({ kind: 'gallery-picked', gallery, method } satisfies IntakePending);
+              this.gallery = null;
+              this.broadcast({ type: 'gallery', gallery: null });
+              this.log(`gallery picked ("${method}") with no live waiter — stored durably for the next present_gallery`);
+            }
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true }));
           } catch (err) {
@@ -1083,6 +1215,7 @@ export class Bridge {
         ...(questions && { questions }),
         ...(picks && { picks }),
       };
+      this.persistSeedBrief(); // handoff survives an MCP restart until consumed
       this.broadcast({ type: 'hello', state: this.state() });
     }
     if (open && !this.browserOpened) {
@@ -1102,28 +1235,52 @@ export class Bridge {
     question: string,
     suggestions: string[],
     timeoutMs: number,
-  ): Promise<string | null> {
+  ): Promise<ConciergeAnswer | null> {
     await this.start();
-    const exchange: ConciergeExchange = {
-      id: `concierge-${this.store.info.id}-${this.conciergeSeq++}`,
-      question,
-      suggestions,
-      answer: '',
-    };
+    // Crash recovery: the user may have answered THIS question while no tool
+    // call was blocked (the MCP restarted after asking). Collect the stored
+    // answer instead of re-asking — their time already produced the signal.
+    const stored = this.store.readIntakePending<IntakePending>();
+    if (stored?.kind === 'concierge-answered' && stored.exchange.question === question) {
+      this.store.clearIntakePending();
+      this.log(`concierge: returning the durably stored answer for "${question.slice(0, 60)}"`);
+      return { answer: stored.exchange.answer, picked: stored.picked ?? [], typed: stored.typed ?? '' };
+    }
+    // Re-asking the SAME in-flight question (post-timeout or post-restart)
+    // keeps its id, so an answer the studio already has open still routes.
+    const exchange: ConciergeExchange =
+      stored?.kind === 'concierge' && stored.exchange.question === question
+        ? stored.exchange
+        : {
+            id: `concierge-${this.store.info.id}-${this.conciergeSeq++}`,
+            question,
+            suggestions,
+            answer: '',
+            picked: [],
+            typed: '',
+          };
     this.concierge = exchange;
+    // Durable BEFORE broadcast: a crash between ask and answer must re-show
+    // the same question on restart (rehydrateIntake).
+    this.store.writeIntakePending({ kind: 'concierge', exchange } satisfies IntakePending);
     this.log(`concierge asks: "${question.slice(0, 80)}" (${suggestions.length} chips)`);
     this.broadcast({ type: 'concierge', exchange });
-    return new Promise<string | null>((resolve) => {
-      const finish = (answer: string | null) => {
+    return new Promise<ConciergeAnswer | null>((resolve) => {
+      const finish = (answer: ConciergeAnswer | null) => {
         this.concierge = null;
         this.conciergeResolve = null;
         this.broadcast({ type: 'concierge', exchange: null });
         resolve(answer);
       };
-      const timer = setTimeout(() => finish(null), timeoutMs);
+      const timer = setTimeout(() => {
+        // Timeout: clear the live UI question but KEEP the pending file — a
+        // re-asked identical question re-arms with the same id.
+        finish(null);
+      }, timeoutMs);
       this.conciergeResolve = (answer) => {
         clearTimeout(timer);
-        this.store.recordConcierge(question, answer);
+        this.store.recordConcierge(question, answer?.answer ?? null, answer?.picked, answer?.typed);
+        this.store.clearIntakePending();
         finish(answer);
       };
     });
@@ -1135,27 +1292,48 @@ export class Bridge {
    * POST /api/gallery-pick or the timeout passes. The picked method routes the
    * session into that methodology; the choice is recorded to brainstorm.md.
    */
-  async presentGallery(gallery: LivingGallery, timeoutMs: number): Promise<string | null> {
+  async presentGallery(gallery: LivingGallery, timeoutMs: number): Promise<GalleryPick | null> {
     await this.start();
+    const toPick = (g: LivingGallery, method: string): GalleryPick => {
+      const card = g.cards.find((c) => c.method === method);
+      return {
+        method,
+        label: card?.label ?? method,
+        recommended: card?.recommended ?? false,
+        reason: card?.reason ?? '',
+      };
+    };
+    // Crash recovery: the pick may have landed while no tool call was blocked.
+    const stored = this.store.readIntakePending<IntakePending>();
+    if (stored?.kind === 'gallery-picked') {
+      this.store.clearIntakePending();
+      this.galleryPicked = true;
+      this.log(`gallery: returning the durably stored pick ("${stored.method}")`);
+      return toPick(stored.gallery, stored.method);
+    }
     this.gallery = gallery;
     const methods = gallery.cards.map((c) => c.method);
+    // Durable BEFORE broadcast (crash between present and pick re-shows it).
+    this.store.writeIntakePending({ kind: 'gallery', gallery } satisfies IntakePending);
     this.log(
       `living gallery: ${gallery.cards.length} cards (${methods.join(', ')}), ` +
         `recommended ${gallery.cards.find((c) => c.recommended)?.method ?? 'none'}`,
     );
     this.broadcast({ type: 'gallery', gallery });
-    return new Promise<string | null>((resolve) => {
+    return new Promise<GalleryPick | null>((resolve) => {
       const finish = (method: string | null) => {
         this.gallery = null;
         this.galleryResolve = null;
         this.broadcast({ type: 'gallery', gallery: null });
-        resolve(method);
+        resolve(method === null ? null : toPick(gallery, method));
       };
+      // Timeout keeps the pending file — a re-present re-arms the same gallery.
       const timer = setTimeout(() => finish(null), timeoutMs);
       this.galleryResolve = (method) => {
         clearTimeout(timer);
         this.galleryPicked = true; // intake gate satisfied — boards may now present
         this.store.recordGalleryPick(method, methods);
+        this.store.clearIntakePending();
         finish(method);
       };
     });
@@ -1196,12 +1374,27 @@ export class Bridge {
     if (!discussionId) {
       return 'REOPEN requested but no discussionId was supplied — ask the user which archived thread to reopen.';
     }
-    const dir = SessionStore.resolveDir(this.options.discussionRoot, discussionId);
     const at = round ? ` at round ${round}` : '';
+    // The bridge performs the unarchive move ITSELF (deterministic, crash-honest):
+    // a resume that relied on the model running `git mv` first could silently
+    // append new rounds inside _completed/ when the move was skipped — resolveDir
+    // finds archived threads too. Git records the rename on the next commit.
+    let dir: string;
+    try {
+      dir = SessionStore.unarchive(this.options.discussionRoot, discussionId);
+      this.log(`reopen: thread "${discussionId}" moved back live at ${dir}`);
+    } catch (err) {
+      return (
+        `REOPEN: the user asked to bring archived thread "${discussionId}" back live${at}, but the folder ` +
+        `move out of _completed/ FAILED (${String(err)}). Fix that first (move the folder back into ` +
+        `${this.options.discussionRoot} yourself), THEN resume with present_board discussionId="${discussionId}" — ` +
+        `resuming without the move would append new rounds inside the archive.`
+      );
+    }
     return (
       `REOPEN: the user asked to bring archived thread "${discussionId}" back live${at}. ` +
-      `Its folder is currently ${dir} (under _completed/). Run .claude/commands/reopen.md: move it back into ` +
-      `${this.options.discussionRoot} (git mv, keep the folder name), then resume the brainstorm live` +
+      `The bridge ALREADY moved its folder back to ${dir} (out of _completed/; git will record the rename on ` +
+      `the next commit — no git mv needed). Run .claude/commands/reopen.md: resume the brainstorm live` +
       `${round ? ` from round ${round}` : ''} by calling present_board with discussionId="${discussionId}". ` +
       `Nothing is regenerated — the cached rounds/artifacts reload (rule 7).`
     );
@@ -1241,10 +1434,18 @@ export class Bridge {
       return 'via-board-response';
     }
     const request: CommandRequest = { command, prompt, seedNote };
+    // The handed-off brief is consumed the moment the panel submits a real
+    // brainstorm — clear the durable copy so a later restart doesn't resurrect
+    // a stale handoff into a fresh New Discussion.
+    if (command === 'new-brainstorm' && this.seedBrief) {
+      this.seedBrief = null;
+      this.persistSeedBrief();
+    }
     const waiter = this.commandWaiters.shift();
     if (waiter) {
       waiter(request); // a blocked waitForCommand takes it directly, not the queue
     } else {
+      this.journalQueued(request); // durable: survives an MCP death before the drain
       this.commandQueue.push(request);
     }
     this.onQueuedCommand?.(request);
@@ -1259,7 +1460,10 @@ export class Bridge {
   async waitForCommand(timeoutMs: number): Promise<CommandRequest | null> {
     await this.start();
     const queued = this.commandQueue.shift();
-    if (queued) return queued;
+    if (queued) {
+      this.journalDrained(queued);
+      return queued;
+    }
     return new Promise<CommandRequest | null>((resolve) => {
       const waiter = (request: CommandRequest) => {
         clearTimeout(timer);
@@ -1337,14 +1541,16 @@ export class Bridge {
           if (composite) fs.writeFileSync(path.join(folder, 'composite.png'), composite.buffer);
           const photo = seed.photoDataUri ? this.decodeImageDataUri(seed.photoDataUri) : null;
           if (photo) fs.writeFileSync(path.join(folder, `photo.${photo.ext}`), photo.buffer);
-          fs.writeFileSync(path.join(folder, 'README.md'), scribbleReadme(seed.annotations, !!composite, photo?.ext));
           const view = composite ? 'composite.png' : photo ? `photo.${photo.ext}` : 'scribble.svg';
+          fs.writeFileSync(path.join(folder, 'README.md'), scribbleReadme(seed.annotations, !!composite, photo?.ext, view));
           return (
-            `Seed scribble (annotated photo) saved at ${folder} — run .claude/commands/read-scribble.md on it: ` +
+            `Seed scribble (annotated ${photo ? 'photo' : 'blank canvas'}) saved at ${folder} — run .claude/commands/read-scribble.md on it: ` +
             `VIEW ${view} (vision) + read scribble.json/README.md, then ANCHOR the brainstorm on the user's marks` +
             (seed.annotations ? ` (${summarizeMarks(seed.annotations)})` : '') +
             '.' +
-            (composite ? '' : ' NOTE: composite.png could not be persisted — reconstruct the marks from scribble.json over photo.png.')
+            (composite
+              ? ''
+              : ` NOTE: composite.png could not be persisted — reconstruct the marks from scribble.json${photo ? ` over photo.${photo.ext}` : ''}.`)
           );
         }
         // Legacy / blank-canvas scribble: a single self-contained SVG.
@@ -1352,20 +1558,13 @@ export class Bridge {
         fs.writeFileSync(file, seed.svg);
         return `Seed sketch (user-drawn) saved at ${file} — Read it and riff on its shapes and gesture.`;
       }
-      // image data URI → file
-      const match = seed.dataUri.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/s);
-      if (!match) {
-        this.log('seed image rejected: not a base64 image data URI');
-        return 'Seed image was attached but could not be decoded (not a base64 image data URI) — tell the user honestly and ask them to retry.';
+      // image data URI → file (same decode + cap rules as the scribble's photo/composite)
+      const image = this.decodeImageDataUri(seed.dataUri);
+      if (!image) {
+        return 'Seed image was attached but could not be used (not a base64 image data URI, or over the 10MB limit) — tell the user honestly and ask them to retry with a smaller standard image.';
       }
-      const buffer = Buffer.from(match[2], 'base64');
-      if (buffer.byteLength > 10 * 1024 * 1024) {
-        this.log('seed image rejected: over 10MB');
-        return 'Seed image was attached but exceeded the 10MB limit — tell the user honestly and ask for a smaller file.';
-      }
-      const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
-      const file = path.join(dir, `seed-${stamp}.${ext}`);
-      fs.writeFileSync(file, buffer);
+      const file = path.join(dir, `seed-${stamp}.${image.ext}`);
+      fs.writeFileSync(file, image.buffer);
       return `Seed image${seed.name ? ` ("${seed.name}")` : ''} saved at ${file} — Read it (vision) and extract its subject, shapes, and mood as the brief.`;
     } catch (err) {
       this.log(`persistSeed failed: ${String(err)}`);
@@ -1376,10 +1575,13 @@ export class Bridge {
   /** Decode a base64 image data URI to bytes + a normalized extension, or null. */
   private decodeImageDataUri(dataUri: string): { buffer: Buffer; ext: string } | null {
     const match = dataUri.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/s);
-    if (!match) return null;
+    if (!match) {
+      this.log('seed image rejected: not a base64 image data URI');
+      return null;
+    }
     const buffer = Buffer.from(match[2], 'base64');
     if (buffer.byteLength > 10 * 1024 * 1024) {
-      this.log('scribble image rejected: over 10MB');
+      this.log('seed image rejected: over 10MB');
       return null;
     }
     return { buffer, ext: match[1] === 'jpg' ? 'jpeg' : match[1] };
@@ -1388,11 +1590,120 @@ export class Bridge {
   drainCommands(): CommandRequest[] {
     const drained = this.commandQueue;
     this.commandQueue = [];
+    for (const request of drained) this.journalDrained(request);
     return drained;
   }
 
   peekCommands(): CommandRequest[] {
     return [...this.commandQueue];
+  }
+
+  // --- pending-commands journal (crash durability for queued UI commands) ---
+  // A queued command used to live only in bridge memory: an MCP death before a
+  // present_board/open_studio drained the queue lost the FULL routing
+  // instruction (only a truncated .logs line survived). Every queue/drain is
+  // now journaled append-only to <root>/.logs/pending-commands.jsonl and the
+  // undrained tail reloads on start.
+
+  private commandJournalFile(): string {
+    return path.join(this.options.discussionRoot, '.logs', 'pending-commands.jsonl');
+  }
+
+  private journalAppend(record: Record<string, unknown>): void {
+    try {
+      const file = this.commandJournalFile();
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.appendFileSync(file, JSON.stringify(record) + '\n');
+    } catch (err) {
+      this.log(`pending-commands journal append failed: ${String(err)}`);
+    }
+  }
+
+  private journalQueued(request: CommandRequest): void {
+    request.id = `cmd-${Date.now()}-${this.commandSeq++}`;
+    this.journalAppend({
+      t: 'queued',
+      id: request.id,
+      at: new Date().toISOString(),
+      command: request.command,
+      prompt: request.prompt ?? null,
+      seedNote: request.seedNote ?? null,
+    });
+  }
+
+  private journalDrained(request: CommandRequest): void {
+    if (!request.id) return;
+    this.journalAppend({ t: 'drained', id: request.id, at: new Date().toISOString() });
+  }
+
+  /** Reload undrained queued commands (queued minus drained) after a restart. */
+  private reloadCommandJournal(): void {
+    const file = this.commandJournalFile();
+    if (!fs.existsSync(file)) return;
+    try {
+      const queued = new Map<string, CommandRequest>();
+      for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const rec = JSON.parse(line) as {
+            t: string;
+            id: string;
+            command?: string;
+            prompt?: string | null;
+            seedNote?: string | null;
+          };
+          if (rec.t === 'queued' && rec.command) {
+            queued.set(rec.id, {
+              command: rec.command,
+              prompt: rec.prompt ?? undefined,
+              seedNote: rec.seedNote ?? undefined,
+              id: rec.id,
+            });
+          } else if (rec.t === 'drained') {
+            queued.delete(rec.id);
+          }
+        } catch {
+          /* corrupt lines skipped, same as every jsonl reload */
+        }
+      }
+      if (queued.size > 0) {
+        this.commandQueue.push(...queued.values());
+        this.log(`reloaded ${queued.size} undrained UI command(s) from the journal`);
+      }
+    } catch (err) {
+      this.log(`pending-commands journal reload failed: ${String(err)}`);
+    }
+  }
+
+  // --- seedBrief durability (open_studio handoff survives a restart) ---
+
+  private seedBriefFile(): string {
+    return path.join(this.options.discussionRoot, '.logs', 'pending-brief.json');
+  }
+
+  private persistSeedBrief(): void {
+    try {
+      const file = this.seedBriefFile();
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      if (this.seedBrief) {
+        fs.writeFileSync(file, JSON.stringify(this.seedBrief, null, 2));
+      } else {
+        fs.rmSync(file, { force: true });
+      }
+    } catch (err) {
+      this.log(`pending-brief persist failed: ${String(err)}`);
+    }
+  }
+
+  private reloadSeedBrief(): void {
+    const file = this.seedBriefFile();
+    if (!fs.existsSync(file)) return;
+    try {
+      this.seedBrief = JSON.parse(fs.readFileSync(file, 'utf8')) as SeedBrief;
+      this.log('reloaded the open_studio seed brief from disk');
+    } catch (err) {
+      this.log(`pending-brief reload failed (ignored): ${String(err)}`);
+    }
   }
 
   announceArtifact(artifact: Artifact): void {

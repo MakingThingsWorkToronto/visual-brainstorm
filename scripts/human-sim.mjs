@@ -6,17 +6,23 @@
  * (apps/studio/dist) served by a REAL Bridge on an ephemeral port, and scripting a
  * full human goal end to end:
  *
- *   new discussion (type a brief, pick a chip, send)
+ *   new discussion (type a brief, pick a chip, annotate a photo seed, send)
  *   → respond to a presented canonical board (select, elaborate, submit)
  *   → a captured artifact becomes visible in the wayfinder strip.
  *
  * Interaction choices (documented per the mandate):
  *   - Clicks are REAL CDP mouse events (Input.dispatchMouseEvent at the element's
  *     settled center after scrollIntoView) — closest to a human pointer.
+ *   - Pen/arrow strokes are REAL CDP mouse DRAGS (press → moves → release) on the
+ *     scribble canvas; the note-placement pointerdown is a real dispatched
+ *     PointerEvent on the canvas (headless CDP won't reliably synthesize a
+ *     pointerdown for a stationary tap on the <svg> — same real-handler tradeoff
+ *     the mindmap step makes with the live engine's own methods).
  *   - Typing is Runtime focus() + CDP Input.insertText — fires real `input` events,
  *     so React controlled inputs update exactly as they do for a human.
  *   - Elements are located by the surfaces' own semantic anchors (button text,
- *     aria-pressed, artifact hrefs) — no test ids were added to the studio.
+ *     aria-pressed, artifact hrefs) plus the studio's existing data-testids
+ *     (e.g. scribble-canvas, mindmap-canvas) where a surface has no unique text.
  *
  * Crash detection after EVERY step:
  *   - unmounted root: document.getElementById('root').childElementCount === 0
@@ -136,6 +142,69 @@ if (browsers.length === 0) {
     // --- in-page helpers (shared, scripts/lib/cdp.mjs) -----------------------
     const { evaluate, waitInPage, click, typeInto } = makePageHelpers(cdp);
 
+    // --- scribble-pad primitives: a real pointer DRAG (pen/arrow) and a key
+    //     press (commit a text note), plus a real file-picker set. These drive
+    //     the studio's genuine pointer/keyboard/file paths — nothing faked. ----
+    await cdp.send('DOM.enable');
+    // Scroll the canvas to viewport center, let the smooth-scroll settle, and
+    // return its settled viewport rect. Coordinates from a NON-settled rect can
+    // land off-screen (earlier toolbar clicks scrollIntoView and shift the pad),
+    // so every drag/tap re-settles the canvas first.
+    const settledCanvasRect = async () => {
+      const rect = await evaluate(
+        `(async () => {
+          const el = document.querySelector('[data-testid="scribble-canvas"]');
+          if (!el) return null;
+          el.scrollIntoView({ block: 'center', inline: 'center' });
+          const frame = () => new Promise((r) => requestAnimationFrame(r));
+          let prev = el.getBoundingClientRect();
+          for (let i = 0; i < 90; i++) {
+            await frame();
+            const r = el.getBoundingClientRect();
+            if (Math.abs(r.y - prev.y) < 0.5 && Math.abs(r.x - prev.x) < 0.5) {
+              return { x: r.x, y: r.y, w: r.width, h: r.height };
+            }
+            prev = r;
+          }
+          return { x: prev.x, y: prev.y, w: prev.width, h: prev.height };
+        })()`,
+        { awaitPromise: true },
+      );
+      if (!rect) throw new Error('scribble canvas not found');
+      return rect;
+    };
+    const dragOnCanvas = async (from, to, steps = 8) => {
+      const rect = await settledCanvasRect();
+      const at = (f) => ({ x: rect.x + rect.w * f.x, y: rect.y + rect.h * f.y });
+      const a = at(from);
+      const b = at(to);
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y, button: 'none' });
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', buttons: 1, clickCount: 1 });
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, button: 'left', buttons: 1 });
+      }
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x, y: b.y, button: 'left', buttons: 0, clickCount: 1 });
+    };
+    const pressEnter = async () => {
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+    };
+    const setFileInput = async (selector, filePath) => {
+      const { result } = await cdp.send('Runtime.evaluate', { expression: selector, returnByValue: false });
+      if (!result.objectId) throw new Error(`file input not found: ${selector}`);
+      await cdp.send('DOM.setFileInputFiles', { files: [filePath], objectId: result.objectId });
+    };
+    // A real 2×2 PNG on disk — the file a human would pick from the Attach dialog.
+    const photoPath = path.join(scratch, 'inspiration.png');
+    fs.writeFileSync(
+      photoPath,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR4nGP8z8Dwn4EIwDiqEAAj4wf9lZ0DAAAAAElFTkSuQmCC',
+        'base64',
+      ),
+    );
+
     // --- the crash check that runs after EVERY step ---------------------------
     const checkpoint = async (label) => {
       const rootChildren = await evaluate(
@@ -219,6 +288,162 @@ if (browsers.length === 0) {
       assert.equal(value, brief, 'typed brief landed in the controlled textarea');
     });
 
+    // =========================================================================
+    // Annotate-a-photo seed (journeys.md #7). The human attaches a photo, accepts
+    // the "scribble on it?" offer, marks it up (pen + text note + arrow) in a
+    // palette color, and sends — the annotated composite must ride to disk as the
+    // sketch seed with the photo embedded, while the raw photo persists as an
+    // attachment (Keep both). Every action here is a REAL studio interaction.
+    // =========================================================================
+    // NB: two buttons read "Aurora" — the studio theme-switcher pill AND the
+    // Colors-card generation-palette button. Target the palette one by its unique
+    // title so we set the GENERATION palette (genTheme), not the studio skin.
+    const auroraPaletteBtn = `[...document.querySelectorAll('button')].find((b) => (b.getAttribute('title') || '').includes('Aurora palette for generated options'))`;
+    await step('human picks the Aurora palette (its colors will ink the scribble)', async () => {
+      await click('the Aurora generation-palette button in Colors', auroraPaletteBtn);
+      await waitInPage(
+        'the Aurora palette selected (aria-pressed)',
+        `${auroraPaletteBtn}?.getAttribute('aria-pressed') === 'true'`,
+      );
+    });
+
+    await step('human attaches a photo — the scribble offer appears', async () => {
+      await click(
+        'the More Tools (+) button',
+        `document.querySelector('button[aria-label="More Tools"]')`,
+      );
+      await waitInPage(
+        'the hidden Attach-file input mounted in the menu',
+        `!!document.querySelector('input[type=file]')`,
+      );
+      await setFileInput(`document.querySelector('input[type=file]')`, photoPath);
+      await waitInPage(
+        'the "scribble on this photo?" offer banner',
+        `!!document.querySelector('[data-testid="scribble-offer"]') &&
+         document.body.textContent.includes('Want to scribble on this photo?')`,
+      );
+    });
+
+    await step('human accepts — the photo becomes the scribble pad background', async () => {
+      await click(
+        'the offer’s Scribble a seed button',
+        `document.querySelector('[data-testid="scribble-offer-accept"]')`,
+      );
+      // The pad expands, mounts the toolbar, and shows the photo as an <image>.
+      await waitInPage(
+        'the scribble canvas with the photo embedded + the Pen/Text/Arrow toolbar',
+        `!!document.querySelector('[data-testid="scribble-canvas"] image') &&
+         !!document.querySelector('[data-testid="scribble-tool-pen"]') &&
+         !!document.querySelector('[data-testid="scribble-tool-text"]') &&
+         !!document.querySelector('[data-testid="scribble-tool-arrow"]')`,
+      );
+    });
+
+    let penHex;
+    await step('human annotates the photo (pen + highlighter + box + note + arrow) + undo + fullscreen', async () => {
+      // Pen: pick the first palette swatch, then drag a stroke across the photo.
+      await click('the Pen tool', `document.querySelector('[data-testid="scribble-tool-pen"]')`);
+      await click('the first palette swatch', `document.querySelector('[data-testid="scribble-swatch"]')`);
+      await dragOnCanvas({ x: 0.18, y: 0.3 }, { x: 0.62, y: 0.72 });
+      penHex = await waitInPage(
+        'a drawn polyline in the pad, inked with the chosen swatch color',
+        `(() => {
+          const line = document.querySelector('[data-testid="scribble-canvas"] polyline');
+          return line ? line.getAttribute('stroke') : null;
+        })()`,
+      );
+      assert.equal(penHex.toLowerCase(), '#7c3aed', 'pen uses the selected Aurora palette color (not the default accent)');
+
+      // Highlighter: a thick, translucent stroke (stroke-opacity 0.35).
+      await click('the Highlighter tool', `document.querySelector('[data-testid="scribble-tool-highlighter"]')`);
+      await click('the first palette swatch', `document.querySelector('[data-testid="scribble-swatch"]')`);
+      await dragOnCanvas({ x: 0.2, y: 0.2 }, { x: 0.7, y: 0.24 });
+      await waitInPage(
+        'a translucent highlighter stroke',
+        `[...document.querySelectorAll('[data-testid="scribble-canvas"] polyline')].some((l) => l.getAttribute('stroke-opacity') === '0.35')`,
+      );
+
+      // Box: circle a region — a translucent-filled <rect> (fill-opacity 0.12).
+      await click('the Box tool', `document.querySelector('[data-testid="scribble-tool-box"]')`);
+      await click('the first palette swatch', `document.querySelector('[data-testid="scribble-swatch"]')`);
+      await dragOnCanvas({ x: 0.25, y: 0.45 }, { x: 0.6, y: 0.8 });
+      await waitInPage(
+        'a box rect scoping a region',
+        `[...document.querySelectorAll('[data-testid="scribble-canvas"] rect')].some((r) => r.getAttribute('fill-opacity') === '0.12')`,
+      );
+
+      // Text: pick the tool + swatch, then drop a note. The pointerdown that opens
+      // the popover is delivered as a real PointerEvent dispatched on the canvas —
+      // headless CDP's mouse→pointer translation does not reliably synthesize a
+      // pointerdown for a stationary tap on the <svg> (only a long multi-move drag,
+      // as pen/arrow use), so we invoke the SAME real onPointerDown handler with a
+      // real event. This mirrors the mindmap step's real-engine-method pattern
+      // (CDP coords unreliable on that transformed canvas). Everything after —
+      // typing, Enter-commit, the rendered <text>, the seed — is the genuine path.
+      await click('the Text tool', `document.querySelector('[data-testid="scribble-tool-text"]')`);
+      await click('the first palette swatch', `document.querySelector('[data-testid="scribble-swatch"]')`);
+      await evaluate(
+        `(() => {
+          const el = document.querySelector('[data-testid="scribble-canvas"]');
+          const r = el.getBoundingClientRect();
+          el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: r.x + r.width * 0.5, clientY: r.y + r.height * 0.35, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1 }));
+        })()`,
+      );
+      await waitInPage('the note input opens', `!!document.querySelector('[data-testid="scribble-note-input"]')`);
+      await typeInto('the note input', `document.querySelector('[data-testid="scribble-note-input"]')`, 'FOCUS HERE');
+      await pressEnter();
+      await waitInPage(
+        'the note rendered as a styled overlay <text> on the photo',
+        `[...document.querySelectorAll('[data-testid="scribble-canvas"] text')].some((t) => (t.textContent || '').includes('FOCUS HERE'))`,
+      );
+
+      // Arrow: pick the tool + swatch, then drag from tail to head — an arrowhead
+      // polygon must appear.
+      await click('the Arrow tool', `document.querySelector('[data-testid="scribble-tool-arrow"]')`);
+      await click('the first palette swatch', `document.querySelector('[data-testid="scribble-swatch"]')`);
+      await dragOnCanvas({ x: 0.3, y: 0.82 }, { x: 0.8, y: 0.4 });
+      await waitInPage(
+        'the arrow rendered with its arrowhead polygon',
+        `!!document.querySelector('[data-testid="scribble-canvas"] polygon')`,
+      );
+
+      // Undo-last: a throwaway pen stroke (3rd polyline) then undo removes exactly it,
+      // leaving the pen + highlighter keepers (2 polylines).
+      await click('the Pen tool (throwaway)', `document.querySelector('[data-testid="scribble-tool-pen"]')`);
+      await dragOnCanvas({ x: 0.4, y: 0.5 }, { x: 0.5, y: 0.55 });
+      await waitInPage(
+        'the throwaway stroke makes 3 polylines',
+        `document.querySelectorAll('[data-testid="scribble-canvas"] polyline').length === 3`,
+      );
+      await click('the undo button', `document.querySelector('[data-testid="scribble-undo"]')`);
+      await waitInPage(
+        'undo removed exactly the throwaway (back to 2 polylines, keepers intact)',
+        `document.querySelectorAll('[data-testid="scribble-canvas"] polyline').length === 2 &&
+         [...document.querySelectorAll('[data-testid="scribble-canvas"] text')].some((t) => (t.textContent || '').includes('FOCUS HERE'))`,
+      );
+
+      // Maximize → fullscreen input view (no artifact-chat — a scribble is input).
+      // Marks persist across the maximize/minimize round-trip (shared state).
+      await click('the Maximize button', `document.querySelector('[data-testid="scribble-maximize"]')`);
+      await waitInPage(
+        'the fullscreen scribble view opens with the marks kept',
+        `!!document.querySelector('[data-testid="scribble-fullscreen"]') &&
+         !!document.querySelector('[data-testid="scribble-fullscreen"] [data-testid="scribble-canvas"]') &&
+         [...document.querySelectorAll('[data-testid="scribble-fullscreen"] text')].some((t) => (t.textContent || '').includes('FOCUS HERE'))`,
+      );
+      // A scribble is input-only: the fullscreen view has NO artifact-chat composer.
+      assert.ok(
+        await evaluate(`!document.querySelector('[data-testid="scribble-fullscreen"] input[placeholder="Ask or ask for a change…"]')`),
+        'the fullscreen scribble is input-only (no artifact-chat composer)',
+      );
+      await click('the Minimize button', `document.querySelector('[data-testid="scribble-maximize"]')`);
+      await waitInPage(
+        'minimize returns inline with marks intact',
+        `!document.querySelector('[data-testid="scribble-fullscreen"]') &&
+         [...document.querySelectorAll('[data-testid="scribble-canvas"] text')].some((t) => (t.textContent || '').includes('FOCUS HERE'))`,
+      );
+    });
+
     await step('human sends it — new-brainstorm reaches the bridge queue', async () => {
       await click(
         'the landing Send & iterate button',
@@ -233,6 +458,47 @@ if (browsers.length === 0) {
       const [cmd] = bridge.drainCommands(); // the harness stands in for the orchestrator's check-in
       assert.equal(cmd.command, 'new-brainstorm');
       assert.equal(cmd.prompt, `${brief} (a logo)`, 'prompt carries the brief and the chip');
+
+      // The annotated scribble persisted as a TRAVERSABLE FOLDER the model can
+      // fully read — proven off disk on the REAL bridge (no faked orchestrator).
+      // The seedNote routes the orchestrator to /read-scribble.
+      assert.ok(cmd.seedNote && cmd.seedNote.includes('read-scribble.md'), 'the scribble routes the orchestrator to /read-scribble');
+      const seedDir = path.join(scratch, '.seeds');
+      const folder = fs.existsSync(seedDir)
+        ? fs.readdirSync(seedDir).find((f) => /^seed-/.test(f) && fs.statSync(path.join(seedDir, f)).isDirectory())
+        : undefined;
+      assert.ok(folder, 'the annotated scribble persisted as a .seeds/seed-<stamp>/ folder');
+      const fp = path.join(seedDir, folder);
+      for (const f of ['composite.png', 'photo.png', 'scribble.svg', 'scribble.json', 'README.md']) {
+        assert.ok(fs.existsSync(path.join(fp, f)), `the scribble folder has ${f}`);
+      }
+      // THE CRUX: composite.png is a REAL raster (PNG magic header) rendered by the
+      // real browser — vision-readable, unlike the SVG-as-text the model got before.
+      const composite = fs.readFileSync(path.join(fp, 'composite.png'));
+      assert.ok(composite.length > 100, 'composite.png has real bytes');
+      assert.ok(
+        composite[0] === 0x89 && composite[1] === 0x50 && composite[2] === 0x4e && composite[3] === 0x47,
+        'composite.png carries the PNG magic header (a real raster the model can SEE, not XML text)',
+      );
+      // scribble.json — the structured, traversable marks with palette color NAMES.
+      const sj = JSON.parse(fs.readFileSync(path.join(fp, 'scribble.json'), 'utf8'));
+      const types = sj.items.map((i) => i.type);
+      for (const t of ['pen', 'highlighter', 'box', 'arrow', 'note']) {
+        assert.ok(types.includes(t), `scribble.json carries the ${t} mark`);
+      }
+      const note = sj.items.find((i) => i.type === 'note');
+      assert.equal(note.text, 'FOCUS HERE', 'scribble.json carries the note text verbatim (a literal instruction)');
+      assert.equal(note.colorValue.toLowerCase(), '#7c3aed', 'the mark ink is the chosen Aurora color');
+      assert.ok(note.colorName && note.colorName !== 'accent', `the ink resolved to its Aurora palette color NAME (got "${note.colorName}")`);
+      assert.ok(fs.readFileSync(path.join(fp, 'README.md'), 'utf8').includes('read-scribble'), 'the folder README routes to /read-scribble');
+      // Keep both: the raw photo ALSO persisted as a plain attachment.
+      const attachDir = path.join(store.info.dir, 'attachments');
+      const attachFiles = fs.existsSync(attachDir) ? fs.readdirSync(attachDir) : [];
+      assert.ok(
+        attachFiles.some((f) => /\.(png|jpe?g|gif|webp)$/i.test(f)),
+        'the raw photo ALSO persisted as an attachment (Keep both, not consumed by the scribble)',
+      );
+
       // Human side: the toast confirms the dispatch.
       await waitInPage(
         'the queued-command toast',
@@ -282,8 +548,10 @@ if (browsers.length === 0) {
       );
       cAnswer = await cWait;
       assert.ok(cAnswer, 'askConcierge resolved with a posted answer, not a timeout');
-      assert.ok(cAnswer.includes('developers'), 'answer carries the tapped chip');
-      assert.ok(cAnswer.includes('shipping a CLI'), 'answer carries the typed free text');
+      assert.ok(cAnswer.answer.includes('developers'), 'answer carries the tapped chip');
+      assert.ok(cAnswer.answer.includes('shipping a CLI'), 'answer carries the typed free text');
+      assert.deepEqual(cAnswer.picked, ['developers'], 'picked chips stay structured on the answer');
+      assert.equal(cAnswer.typed, 'shipping a CLI', 'typed concierge text stays structured on the answer');
     });
 
     let picked;
@@ -313,7 +581,10 @@ if (browsers.length === 0) {
         `document.querySelector('[data-testid="method-card-mindmap"]')`,
       );
       picked = await gWait;
-      assert.equal(picked, 'mindmap', 'presentGallery resolved with the picked method');
+      assert.ok(picked, 'presentGallery resolved with the picked method');
+      assert.equal(picked.method, 'mindmap', 'presentGallery resolved with the picked method');
+      assert.equal(picked.label, 'Mind map', 'presentGallery preserves the picked card label');
+      assert.equal(picked.recommended, true, 'presentGallery preserves whether the pick was recommended');
     });
 
     const treeBoard = BoardSchema.parse({
@@ -498,7 +769,7 @@ if (browsers.length === 0) {
 
       const introMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
       assert.ok(introMd.includes('Concierge Q: Who is this glyph for?'), 'brainstorm.md records the concierge question');
-      assert.ok(introMd.includes(`Concierge A: ${cAnswer}`), 'brainstorm.md records the concierge answer');
+      assert.ok(introMd.includes(`Concierge A: ${cAnswer.answer}`), 'brainstorm.md records the concierge answer');
       assert.ok(introMd.includes('Mind-map tree presented'), 'brainstorm.md records the mindmap presentation (recordBoard)');
       assert.ok(introMd.includes('EXPLODE'), 'the digest surfaces the EXPLODE decision for synthesis');
       assert.ok(introMd.includes('DELETE'), 'the digest surfaces the DELETE decision for synthesis');
@@ -537,7 +808,7 @@ if (browsers.length === 0) {
       waitForResponse = bridge.presentAndWait(board, 60_000, /* open browser */ false);
       await waitInPage(
         'the board survey (3 selectable options, "your turn")',
-        `document.querySelectorAll('button[aria-pressed]').length === 3 &&
+        `document.querySelectorAll('button[title="Select"], button[title="Deselect"]').length === 3 &&
          document.body.textContent.includes('your turn') &&
          document.body.textContent.includes(${JSON.stringify(board.title)})`,
       );
@@ -632,6 +903,32 @@ if (browsers.length === 0) {
       );
     });
 
+    // The operator's report (2026-07-09): "I submit a message but do not see my
+    // chat message bubble." Prove the LIVE-thread send→echo→persist on the real
+    // path — the user's OWN message must render in the dialog and hit chat.jsonl.
+    const liveChatQ = 'Does this read at 16px on a dark bar?';
+    await step('type a chat message on the LIVE artifact — the user bubble appears + persists', async () => {
+      await typeInto(
+        'the live chat composer',
+        `document.querySelector('input[placeholder="Ask or ask for a change…"]')`,
+        liveChatQ,
+      );
+      await click(
+        'the chat Send button',
+        `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Send')`,
+      );
+      await waitInPage(
+        'the user message bubble appears in the artifact dialog',
+        `document.body.textContent.includes(${JSON.stringify(liveChatQ)})`,
+        8_000,
+      );
+      const chatState = await (await fetch(`${base}/api/state`)).json();
+      assert.ok(
+        (chatState.artifactChat ?? []).some((m) => m.role === 'user' && m.text === liveChatQ),
+        'the live thread chat.jsonl carries the user message (persisted, rule 7)',
+      );
+    });
+
     await step('pinning the keep round-trips through /api/pinned and hits the filmstrip', async () => {
       await click(
         'the 📌 Pin toggle',
@@ -657,9 +954,11 @@ if (browsers.length === 0) {
     passed = true;
     console.log(
       `HUMAN SIM PASS — ${stepCount} steps: real ${browserName} over raw CDP drove the built studio ` +
-        'against a real bridge (new discussion → concierge Q&A → gallery pick → live mindmap edit → ' +
-        'editedTree → board response → artifact visible → unified fullscreen viewer → pinned to the ' +
-        'filmstrip), zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout',
+        'against a real bridge (new discussion → annotate a photo seed [pen + highlighter + box + note ' +
+        '+ arrow in a palette color, undo, fullscreen] → a traversable .seeds/ folder with a real ' +
+        'composite PNG + scribble.json → concierge Q&A → gallery pick → live mindmap edit → editedTree → board response → ' +
+        'artifact visible → unified fullscreen viewer → pinned to the filmstrip), zero exceptions, ' +
+        'zero STUDIO CLIENT ERROR lines, root mounted throughout',
     );
   } catch (err) {
     process.exitCode = 1;

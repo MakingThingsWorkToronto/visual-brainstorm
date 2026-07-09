@@ -54,6 +54,30 @@ export const SurveyConfigSchema = z.object({
 export type SurveyConfig = z.infer<typeof SurveyConfigSchema>;
 
 // ---------------------------------------------------------------------------
+// Survey questions — the shared tappable-question shape. Used by the New
+// Discussion intake (SeedBrief.questions / DEFAULT_INTAKE_QUESTIONS below) AND
+// by mid-round boards (Board.questions): Claude can ask the human structured
+// clarifying questions WITHOUT leaving the round — answers ride back in
+// BoardResponse.questionAnswers keyed by question id.
+// ---------------------------------------------------------------------------
+
+export const SurveyQuestionSchema = z.object({
+  /** Stable id — answers and pre-selected picks are keyed by it. */
+  id: z.string(),
+  /** The prompt, shown as the box title + the group's aria-label. */
+  question: z.string(),
+  /** Tappable answer options. */
+  options: z.array(z.string()),
+  /** Multi-select (checkbox semantics); default single (radio semantics). */
+  multi: z.boolean().optional(),
+  /** One option accented + badged as the recommendation (the artifact's ribbon). */
+  recommended: z.string().optional(),
+  /** Show a free-text "other" input (default true). */
+  allowOther: z.boolean().optional(),
+});
+export type SurveyQuestion = z.infer<typeof SurveyQuestionSchema>;
+
+// ---------------------------------------------------------------------------
 // Board + options
 // ---------------------------------------------------------------------------
 
@@ -66,6 +90,13 @@ export const BoardOptionSchema = z.object({
   tags: z.array(z.string()).default([]),
   /** Option ids from earlier rounds this option descends from (lineage). */
   parents: z.array(z.string()).default([]),
+  /**
+   * Why Claude drew THIS option — one or two sentences that QUOTE the user
+   * feedback it responds to ("your 'too corporate' flaw on Meridian → this
+   * strips the gradient"). Rendered under the option so the human SEES their
+   * feedback driving the round (the causal link is the trust signal).
+   */
+  rationale: z.string().optional(),
 });
 export type BoardOption = z.infer<typeof BoardOptionSchema>;
 
@@ -132,6 +163,12 @@ export const TreeOpSchema = z.object({
   note: z.string().default(''),
   /** `add`: how many child ideas were seeded (default 5). */
   count: z.number().int().min(1).optional(),
+  /** `rename`: the topic BEFORE the rename (topic carries the new one). */
+  oldTopic: z.string().optional(),
+  /** `move`: the id of the node's NEW parent. */
+  newParentId: z.string().optional(),
+  /** `move`: the NEW parent's topic — labels the destination for the digest. */
+  newParentTopic: z.string().optional(),
   /** ISO timestamp — the studio stamps it when the user acts. */
   at: z.string(),
 });
@@ -162,6 +199,14 @@ export const BoardSchema = z.object({
   options: z.array(BoardOptionSchema).default([]),
   /** Mindmap boards: the live co-edited tree presented instead of options. */
   tree: MindTreeSchema.optional(),
+  /**
+   * Mid-round clarifying questions from Claude — rendered as a "Claude asks"
+   * box beside the options so the human answers WITHOUT leaving the round.
+   * Answers ride back in BoardResponse.questionAnswers keyed by question id.
+   * Ask when a signal is ambiguous (an unsure flag, a contradictory dial);
+   * never gate the send on them.
+   */
+  questions: z.array(SurveyQuestionSchema).default([]),
   survey: SurveyConfigSchema,
   createdAt: z.string(),
 });
@@ -242,22 +287,6 @@ export type SeedIntake = z.infer<typeof SeedIntakeSchema>;
 // on SeedBrief.questions — the orchestrator authors questions specific to the
 // brief rather than reusing a preset.
 // ---------------------------------------------------------------------------
-
-export const SurveyQuestionSchema = z.object({
-  /** Stable id — answers and pre-selected picks are keyed by it. */
-  id: z.string(),
-  /** The prompt, shown as the box title + the group's aria-label. */
-  question: z.string(),
-  /** Tappable answer options. */
-  options: z.array(z.string()),
-  /** Multi-select (checkbox semantics); default single (radio semantics). */
-  multi: z.boolean().optional(),
-  /** One option accented + badged as the recommendation (the artifact's ribbon). */
-  recommended: z.string().optional(),
-  /** Show a free-text "other" input (default true). */
-  allowOther: z.boolean().optional(),
-});
-export type SurveyQuestion = z.infer<typeof SurveyQuestionSchema>;
 
 /**
  * The intake questions for a BLANK New Discussion started from the studio UI
@@ -371,6 +400,13 @@ export const BoardResponseSchema = z.object({
   axisValues: z.record(z.number()).default({}),
   /** Pairs of option ids the user asked to mash up next round. */
   remixPairs: z.array(z.tuple([z.string(), z.string()])).default([]),
+  /**
+   * Remix RECIPES: what to take from each side of a remix pair, keyed
+   * "<idA>×<idB>" (the pair's ids joined in remixPairs order). Free text like
+   * "layout from the first, palette from the second" — attribute-level
+   * comparison the bare pair can't express.
+   */
+  remixNotes: z.record(z.string()).default({}),
   action: ResponseActionSchema.default('iterate'),
   /** Model the user chose for the next round — the orchestrator delegates to it. */
   model: z.string().optional(),
@@ -403,6 +439,28 @@ export const BoardResponseSchema = z.object({
   paletteColors: z.array(PaletteColorSchema).default([]),
   /** UI-invoked repo procedures (plan-closeout, discover-skills, new-brainstorm) to run now. */
   commands: z.array(z.string()).default([]),
+  /**
+   * Answers to Board.questions (Claude's mid-round clarifiers), keyed by
+   * question id. Values are the picked option strings plus any free-text
+   * "other" the user typed. Unanswered questions simply have no key.
+   */
+  questionAnswers: z.record(z.array(z.string())).default({}),
+  /**
+   * Options the user flagged "unsure" — neither keep nor kill: the signal is
+   * "I can't judge this yet". Respond with a clarifying variant next round or
+   * a Board.questions entry probing WHY it's hard to judge; never treat an
+   * unsure as a silent kill.
+   */
+  uncertainties: z.array(z.string()).default([]),
+  /**
+   * Scribble annotations the user drew ON an option's SVG (fullscreen
+   * Annotate mode), keyed by option id — arrows (tail→head), boxes,
+   * highlights, pen strokes, and text notes anchored to option coordinates,
+   * with palette color NAMES. The rasterized composite rides `attachments`
+   * as `annotated-<optionId>.png` (VISION-readable); this field is the
+   * traversable structure (which element each arrow points AT).
+   */
+  optionAnnotations: z.record(ScribbleAnnotationsSchema).default({}),
   /** User clicked a phase tab — present the NEXT board in this phase. */
   requestedPhase: PhaseSchema.optional(),
   /** action=finalize: THE one — capture it, then run plan-closeout (finality). */
@@ -475,6 +533,10 @@ export const ConciergeExchangeSchema = z.object({
   suggestions: z.array(z.string()).default([]),
   /** The user's assembled answer (chips + free text). Empty until answered. */
   answer: z.string().default(''),
+  /** Which suggestion chips were TAPPED (subset of `suggestions`) — endorsement of Claude's framing. */
+  picked: z.array(z.string()).default([]),
+  /** What the user TYPED in their own words — original signal, weight it above chips. */
+  typed: z.string().default(''),
 });
 export type ConciergeExchange = z.infer<typeof ConciergeExchangeSchema>;
 
@@ -540,6 +602,19 @@ export const SessionInfoSchema = z.object({
   theme: z.string().optional(),
   /** Captured-artifact slugs pinned to a dedicated filmstrip row (studio Pin toggle). */
   pinnedSlugs: z.array(z.string()).default([]),
+  /**
+   * Durable intake state: set when the Living Gallery pick lands, so the
+   * mandatory-front-door gate (present_board refuses a fresh thread's first
+   * board before a methodology pick) survives an MCP restart instead of
+   * living only in bridge memory.
+   */
+  intake: z
+    .object({
+      complete: z.boolean().default(false),
+      /** The methodology the user picked (mindmap | funnel | wreck | cluster | …). */
+      method: z.string().optional(),
+    })
+    .optional(),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 

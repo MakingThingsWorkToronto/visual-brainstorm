@@ -9,7 +9,7 @@ This workspace already has an authoritative agentic layer. GitHub Copilot custom
 2. Read [CLAUDE.md](../CLAUDE.md) for the repo mandates and quick map.
 3. Read [discussion/copilot-slash-commands-2026-07-07/plan.md](../discussion/copilot-slash-commands-2026-07-07/plan.md) for the current provider-aware harness plan.
 4. Read [the authoritative registry](../.claude/agentic-surface-registry.json) for the provider-neutral `.claude` surface map.
-5. Read [agentic-surface-map.json](./agentic-surface-map.json) for the GitHub Copilot adapter mapping.
+5. Read [agentic-surface-registry.json](./agentic-surface-registry.json) for the GitHub Copilot adapter registry.
 
 ## Source of truth
 

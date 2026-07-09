@@ -24,7 +24,7 @@ Remove the preview fixture harness and its now-vestigial `engine` discriminator 
 
 ### Wiki + .github mirror (delegated → wiki-librarian; rule 11 adapter-reconcile clause)
 - wiki: `System/testing-observability.md`, `System/interface-coverage.md`, `Requirements/system-architecture.md`, `user-guide.md`, `Product/intake-methodologies.md`, `Requirements/interaction-protocol.md`; one `wiki/log.md` line per page.
-- `.github/`: `copilot-instructions.md`, `prompts/*`, `agents/*`, `agentic-surface-map.json` — no lingering preview harness / `engine:'preview'` references.
+- `.github/`: `copilot-instructions.md`, `prompts/*`, `agents/*`, `agentic-surface-registry.json` — no lingering preview harness / `engine:'preview'` references.
 
 ## Verify
 `npm run build` + `npm test` (unit/smoke/ui-smoke/human/archived) + `npm run test:human:sweep` → exit 0.

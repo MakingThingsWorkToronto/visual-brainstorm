@@ -23,6 +23,7 @@ the wiki wins until explicitly amended (and every amendment is logged in `log.md
   - **Harnesses** (per-harness entry point + adapter map; one page per harness so none bloats another's read — add `harness-<name>.md` for a new harness):
     - [harness-claude-code.md](System/harness-claude-code.md) — native surface + authoritative SSOT (`.claude/`): agents, 15 commands, 2 skills
     - [harness-copilot.md](System/harness-copilot.md) — GitHub Copilot adapter (`.github/`): prompts/agents mapped to `.claude/`
+    - [harness-codex.md](System/harness-codex.md) — Codex adapter (`.codex/` + `.agents/skills/`): config/hooks/agents/skills mapped to `.claude/`
 - **Research/**
   - [visualization-engines.md](Research/visualization-engines.md) — engine evaluations (mindmapcn/mind-elixir)
 - **Meta/**

@@ -34,9 +34,9 @@ Every round is persisted before the user ever responds — a closed browser lose
 | Tool | Blocking | Purpose |
 |---|---|---|
 | `open_studio` | yes (timeout → `waiting`) | open the studio with NO board — the New Discussion landing panel — and block until the panel submits a brief (arrives as a new-brainstorm command with prompt/seed notes) or timeout returns `{status:"waiting"}` (the studio stays open; call again or check `session_status.pendingUiCommands`). **Handoff (`SeedBrief`, carried on `StudioState.seedBrief`):** `brief` pre-fills the composer; on a real run-brainstorm, `summary` replaces the panel's generic opening-bubble prompt with a friendly one-liner (reads as continuity), `questions` is a **bespoke intake survey the orchestrator authors anchored to the brief** (each `{ id, question, options[], multi?, recommended?, allowOther? }` — validated by `SurveyQuestionSchema`; replaces the panel's generic preset rather than appending), and `picks` (answers keyed by those question ids — or the default preset ids when no `questions` were handed off; exact option strings, unknown values fall back to free-text) pre-selects the intake so the human lands one tap from Send & iterate. A bare New Discussion (no handoff) leaves the panel generic, using `DEFAULT_INTAKE_QUESTIONS` (protocol-owned: making/vibe/range/audience/constraints). For a bare `/run-brainstorm` (its step 0): land the user on the panel and build AskUserQuestion clarifications on the submission. The placeholder "New discussion" thread is retitled by the first `present_board` (`SessionStore.retitle` — display title only, directory slug unchanged). Blocking: `discussionId` resumes a cached thread |
-| `ask_concierge` | yes (timeout → `pending`) | adaptive concierge intake (wiki/Product/intake-methodologies.md): after the New Discussion brief, ask ONE clarifying question in the studio and block for the answer. Ask AS MANY as it takes — not a fixed count; comprehensiveness rewards the brainstorm. Provide tappable `suggestions` (user picks any/all/none, or types their own). Presented in ConciergeIntake surface. Each answer returns and appends to the thread's `brainstorm.md` digest. Returns `{status:"answered", answer}` or `{status:"pending"}` on timeout |
-| `present_gallery` | yes (timeout → `pending`) | Living Gallery (wiki/Product/intake-methodologies.md): after the concierge Q&A, present the methodologies as method cards — Mind map, Funnel, Wreck, Cluster. Each card carries a LIVE mini SVG genuinely seeded from the brief + answers (delegate the 4 minis to `svg-artisan`). Mark exactly ONE `recommended:true` with a `reason` quoting user's answers; it is accent-ringed + ribboned in the studio's LivingGallery surface. Block until the user picks one. The pick routes to the starting mechanic (mindmap → tree board; funnel/wreck/cluster → that phase). Returns `{status:"picked", method}` or `{status:"pending"}` on timeout |
-| `present_board` | yes (timeout → `pending`) | push a board, await the survey response; `discussionId` resumes a cached thread |
+| `ask_concierge` | yes (timeout → `pending`) | adaptive concierge intake (wiki/Product/intake-methodologies.md): after the New Discussion brief, ask ONE clarifying question in the studio and block for the answer. Ask AS MANY as it takes — not a fixed count; comprehensiveness rewards the brainstorm. Provide tappable `suggestions` (user picks any/all/none, or types their own). Presented in ConciergeIntake surface. Each answer returns and appends to the thread's `brainstorm.md` digest. Returns `{status:"answered", answer, picked, typed}` or `{status:"pending"}` on timeout; `picked` = suggestion chips tapped (the user endorsed Claude's framing), `typed` = the user's own words (weight highest), `answer` = the assembled result. On timeout or process restart, the pending question persists to `<thread>/intake-pending.json` and re-calling returns the stored answer immediately (crash recovery) |
+| `present_gallery` | yes (timeout → `pending`) | Living Gallery (wiki/Product/intake-methodologies.md): after the concierge Q&A, present the methodologies as method cards — Mind map, Funnel, Wreck, Cluster. Each card carries a LIVE mini SVG genuinely seeded from the brief + answers (delegate the 4 minis to `svg-artisan`). Mark exactly ONE `recommended:true` with a `reason` quoting user's answers; it is accent-ringed + ribboned in the studio's LivingGallery surface. Block until the user picks one. The pick routes to the starting mechanic (mindmap → tree board; funnel/wreck/cluster → that phase). Returns `{status:"picked", method, label, recommended, reason}` or `{status:"pending"}` on timeout; `recommended` flags whether the user took Claude's recommendation (calibrates future recs). On timeout, the pending pick persists to `<thread>/intake-pending.json` and re-calling returns the stored pick immediately (crash recovery) |
+| `present_board` | yes (timeout → `pending`) | push a board (optionally with `questions`: 0–4 SurveyQuestion, rendered as a "Claude asks" box beside the options; answers return in response.questionAnswers keyed by qid; never gate on them). Await the survey response; `discussionId` resumes a cached thread. Each option may carry `rationale` (quoted user feedback driving this option — rendered under it so the human sees their feedback working). Returns the survey response incl. `questionAnswers`, `uncertainties` (options user flagged unsure), `optionAnnotations` (marks drawn on options in fullscreen Annotate mode — arrows/boxes/notes with palette color names, composite PNG in attachments), `remixNotes` (recipes for remix pairs keyed "a×b"), and `lineage` resolved from cached rounds |
 | `peek_response` | no | recover a response after a client-side timeout |
 | `capture_artifact` | no | persist an accepted SVG with provenance (+ copy to the EFFECTIVE targetRepo's `brainstorm-artifacts/` — thread override ?? config default); appears on the studio's artifact shelf. Optional `revises: <parent slug>` marks a revision (`Artifact.provenance.revises`) — a change is a NEW artifact linked to its parent, never an overwrite (rule 7) |
 | `list_discussions` | no | enumerate the thread cache (`discussion`) |
@@ -44,6 +44,26 @@ Every round is persisted before the user ever responds — a closed browser lose
 | `session_status` | no | thread dir, round count, artifact list, effective targetRepo, pendingUiCommands, and each board's in-progress `draft` (the user's live dials/selections/notes/model — read it to answer an artifact-chat referencing the dials they set) |
 | `compose_poster` | no | DETERMINISTIC (no model) decision-poster composition: winner embedded large + lineage tree (parents/grandparents from cached rounds) + the notes that decided it (lineage perOptionNotes + elaborations) as ONE self-contained SVG; captured via the normal artifact path (rule 7 provenance) and copied to the effective targetRepo like any artifact; throws honestly if the optionId is in no cached round |
 | `reply_artifact_chat` | no | Claude's answer channel for the artifact chat: `{artifactSlug, text, revisedSlug?, discussionId?}` — persists a `claude`-role `ArtifactChatMessage` to the owning thread's `artifacts/chat.jsonl` and broadcasts the `artifact-chat` WS envelope (carrying `discussionId`). `artifactSlug` may be an `option:<boardId>:<optionId>` slug (option chat, below) — used EXACTLY as delivered. Pass `discussionId` for an ARCHIVED thread so the reply records in place |
+
+## Durability contract — the exchange survives crashes
+
+The two-way Claude ⇄ studio handoff is durable: no UI gesture is ever lost to a bridge/MCP restart, and no pending question leaves the user stranded.
+
+**Intake gate.** `SessionInfo.intake?: {complete, method?}` is persisted to `session.json` when a gallery pick is made (`recordGalleryPick`). `bridge.intakeComplete` reads memory ∪ session.json so a resumed session knows the intake is done — skipping the gate on re-entry.
+
+**Pending concierge/gallery.** A concierge question or gallery awaiting an answer persists to `<thread>/intake-pending.json` (overwritten per question/gallery; cleared on success). When the MCP process restarts before the user answers, re-calling `ask_concierge` or `present_gallery` with the same inputs rehydrates the pending state and returns the stored answer immediately when it arrives (no re-presentation needed). The pending data is cleared after successful answer (not cleared on timeout — a second timeout+re-call still retrieves the stored answer). A crash during the wait is invisible to the user: the question stays live in the UI; when they answer, the answer persists and any MCP restart delivers it.
+
+**Queued UI commands.** Commands queued from the UI (plan-closeout, discover-skills, new-brainstorm, artifact-chat) that arrive while no `present_board` or `open_studio` blocks are journaled to `<discussionRoot>/.logs/pending-commands.jsonl` (append-only: `{ command, at, prompt, seedNote, drained? }`). On MCP restart, the bridge reloads all undrained entries and re-queues them so no command is lost — they arrive in the next `present_board` / `open_studio` tool result as `commands` (routed to the orchestrator via `drainCommands()`).
+
+**Pending intake brief.** The `open_studio` seedBrief (brief, summary, questions, picks) persists to `<discussionRoot>/.logs/pending-brief.json` until consumed on the first board (cleared on success). On MCP restart, the brief is preserved and the studio can re-present it to the user if they close and reopen the tab.
+
+**peek_response fallback.** `peek_response` first checks in-memory cache, then falls back to `store.rounds[].response` (disk) when the live response is gone (e.g. MCP restarted after the user answered). To ensure the fallback works, resume the thread first (`present_board.discussionId` or `load_discussion`) so the store is attached.
+
+**Atomic writes.** `SessionStore` uses atomic write (tmp + rename) for ALL JSON/SVG writes (`writeFileAtomic`). On reload, `open()` guards `board.json` / `response.json` parse-per-round: a corrupt round is skipped + logged honestly, never bricking the thread (partial writes from a crash are caught and omitted).
+
+**Schema-drift tripwire.** `POST /api/respond` logs any unknown keys zod strips (fields present in the POST body but not in `BoardResponseSchema`), so schema drift between harnesses is visible immediately (not silent data loss).
+
+**Reopen integrity.** When `POST /api/command {command:"reopen", discussionId}` is routed to the orchestrator, the bridge itself calls `SessionStore.unarchive(root, id)` to move the folder out of `_completed/` (honest fs move + logging; the orchestrator never performs a manual `git mv` — the bridge owns the move, seeding the response with "moved out of archive" so the orchestrator's procedure knows it happened).
 
 ## Artifact chat
 
@@ -136,6 +156,16 @@ orchestrator resumes whatever the session was doing. Archived (completed) thread
 thread-addressed and remain interactive (answer-in-place; see the loop above).
 
 **Pinned artifacts.** A captured artifact can be pinned from the fullscreen viewer's 📌 toggle (live threads only); pinned artifacts appear in a dedicated "📌 pinned" row beneath the WayfinderStrip. Pins persist per-thread in `session.json` (`SessionInfo.pinnedSlugs: string[]`) and reload with the thread. On completed/archived threads, pinned artifacts appear read-only (no pin toggle). The pin control sends `POST /api/pinned {slug}` (validates the slug is a live-thread artifact, 404 otherwise), which `SessionStore.togglePinned(slug)` toggles, rewrites `session.json`, appends a one-line brainstorm.md note, and broadcasts `hello`.
+
+## Mind-map persistence (model-legible contract)
+
+On `present_board` of a mindmap board, `SessionStore.recordBoard` writes `round-NN/tree.json` (presented tree), `round-NN/tree.md` (traversable markdown outline: header counts, indented hierarchy, per-node `id` + `note`, `— thin` flags on top-level branches never grown), and AUTO-CAPTURES a snapshot artifact (provenance `boardId` + `optionIds: []`) — the maximize→fullscreen-chat target; no orchestrator action needed (rule 7).
+
+On submit, `recordResponse` writes `response.json`, appends every op to `round-NN/tree-ops.jsonl` (append-only decision log), writes `edited-tree.json`, and refreshes `tree.md` ("Edited tree … (submitted)" heading).
+
+On live edit, the studio debounce-POSTs the draft (`/api/board-draft`) and `recordBoardDraft` writes `round-NN/draft.json` + refreshes `tree.md` ("Live tree … (in progress)" heading). Maximizing the map flushes the draft first, so a fullscreen artifact-chat always reads the CURRENT tree.
+
+Readers: `.claude/commands/read-mindmap.md` (prefers draft.json's live tree → tree.md), invoked by brainstorm-phases, run-brainstorm step 4, plan-closeout step 7, and now `.claude/commands/artifact-chat.md`'s mind-map branch (a chat improvement re-presents an improved TREE, never an svg-artisan SVG redraw of the snapshot).
 
 ## Reopen a completed thread
 
@@ -232,13 +262,23 @@ Visual brainstorming IS the packaging of UI feedback into the next round. The ru
 
 1. **Nothing is dropped.** Every gesture in the studio (selection, note, remix mark, dial
    move, lens mark, flaw, drag position, cluster, gap note, deck flick, duel pick,
-   phase-tab click, model pick, file/photo attachment, palette-color pick, command button)
+   phase-tab click, model pick, file/photo attachment, palette-color pick, mid-round
+   question answers, uncertainties, remix recipes, option annotations, command button)
    lands in `BoardResponse`. Mechanics the user touched ship their state
    even if a different phase tab is active at send time.
 2. **The tool result is executable.** `present_board` returns a `feedbackDigest`: labeled,
    imperative instructions compiled from the response (option labels not ids, dial DELTAS
    with direction, per-verdict triage lists). A delegated model that never saw the board can
-   execute the digest as-is.
+   execute the digest as-is. Digest lines include:
+   - **Selected:** the chosen options (or "none — read the dials/notes/phase fields").
+   - **Answer — "<question>":** responses to Claude's mid-round clarifying questions.
+   - **Deck KEEP:** options flicked toward (resonate direction).
+   - **Deck KILL:** options flicked away (drop direction).
+   - **Annotated ON "<label>":** marks drawn directly on an option in fullscreen mode (mark count summary + "VIEW <savedPath>" when composite PNG available).
+   - **UNSURE:** options flagged uncertain (never a silent kill — respond with clarifying variant or a mid-round question probing why it's hard to judge).
+   - **Remix:** remix pairs + recipe (what to take from each side).
+   - **Cluster geometry:** per-cluster tightness (welded/close/loose), closest cross-cluster neighbors (hybrid invitation), spatial outliers.
+   - **RENAME / MOVE:** mind-map node structural edits (oldTopic→topic; move to new parent).
 3. **Dial deltas are a complete instruction.** Moved axisValues with zero selections and no
    text MUST produce a visibly re-tuned next round — never a no-op. The studio marks moved
    dials (● + count) so the user knows the signal was captured; `requestedPhase` (clickable

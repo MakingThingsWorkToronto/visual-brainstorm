@@ -139,7 +139,10 @@ export function composeSeedSvg(content: ScribbleContent): string | null {
       );
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewW} ${viewH}">${parts.join('')}</svg>`;
+  // Explicit width/height alongside the viewBox: Firefox/Safari mis-rasterize an
+  // intrinsically-unsized SVG through canvas drawImage (blank or 300x150 default),
+  // which would silently lose the vision composite off Chromium.
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW}" height="${viewH}" viewBox="0 0 ${viewW} ${viewH}">${parts.join('')}</svg>`;
 }
 
 /**
@@ -281,12 +284,18 @@ export function PhotoScribble({
   photo,
   onRemovePhoto,
   onChange,
+  initial,
+  lockPhoto = false,
 }: {
   palette: PaletteColor[];
   fallbackColor?: string;
   photo: string | null;
   onRemovePhoto: () => void;
   onChange: (content: ScribbleContent | null) => void;
+  /** Marks to restore on mount — reopening the annotate view keeps prior marks. */
+  initial?: Annotation[];
+  /** The background is the subject itself (option annotation) — hide "remove photo". */
+  lockPhoto?: boolean;
 }) {
   const swatches: PaletteColor[] =
     palette.length > 0 ? palette : [{ name: 'Accent', value: fallbackColor }];
@@ -300,14 +309,23 @@ export function PhotoScribble({
     box: first,
     text: first,
   });
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [annotations, setAnnotations] = useState<Annotation[]>(initial ?? []);
   const [draft, setDraft] = useState<Annotation | null>(null); // arrow/box being dragged
   const [pending, setPending] = useState<{ at: Pt; text: string } | null>(null); // note popover
   const [viewH, setViewH] = useState(DEFAULT_VIEW_H);
+  const [measuring, setMeasuring] = useState(false); // photo aspect not yet resolved
   const [maximized, setMaximized] = useState(false); // fullscreen input view (no chat — input only)
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drawing = useRef(false);
+  // Synchronous mirror of `draft` — pointer events read/commit through it so the
+  // state updaters stay pure (StrictMode double-invokes updaters; an impure one
+  // committed every arrow/box twice) and a fast flick's moves aren't dropped.
+  const draftRef = useRef<Annotation | null>(null);
+  const updateDraft = (d: Annotation | null) => {
+    draftRef.current = d;
+    setDraft(d);
+  };
 
   const activeColor = toolColor[tool];
   const setActiveColor = (c: string) => setToolColor((prev) => ({ ...prev, [tool]: c }));
@@ -317,16 +335,29 @@ export function PhotoScribble({
   useEffect(() => {
     if (!photo) {
       setViewH(DEFAULT_VIEW_H);
+      setMeasuring(false);
       return;
     }
+    // Drawing is blocked while measuring: a mark placed before the aspect
+    // resolves would be stored against the old viewH and visibly shift.
+    setMeasuring(true);
+    let cancelled = false;
     const img = new Image();
     img.onload = () => {
+      if (cancelled) return;
       if (img.naturalWidth > 0) {
         const h = Math.round((VIEW_W * img.naturalHeight) / img.naturalWidth);
         setViewH(Math.max(150, Math.min(600, h)));
       }
+      setMeasuring(false);
+    };
+    img.onerror = () => {
+      if (!cancelled) setMeasuring(false);
     };
     img.src = photo;
+    return () => {
+      cancelled = true;
+    };
   }, [photo]);
 
   // Emit the full content (or null) whenever committed marks change.
@@ -345,6 +376,7 @@ export function PhotoScribble({
 
   const onDown = (e: React.PointerEvent) => {
     if (pending) return; // finish the open note first
+    if (measuring) return; // photo aspect unresolved — coords would land in the wrong space
     const p = point(e);
     const color = toolColor[tool];
     if (tool === 'pen' || tool === 'highlighter') {
@@ -353,7 +385,7 @@ export function PhotoScribble({
       setAnnotations((prev) => [...prev, { type: tool, color, points: [p] } as Annotation]);
     } else if (tool === 'arrow' || tool === 'box') {
       drawing.current = true;
-      setDraft({ type: tool, color, from: p, to: p });
+      updateDraft({ type: tool, color, from: p, to: p });
     } else {
       setPending({ at: p, text: '' });
     }
@@ -372,8 +404,9 @@ export function PhotoScribble({
         return next;
       });
     } else {
-      // arrow/box drag — functional so a fast flick's moves aren't dropped.
-      setDraft((prev) => (prev && (prev.type === 'arrow' || prev.type === 'box') ? { ...prev, to: p } : prev));
+      // arrow/box drag — the ref is the freshest value, so no moves are dropped.
+      const d = draftRef.current;
+      if (d && (d.type === 'arrow' || d.type === 'box')) updateDraft({ ...d, to: p });
     }
   };
 
@@ -389,14 +422,13 @@ export function PhotoScribble({
       });
     }
     drawing.current = false;
-    // Commit a substantive arrow/box (freshest draft via the updater).
-    setDraft((d) => {
-      if (d && (d.type === 'arrow' || d.type === 'box')) {
-        const len = Math.hypot(d.to.x - d.from.x, d.to.y - d.from.y);
-        if (len > 6) setAnnotations((prev) => [...prev, d]);
-      }
-      return null;
-    });
+    // Commit a substantive arrow/box from the ref (never inside a state updater).
+    const d = draftRef.current;
+    if (d && (d.type === 'arrow' || d.type === 'box')) {
+      const len = Math.hypot(d.to.x - d.from.x, d.to.y - d.from.y);
+      if (len > 6) setAnnotations((prev) => [...prev, d]);
+    }
+    updateDraft(null);
   };
 
   const commitNote = () => {
@@ -408,12 +440,12 @@ export function PhotoScribble({
 
   const undoLast = () => {
     setPending(null);
-    setDraft(null);
+    updateDraft(null);
     setAnnotations((prev) => prev.slice(0, -1));
   };
   const clearAll = () => {
     setPending(null);
-    setDraft(null);
+    updateDraft(null);
     setAnnotations([]);
   };
 
@@ -453,7 +485,7 @@ export function PhotoScribble({
           ))}
         </div>
         <div className="ml-auto flex items-center gap-2 text-[11px] text-ink-dim">
-          {photo && (
+          {photo && !lockPhoto && (
             <button type="button" onClick={onRemovePhoto} className="hover:text-ink">
               remove photo
             </button>

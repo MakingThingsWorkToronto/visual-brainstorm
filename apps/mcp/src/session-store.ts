@@ -56,6 +56,19 @@ function stamp(d: Date): string {
 }
 
 /**
+ * Crash-safe JSON/text write: write to a temp sibling, then rename into place.
+ * A process killed mid-write can no longer leave a truncated board.json/
+ * response.json that bricks the whole thread's reload — the old file (or no
+ * file) survives instead. Node's rename replaces an existing destination on
+ * every platform we run on.
+ */
+function writeFileAtomic(file: string, data: string): void {
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, data);
+  fs.renameSync(tmp, file);
+}
+
+/**
  * Persists every board, per-option SVG, response, and artifact (CLAUDE.md rule 7) to the
  * donor-style discussion folder: <root>/<stamp>-<slug>/. Nothing is ever regenerated —
  * threads reload via SessionStore.open() and list via SessionStore.list().
@@ -98,7 +111,7 @@ export class SessionStore {
       dir,
       pinnedSlugs: [],
     };
-    fs.writeFileSync(
+    writeFileAtomic(
       path.join(dir, 'session.json'),
       JSON.stringify(this.info, null, 2),
     );
@@ -163,12 +176,27 @@ export class SessionStore {
     for (const roundDir of roundDirs) {
       const boardFile = path.join(dir, roundDir, 'board.json');
       if (!fs.existsSync(boardFile)) continue;
-      const board = BoardSchema.parse(JSON.parse(fs.readFileSync(boardFile, 'utf8')));
+      // Guarded per-round parse: one corrupt/truncated board.json must not brick
+      // the WHOLE thread's reload (brainstorm.md still carries its text memory).
+      // Writes are atomic now, but files written before that (or by a foreign
+      // editor) can still be malformed — skip honestly, never abort.
+      let board: Board;
+      try {
+        board = BoardSchema.parse(JSON.parse(fs.readFileSync(boardFile, 'utf8'))) as Board;
+      } catch (err) {
+        console.error(`[store] skipping corrupt ${roundDir}/board.json: ${String(err)}`);
+        continue;
+      }
       const responseFile = path.join(dir, roundDir, 'response.json');
-      const response = fs.existsSync(responseFile)
-        ? BoardResponseSchema.parse(JSON.parse(fs.readFileSync(responseFile, 'utf8')))
-        : null;
-      store.rounds.push({ board: board as Board, response });
+      let response: BoardResponse | null = null;
+      if (fs.existsSync(responseFile)) {
+        try {
+          response = BoardResponseSchema.parse(JSON.parse(fs.readFileSync(responseFile, 'utf8')));
+        } catch (err) {
+          console.error(`[store] skipping corrupt ${roundDir}/response.json (board kept): ${String(err)}`);
+        }
+      }
+      store.rounds.push({ board, response });
       // In-progress draft (generation meta) — restores the user's dials/notes.
       const draftFile = path.join(dir, roundDir, 'draft.json');
       if (fs.existsSync(draftFile)) {
@@ -244,6 +272,25 @@ export class SessionStore {
     return path.join(root, '_completed', base);
   }
 
+  /**
+   * Reopen integrity: move an archived thread's folder OUT of _completed/ back
+   * into the live root, so a resumed brainstorm appends new rounds in the right
+   * place (a resume that skipped the move would silently grow the archive).
+   * Idempotent: already-live threads return their dir untouched. Throws when
+   * the thread does not exist or the destination is occupied.
+   */
+  static unarchive(root: string, id: string): string {
+    const base = path.basename(id);
+    const live = path.join(root, base);
+    if (fs.existsSync(path.join(live, 'session.json'))) return live; // already live
+    const archived = path.join(root, '_completed', base);
+    if (!fs.existsSync(path.join(archived, 'session.json'))) {
+      throw new Error(`no thread "${id}" in ${root} or its _completed/`);
+    }
+    fs.renameSync(archived, live);
+    return live;
+  }
+
   private roundDir(round: number): string {
     const dir = path.join(this.info.dir, `round-${String(round).padStart(2, '0')}`);
     fs.mkdirSync(dir, { recursive: true });
@@ -257,15 +304,15 @@ export class SessionStore {
     if (this.rounds.some((r) => r.board.id === board.id)) return;
     this.rounds.push({ board, response: null });
     const dir = this.roundDir(board.round);
-    fs.writeFileSync(path.join(dir, 'board.json'), JSON.stringify(board, null, 2));
+    writeFileAtomic(path.join(dir, 'board.json'), JSON.stringify(board, null, 2));
     for (const option of board.options) {
-      fs.writeFileSync(path.join(dir, `option-${option.id}.svg`), option.svg);
+      writeFileAtomic(path.join(dir, `option-${option.id}.svg`), option.svg);
     }
     // A mindmap board carries a live tree instead of options. Persist the tree
     // JSON and capture a deterministic SVG snapshot as an artifact (rule 7):
     // the presented structure is archived even before the user edits it.
     if (board.tree) {
-      fs.writeFileSync(path.join(dir, 'tree.json'), JSON.stringify(board.tree, null, 2));
+      writeFileAtomic(path.join(dir, 'tree.json'), JSON.stringify(board.tree, null, 2));
       // The MODEL-LEGIBLE form of the map: a traversable markdown outline the
       // orchestrator (and read-mindmap) reads without parsing JSON. Overwritten
       // as the tree is edited (response/draft) so it always reflects the latest.
@@ -300,12 +347,24 @@ export class SessionStore {
     );
   }
 
+  /**
+   * Cache the intake Living Gallery (method cards + their premium-model mini
+   * SVGs) with the thread — intake content economy: a re-presented gallery
+   * (timeout, resume) reuses these cards instead of re-delegating generation,
+   * and rule 7 gets its persistence. Last-write-wins; returns the cache path.
+   */
+  cacheIntakeGallery(gallery: unknown): string {
+    const file = path.join(this.info.dir, 'intake-gallery.json');
+    writeFileAtomic(file, JSON.stringify(gallery, null, 2));
+    return file;
+  }
+
   recordResponse(response: BoardResponse): void {
     const round = this.rounds.find((r) => r.board.id === response.boardId);
     if (!round) return;
     round.response = response;
     const dir = this.roundDir(round.board.round);
-    fs.writeFileSync(path.join(dir, 'response.json'), JSON.stringify(response, null, 2));
+    writeFileAtomic(path.join(dir, 'response.json'), JSON.stringify(response, null, 2));
     // Mind-map decisions are structured data (rule: jsonl where decisions matter).
     // Every node op is appended to the round's tree-ops.jsonl — append-only, so
     // the full explode/delete/add/note history survives for later synthesis.
@@ -323,7 +382,7 @@ export class SessionStore {
     // JSON alongside response.json so the decision-tree builder and re-synthesis
     // read it without unpacking the whole response.
     if (response.editedTree) {
-      fs.writeFileSync(path.join(dir, 'edited-tree.json'), JSON.stringify(response.editedTree, null, 2));
+      writeFileAtomic(path.join(dir, 'edited-tree.json'), JSON.stringify(response.editedTree, null, 2));
       // Refresh the model-legible outline to the SUBMITTED shape.
       this.writeTreeOutline(dir, response.editedTree, `Edited tree — round ${round.board.round} (submitted)`);
     }
@@ -356,7 +415,7 @@ export class SessionStore {
     else this.drafts.push(draft);
     try {
       const dir = this.roundDir(round.board.round);
-      fs.writeFileSync(path.join(dir, 'draft.json'), JSON.stringify(draft, null, 2));
+      writeFileAtomic(path.join(dir, 'draft.json'), JSON.stringify(draft, null, 2));
       // A mind-map draft carries the LIVE in-progress tree — keep the model-legible
       // outline current so read-mindmap/an artifact-chat reads the tree the user is
       // actually looking at, not the originally-presented one.
@@ -375,7 +434,7 @@ export class SessionStore {
    */
   private writeTreeOutline(dir: string, tree: MindTree, heading: string): void {
     try {
-      fs.writeFileSync(path.join(dir, 'tree.md'), treeToOutline(tree, heading) + '\n');
+      writeFileAtomic(path.join(dir, 'tree.md'), treeToOutline(tree, heading) + '\n');
     } catch (err) {
       console.error(`[store] tree.md write failed: ${String(err)}`);
     }
@@ -407,8 +466,8 @@ export class SessionStore {
   private writeDecisionTree(): void {
     try {
       const tree = buildDecisionTree(this.info.title, this.rounds);
-      fs.writeFileSync(path.join(this.info.dir, 'decision-tree.json'), JSON.stringify(tree, null, 2));
-      fs.writeFileSync(path.join(this.info.dir, 'decision-tree.svg'), decisionTreeToSvg(tree));
+      writeFileAtomic(path.join(this.info.dir, 'decision-tree.json'), JSON.stringify(tree, null, 2));
+      writeFileAtomic(path.join(this.info.dir, 'decision-tree.svg'), decisionTreeToSvg(tree));
     } catch (err) {
       console.error(`[store] decision-tree write failed: ${String(err)}`);
     }
@@ -448,12 +507,16 @@ export class SessionStore {
     // A boundary event (tool label) DECLARES the current sink; the NEXT
     // token-bearing turn-end event inherits it, then the label is consumed so it
     // attributes exactly that one turn — later uncategorized turns fold into
-    // `orchestration`. The tokens are real deltas; only the attribution is a
-    // heuristic ("what was being done when the turn ended").
-    if (event.category) this.currentSink = event.category;
-    else if (event.tokens) {
-      if (this.currentSink) event.category = this.currentSink;
+    // `orchestration`. A token-bearing event ALSO consumes the label even when it
+    // carries its own category (the pipe's CLI shape), mirroring the reload
+    // reconstruction in open() so live and reloaded attribution never diverge.
+    // The tokens are real deltas; only the attribution is a heuristic ("what was
+    // being done when the turn ended").
+    if (event.tokens) {
+      if (!event.category && this.currentSink) event.category = this.currentSink;
       this.currentSink = undefined;
+    } else if (event.category) {
+      this.currentSink = event.category;
     }
     this.progress.push(event);
     try {
@@ -489,9 +552,16 @@ export class SessionStore {
    * — the digest the orchestrator builds the Living Gallery and boards on. A
    * null answer means the question timed out (recorded honestly, no fake answer).
    */
-  recordConcierge(question: string, answer: string | null): void {
+  recordConcierge(question: string, answer: string | null, picked?: string[], typed?: string): void {
+    // Chips vs typed words are DIFFERENT signals (endorsement of Claude's
+    // framing vs the user's own words) — keep both in the text memory.
+    const detail =
+      answer !== null && (picked?.length || typed?.trim())
+        ? `\n> Concierge A (structure): tapped chips [${(picked ?? []).join(' · ') || 'none'}]` +
+          `${typed?.trim() ? `; typed in their own words: "${typed.trim()}" (weight this highest)` : '; nothing typed'}`
+        : '';
     this.appendMd(
-      `\n> Concierge Q: ${question}\n> Concierge A: ${answer ?? '(no answer — timed out)'}`,
+      `\n> Concierge Q: ${question}\n> Concierge A: ${answer ?? '(no answer — timed out)'}${detail}`,
     );
   }
 
@@ -499,11 +569,56 @@ export class SessionStore {
    * Living Gallery pick (methodology chooser): the method the user picked from
    * the offered roster, appended to brainstorm.md so the routing choice is part
    * of the thread's memory. A null pick means the gallery timed out (honest).
+   * A real pick ALSO persists the intake gate to session.json (info.intake) so
+   * the mandatory-front-door lock survives an MCP restart.
    */
   recordGalleryPick(method: string | null, offered: string[]): void {
     this.appendMd(
       `\n> Living Gallery — offered [${offered.join(', ')}]; user picked: ${method ?? '(no pick — timed out)'}`,
     );
+    if (method !== null) {
+      this.info.intake = { complete: true, method };
+      try {
+        writeFileAtomic(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+      } catch (err) {
+        console.error(`[store] session.json intake write failed: ${String(err)}`);
+      }
+    }
+  }
+
+  /**
+   * Durable in-flight intake: the pending concierge question or Living Gallery
+   * (and any answer/pick that arrived while no tool call was blocked, e.g.
+   * after a crash) persists to <thread>/intake-pending.json so a restarted MCP
+   * re-shows the SAME question and a re-called ask_concierge/present_gallery
+   * collects the stored answer instead of losing the user's work. Cleared on
+   * normal resolution.
+   */
+  writeIntakePending(data: unknown): void {
+    try {
+      writeFileAtomic(path.join(this.info.dir, 'intake-pending.json'), JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.error(`[store] intake-pending.json write failed: ${String(err)}`);
+    }
+  }
+
+  readIntakePending<T>(): T | null {
+    const file = path.join(this.info.dir, 'intake-pending.json');
+    if (!fs.existsSync(file)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
+    } catch (err) {
+      console.error(`[store] intake-pending.json unreadable (ignored): ${String(err)}`);
+      return null;
+    }
+  }
+
+  clearIntakePending(): void {
+    try {
+      fs.rmSync(path.join(this.info.dir, 'intake-pending.json'), { force: true });
+    } catch (err) {
+      console.error(`[store] intake-pending.json clear failed: ${String(err)}`);
+    }
   }
 
   captureArtifact(
@@ -518,7 +633,7 @@ export class SessionStore {
       slug = `${base}-${i}`;
     }
     const svgPath = path.join(this.info.dir, 'artifacts', `${slug}.svg`);
-    fs.writeFileSync(svgPath, svg);
+    writeFileAtomic(svgPath, svg);
     const artifact: Artifact = {
       slug,
       name,
@@ -527,7 +642,7 @@ export class SessionStore {
       provenance,
       capturedAt: new Date().toISOString(),
     };
-    fs.writeFileSync(
+    writeFileAtomic(
       path.join(this.info.dir, 'artifacts', `${slug}.json`),
       JSON.stringify(artifact, null, 2),
     );
@@ -544,7 +659,7 @@ export class SessionStore {
     const artifact = this.artifacts.find((a) => a.slug === slug);
     if (!artifact) return null;
     artifact.notes = notes;
-    fs.writeFileSync(
+    writeFileAtomic(
       path.join(this.info.dir, 'artifacts', `${slug}.json`),
       JSON.stringify(artifact, null, 2),
     );
@@ -560,7 +675,7 @@ export class SessionStore {
   retitle(title: string): void {
     if (title === this.info.title) return;
     this.info.title = title;
-    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    writeFileAtomic(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
     this.appendMd(`\n> Thread retitled to "${title}" when the first board arrived.`);
   }
 
@@ -571,7 +686,7 @@ export class SessionStore {
     } else {
       this.info.theme = theme;
     }
-    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    writeFileAtomic(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
     this.appendMd(
       `\n> Discussion theme ${theme ? `set to \`${theme}\`` : 'cleared'} — the studio skin and generated artifact colors follow it.`,
     );
@@ -584,7 +699,7 @@ export class SessionStore {
     } else {
       this.info.targetRepo = targetRepo;
     }
-    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    writeFileAtomic(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
     this.appendMd(
       `\n> Target repo for this thread ${targetRepo ? `set to \`${targetRepo}\`` : 'cleared'} — final artifacts are COPIED there on plan-closeout.`,
     );
@@ -599,7 +714,7 @@ export class SessionStore {
     const pins = this.info.pinnedSlugs ?? [];
     const has = pins.includes(slug);
     this.info.pinnedSlugs = has ? pins.filter((s) => s !== slug) : [...pins, slug];
-    fs.writeFileSync(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    writeFileAtomic(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
     this.appendMd(`\n> Artifact \`${slug}\` ${has ? 'unpinned from' : 'pinned to'} the filmstrip.`);
     return !has;
   }

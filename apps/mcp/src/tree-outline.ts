@@ -1,4 +1,5 @@
 import type { MindNode, MindTree } from '@visual-brainstorm/protocol';
+import { countNodes } from './tree-svg.js';
 
 /**
  * Deterministic MARKDOWN outline of a mind tree — the model-legible form of the
@@ -12,10 +13,6 @@ import type { MindNode, MindTree } from '@visual-brainstorm/protocol';
  * user wants more." Deeper leaves are content, not gaps, so they are NOT flagged
  * (flagging every leaf would drown the real signal).
  */
-
-function countNodes(node: MindNode): number {
-  return 1 + (node.children ?? []).reduce((sum, k) => sum + countNodes(k), 0);
-}
 
 function maxDepth(node: MindNode): number {
   const kids = node.children ?? [];
@@ -42,7 +39,7 @@ function lines(node: MindNode, depth: number, out: string[]): void {
   // A candidate gap is a TOP-LEVEL branch (depth 1) the user opened but left
   // empty — a dimension with no ideas under it. Deeper leaves are content.
   const thin = depth === 1 && (node.children ?? []).length === 0;
-  out.push(`${indent}- ${node.topic}  _(${meta.join(' · ')})_${thin ? '  — thin' : ''}`);
+  out.push(`${indent}- ${oneLine(node.topic)}  _(${meta.join(' · ')})_${thin ? '  — thin' : ''}`);
   for (const kid of node.children ?? []) lines(kid, depth + 1, out);
 }
 
@@ -63,7 +60,7 @@ export function treeToOutline(tree: MindTree, heading = 'Mind map'): string {
 
   const parts = [
     `### ${heading}`,
-    `Root **${root.topic}** · ${nodes} node${nodes === 1 ? '' : 's'} · ${branches} top branch${
+    `Root **${oneLine(root.topic)}** · ${nodes} node${nodes === 1 ? '' : 's'} · ${branches} top branch${
       branches === 1 ? '' : 'es'
     } · depth ${depth}.`,
     '',

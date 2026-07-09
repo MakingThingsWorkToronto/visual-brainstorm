@@ -45,6 +45,7 @@ web — the goal is that brainstorm quality compounds every turn.
 |---|---|
 | Run a visual brainstorm end-to-end | `run-brainstorm.md` + skill `brainstorm-phases` |
 | Author SVG options that don't suck | skill `svg-authoring` |
+| Read an annotated-photo scribble seed → user intent | `read-scribble.md` + skill `reading-scribbles` |
 | Improve craft mid-brainstorm from the web | this command, web branch |
 | Finish/close a plan or thread | `plan-closeout.md` |
 | Verify the repo works | `build-check.md` |

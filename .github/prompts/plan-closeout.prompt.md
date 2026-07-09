@@ -1,12 +1,12 @@
 ---
 description: "Close the active Visual Brainstorm plan the repo-native way. Use for verification, learnings harvest, command improvement, wiki reconciliation, archiving, and closeout reporting."
 argument-hint: "Plan slug or the active thread to close"
-agent: "visual-brainstorm-operator"
+agent: "brainstorm-orchestrator"
 tools: [read, search, edit, execute, agent, todo, visual-brainstorm/*]
 ---
 Read and follow these files in order:
 - [Authoritative registry](../../.claude/agentic-surface-registry.json)
-- [Copilot adapter index](../agentic-surface-map.json)
+- [Copilot adapter registry](../agentic-surface-registry.json)
 - [Workflow](../../.claude/commands/plan-closeout.md)
 - [Agentic loop](../../wiki/Meta/agentic-loop.md)
 - [Verification workflow](../../.claude/commands/build-check.md)

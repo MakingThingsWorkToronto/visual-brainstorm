@@ -155,6 +155,14 @@
     },
     {
       "kind": "skill",
+      "name": "caveman",
+      "path": ".claude/skills/caveman/SKILL.md",
+      "model": "inherit",
+      "purpose": "Ultra-compressed reply register for machine-read seams (subagent report-backs, mechanical reports, brief prose) — never the human-facing voice or SVG content",
+      "workflow": "token-economy"
+    },
+    {
+      "kind": "skill",
       "name": "reading-scribbles",
       "path": ".claude/skills/reading-scribbles/SKILL.md",
       "model": "inherit",
@@ -181,7 +189,7 @@
       "kind": "agent",
       "name": "svg-artisan",
       "path": ".claude/agents/svg-artisan.md",
-      "model": "opus",
+      "model": "fable",
       "purpose": "Delegated SVG generation and revision",
       "workflow": "delegated-generation"
     },

@@ -77,6 +77,26 @@ test('rule 7: every board, SVG, response, and brainstorm.md line is cached', () 
   assert.ok(md.includes('Beta'), 'digest uses labels');
 });
 
+test('cacheIntakeGallery persists the gallery cards for reuse (intake content economy)', () => {
+  const root = tmp();
+  const store = new SessionStore('Gallery cache test', root);
+  const gallery = {
+    id: 'gallery-1',
+    prompt: 'Pick a method',
+    cards: [
+      { method: 'funnel', label: 'Funnel', blurb: '', svg: '<svg viewBox="0 0 100 100"/>', recommended: true, reason: 'you said options' },
+      { method: 'mindmap', label: 'Mind map', blurb: '', svg: '<svg viewBox="0 0 100 100"/>', recommended: false, reason: '' },
+    ],
+  };
+  const file = store.cacheIntakeGallery(gallery);
+  assert.equal(file, path.join(store.info.dir, 'intake-gallery.json'));
+  const reloaded = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.deepEqual(reloaded, gallery, 'the SAME cards come back — a re-present never regenerates minis');
+  // Last-write-wins: a second present overwrites, never duplicates.
+  store.cacheIntakeGallery({ ...gallery, id: 'gallery-2' });
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).id, 'gallery-2');
+});
+
 test('open() reloads a thread and continues round numbering', () => {
   const root = tmp();
   const store = new SessionStore('Reload test', root);
@@ -169,6 +189,26 @@ test('a token event with its OWN category is attributed directly, not to the bou
     progressEvent('tweak round', { source: 'svg-artisan', tokens: { input: 30, output: 70 }, category: 'tweak' }),
   );
   assert.deepEqual(store.tokensBySink(), { tweak: 100 });
+});
+
+test('a token event with its OWN category consumes the armed boundary label — the NEXT uncategorized turn does not misattribute to it', () => {
+  const root = tmp();
+  const store = new SessionStore('Consume-on-own-category test', root);
+  // Boundary arms the sink...
+  store.recordProgress(progressEvent('presented a board', { category: 'generation' }));
+  // ...but this turn declares its OWN category, so it must consume the armed
+  // label rather than leave it armed for the NEXT (uncategorized) turn.
+  store.recordProgress(
+    progressEvent('tweak round', { source: 'svg-artisan', tokens: { input: 100, output: 50 }, category: 'tweak' }),
+  );
+  // No new boundary: this uncategorized turn must fold into orchestration, NOT
+  // inherit the stale 'generation' label (the bug) nor 'tweak' either.
+  store.recordProgress(progressEvent('turn end', { source: 'hook:Stop', tokens: { input: 20, output: 10 } }));
+
+  assert.deepEqual(store.tokensBySink(), { tweak: 150, orchestration: 30 });
+  // Live and reloaded attribution must match (SessionStore.open mirrors the same bookkeeping).
+  const reopened = SessionStore.open(store.info.dir);
+  assert.deepEqual(reopened.tokensBySink(), { tweak: 150, orchestration: 30 });
 });
 
 test('list() summaries carry per-thread token totals; 0 without a progress file', () => {

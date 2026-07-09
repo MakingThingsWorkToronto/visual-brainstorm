@@ -209,6 +209,15 @@ export default function App() {
     () => new Map(state.models.map((entry) => [entry.id, entry.label])),
     [state.models],
   );
+  // Option id → label across every cached round: lineage chips on a board's
+  // options ("↑ Meridian") read as the user's earlier picks, not raw ids.
+  const lineageLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    for (const record of state.rounds) {
+      for (const option of record.board.options) labels[option.id] = option.label;
+    }
+    return labels;
+  }, [state.rounds]);
 
   const openLogs = useCallback(async () => {
     setLogs(await (await fetch('/api/logs')).json());
@@ -818,6 +827,7 @@ export default function App() {
                       }}
                       targetRepo={state.targetRepo}
                       themes={state.themes}
+                      lineageLabels={lineageLabels}
                     />
                   </div>
                 ) : (
@@ -892,6 +902,7 @@ export default function App() {
                   onMaximizeMindmap={
                     mindmapArtifact ? () => openArtifactChat(mindmapArtifact) : undefined
                   }
+                  lineageLabels={lineageLabels}
                 />
               </div>
             </div>
@@ -977,7 +988,9 @@ export default function App() {
             emptyHint:
               fullscreen.kind === 'option'
                 ? 'Ask about this option or the choice it represents — the conversation persists with the thread.'
-                : undefined,
+                : fsArtifact && mindmapArtifact && fsArtifact.slug === mindmapArtifact.slug
+                  ? 'Ask about your map or say how to improve it — Claude reads your CURRENT tree (latest edits included, this image is the presented snapshot) and can grow you an improved map.'
+                  : undefined,
           }}
           pin={
             fullscreen.kind === 'artifact' && viewingLive && fsArtifact

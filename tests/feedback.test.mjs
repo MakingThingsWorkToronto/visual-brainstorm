@@ -116,3 +116,142 @@ test('model routing and UI commands are surfaced', () => {
   assert.ok(text.includes('delegate next-round generation to claude-opus-4-8'));
   assert.ok(text.includes('run-brainstorm.md'));
 });
+
+test('no per-round pick still routes EXPLICITLY to the best-SVG default (never by omission)', () => {
+  const text = buildFeedbackDigest(board, respond({}), 'claude-fable-5').join('\n');
+  assert.ok(text.includes('delegate next-round generation to the best-SVG default claude-fable-5'));
+  assert.ok(text.includes('never route by omission'));
+});
+
+test('a nudge-only response is classified TWEAK — mutate this round, never redraw', () => {
+  const text = digestText({ axisValues: { tone: 80 } });
+  assert.ok(text.includes('TWEAK, not redirect'));
+  assert.ok(text.includes(`round-0${board.round}/option-<id>.svg`), 'digest names the source SVG paths');
+  assert.ok(text.includes('MUTATE'));
+});
+
+test('notes and flaws alone are also a TWEAK', () => {
+  const text = digestText({ perOptionNotes: { b: 'rounder' }, flaws: { a: 'too heavy' } });
+  assert.ok(text.includes('TWEAK, not redirect'));
+});
+
+test('a structural signal makes it a redirect — no TWEAK claim', () => {
+  const withSelection = digestText({ selectedOptionIds: ['a'], axisValues: { tone: 80 } });
+  assert.ok(!withSelection.includes('TWEAK'), 'selections define a synthesis vector, not a tweak');
+  const withPhase = digestText({ axisValues: { tone: 80 }, requestedPhase: 'wreck' });
+  assert.ok(!withPhase.includes('TWEAK'), 'a phase steer is a redirect');
+  const bare = digestText({});
+  assert.ok(!bare.includes('TWEAK'), 'no nudges → nothing to mutate');
+});
+
+test('a per-round pick beats the best-SVG default', () => {
+  const text = buildFeedbackDigest(board, respond({ model: 'claude-opus-4-8' }), 'claude-fable-5').join('\n');
+  assert.ok(text.includes('delegate next-round generation to claude-opus-4-8'));
+  assert.ok(!text.includes('best-SVG default'), 'the default line never doubles a real pick');
+});
+
+// ---------------------------------------------------------------------------
+// Handoff-fidelity additions (2026-07-09): every captured gesture must reach
+// the digest — positions geometry, deck keeps, mid-round question answers,
+// unsure flags, remix recipes, on-option annotations, rename/move intents.
+// ---------------------------------------------------------------------------
+
+test('deck KEEPS surface alongside kills (a keep is signal, not silence)', () => {
+  const text = digestText({ deckVerdicts: { a: 'keep', b: 'kill' } });
+  assert.ok(text.includes('Deck KEEP'));
+  assert.ok(text.includes('Alpha'));
+  assert.ok(text.includes('Deck KILL'));
+});
+
+test('positions geometry: cluster tightness + spatial outliers reach the digest', () => {
+  const text = digestText({
+    clusters: [['a', 'b'], ['c']],
+    positions: { a: { x: 10, y: 10 }, b: { x: 14, y: 12 }, c: { x: 80, y: 80 } },
+  });
+  assert.ok(text.includes('Cluster geometry'), 'tightness line present');
+  assert.ok(text.includes('welded'), 'a 4-unit spread reads as welded');
+  assert.ok(text.includes('Spatial outliers'), 'far-from-everything option is called out');
+  assert.ok(text.includes('Gamma'), 'the outlier is named by label');
+});
+
+test('positions geometry: a near cross-cluster pair is a hybrid invitation', () => {
+  const text = digestText({
+    clusters: [['a'], ['b']],
+    positions: { a: { x: 10, y: 10 }, b: { x: 30, y: 10 } },
+  });
+  assert.ok(text.includes('Closest cross-cluster neighbors'));
+  assert.ok(text.includes('"Alpha"') && text.includes('"Beta"'));
+  assert.ok(text.includes('hybrid'));
+});
+
+test('positions WITHOUT clusters still speak: near pairs are implicit clusters', () => {
+  const text = digestText({
+    positions: { a: { x: 10, y: 10 }, b: { x: 20, y: 10 }, c: { x: 90, y: 90 } },
+  });
+  assert.ok(text.includes('no clusters formed'), 'the arrangement is not silently lost');
+  assert.ok(text.includes('"Alpha"') && text.includes('"Beta"'));
+});
+
+test('mid-round question answers resolve to the question TEXT, not the id', () => {
+  const asked = {
+    ...board,
+    questions: [{ id: 'q-temp', question: 'Warmer or cooler palette?', options: ['warmer', 'cooler'] }],
+  };
+  const response = BoardResponseSchema.parse({
+    boardId: board.id,
+    respondedAt: 'now',
+    questionAnswers: { 'q-temp': ['warmer', 'slightly amber'] },
+  });
+  const text = buildFeedbackDigest(asked, response).join('\n');
+  assert.ok(text.includes('Answer — "Warmer or cooler palette?"'));
+  assert.ok(text.includes('warmer · slightly amber'));
+});
+
+test('unsure flags demand a clarifying variant, never a silent kill', () => {
+  const text = digestText({ uncertainties: ['b'] });
+  assert.ok(text.includes('UNSURE'));
+  assert.ok(text.includes('Beta'));
+  assert.ok(text.includes('NOT a kill'));
+  assert.ok(text.includes('clarifying'));
+});
+
+test('remix recipes ride the remix line (what to take from each side)', () => {
+  const text = digestText({
+    remixPairs: [['a', 'c']],
+    remixNotes: { 'a×c': 'layout from the first, palette from the second' },
+  });
+  assert.ok(text.includes('mash up "Alpha" × "Gamma"'));
+  assert.ok(text.includes('Recipe (what to take from each): layout from the first, palette from the second'));
+});
+
+test('on-option annotations: mark summary + note text + VIEW the composite', () => {
+  const text = digestText({
+    optionAnnotations: {
+      a: {
+        viewBox: { w: 400, h: 300 },
+        background: { present: true },
+        palette: [],
+        items: [
+          { type: 'arrow', colorName: 'crimson', colorValue: '#f00', from: { x: 1, y: 2 }, to: { x: 3, y: 4 } },
+          { type: 'note', colorName: 'teal', colorValue: '#088', at: { x: 5, y: 6 }, text: 'make this bigger' },
+        ],
+      },
+    },
+    attachments: [{ name: 'annotated-a.png', dataUri: '', savedPath: 'C:/t/attachments/annotated-a.png' }],
+  });
+  assert.ok(text.includes('Annotated ON "Alpha"'));
+  assert.ok(text.includes('1 arrow'));
+  assert.ok(text.includes('"make this bigger"'));
+  assert.ok(text.includes('VIEW C:/t/attachments/annotated-a.png'));
+});
+
+test('rename carries the old topic; move names the new parent', () => {
+  const text = digestText({
+    treeOps: [
+      { op: 'rename', nodeId: 'n1', topic: 'Bold neon', oldTopic: 'Neon', note: '', at: 't' },
+      { op: 'move', nodeId: 'n2', topic: 'Sub-idea', newParentId: 'p2', newParentTopic: 'Second pillar', note: '', at: 't' },
+    ],
+  });
+  assert.ok(text.includes('RENAME: "Neon" → "Bold neon"'));
+  assert.ok(text.includes('MOVE: "Sub-idea" now lives under "Second pillar"'));
+});

@@ -22,7 +22,7 @@ replies; generation, diagnosis, tests, and wiki work are always delegated (CLAUD
 | 6 | Plan closeout | More Tools → Plan closeout; Finalize & close out; `finalize` response | `.claude/commands/plan-closeout.md` | Runs the procedure; step 5 (wiki) → **`wiki-librarian`** |
 | 7 | Skill discovery/ingestion | More Tools → Discover skills | `.claude/commands/discover-skills.md` | Runs the interactive procedure |
 | 8 | Decision poster on finalize | `finalOptionId` set → after `capture_artifact` | `compose_poster` MCP tool — DETERMINISTIC, no model | n/a (tool call only) |
-| 9 | Seeds — all four kinds (text \| sketch \| image \| voice) | New Discussion panel intake → `POST /api/command` | bridge `persistSeed` (deterministic) → digest note; orchestrator Reads the saved file (`/run-brainstorm` step 1) | Persistence never touches a model |
+| 9 | Seeds — all four kinds (text \| sketch \| image \| voice) | New Discussion panel intake → `POST /api/command` | bridge `persistSeed` (deterministic) → digest note; orchestrator Reads the saved file (`/run-brainstorm` step 1). An annotated-photo **sketch** (photo + marks) persists as a traversable `.seeds/seed-<stamp>/` folder (composite.png + photo.png + scribble.svg + scribble.json + README.md) and routes to `/read-scribble` | Persistence never touches a model |
 | 10 | Composer attachments (Attach file / Take a photo) | More Tools (+) → chips under the reply box | bridge `persistAttachment` (deterministic); orchestrator Reads each `savedPath` (`/run-brainstorm` step 4) | Persistence never touches a model |
 | 11 | Palette pick (Colors, by theme) | More Tools (+) Colors / panel Colors card | deterministic ONLY-these-colors digest line; honored during generation by row 3 | NO generation inline |
 | 12 | Theme picking / palette editing / new theme | nav theme picker, swatch edit dialog | `POST /api/session-theme`, `POST /api/themes` → `saveThemeFile` (deterministic); authored themes via `.claude/commands/add-theme.md` | n/a |
@@ -58,22 +58,26 @@ All paths are under the thread dir `discussion/<stamp>-<slug>/` unless noted. Wr
 | 7 | Artifacts + provenance (incl. `revises`) | `artifacts/<slug>.svg` + `<slug>.json`; copy to `<targetRepo>/brainstorm-artifacts/` when set | thread reload; studio shelf |
 | 7b | Artifact notes (Save notes) | `artifacts/<slug>.json` rewritten in place (`updateArtifactNotes` — SVG untouched) | thread reload; live `artifact` broadcast (useBridge upserts by slug) |
 | 8 | Response/panel attachments | `attachments/<stamp>-<name>` (`persistAttachment`; `savedPath` recorded in the response) | `savedPath` in `response.json`; honest FAILED digest line when persistence failed (rule 6) |
-| 9 | Non-text seeds (sketch/image) | `<discussionRoot>/.seeds/seed-<stamp>.<ext>` (`persistSeed`) | digest/seed-note line points at the file; text/voice seeds ride the digest itself |
+| 9 | Non-text seeds (sketch/image) | `<discussionRoot>/.seeds/seed-<stamp>.<ext>` OR, for an annotated-photo sketch, the folder `<discussionRoot>/.seeds/seed-<stamp>/` (`persistSeed`) | digest/seed-note line points at the file/folder; annotated scribbles route to `/read-scribble`; text/voice seeds ride the digest itself |
 | 10 | Thread settings: title, theme, targetRepo | `session.json` (+ a `brainstorm.md` note per change) | thread reload |
 | 11 | UI commands — board-waiting path | synthetic park response: `commands:[...]` + prompt/seedNote in `elaboration` → `round-NN/response.json` + `brainstorm.md` digest | thread reload |
-| 12 | UI commands — queued path (`pendingUiCommands`) | in-memory ONLY until drained into a tool result; dispatch line (prompt truncated to 60 chars) in `discussion/.logs/` | `session_status.pendingUiCommands` while alive; `.logs` after — see Known gaps |
+| 12 | UI commands — queued path (`pendingUiCommands`) | `<discussionRoot>/.logs/pending-commands.jsonl` (append-only: command, at, prompt, seedNote, drained?) — reloaded on MCP restart to prevent loss (DURABLE as of 2026-07-09); in-memory until drained into a tool result | `session_status.pendingUiCommands` while alive; `.logs/pending-commands.jsonl` after (survives restart) |
+| 12b | Concierge pending question or gallery pending pick | `<thread>/intake-pending.json` (overwritten per Q/pick, cleared on success) — rehydrated on MCP restart and re-called ask_concierge/present_gallery returns stored answer/pick (DURABLE as of 2026-07-09) | re-call the tool with same inputs after restart → stored answer/pick returned immediately |
+| 12c | Pending open_studio seedBrief | `<discussionRoot>/.logs/pending-brief.json` (cleared on round 1) — rehydrated on MCP restart so brief survives browser close/reopen (DURABLE as of 2026-07-09) | studio can re-present brief; `/api/state` includes it |
+| 12d | Intake gate completion | `SessionInfo.intake?: {complete, method?}` in `session.json` — written by recordGalleryPick; persists the gate state across restarts (DURABLE as of 2026-07-09) | thread reload → `StudioState.intake` |
+| 12e | Option annotations (marks drawn in fullscreen) | `BoardResponse.optionAnnotations` (Record<optionId, ScribbleAnnotations>) in `round-NN/response.json` + composite PNG as `annotated-<optionId>.png` in `attachments/` (persisted via normal attachment path) (DURABLE as of 2026-07-09) | thread reload; digest emits "Annotated ON … marks …; VIEW <savedPath>" |
 | 13 | Runtime diagnostics | `discussion/.logs/mcp-<date>.log` (FileLog, pid-tagged) + `GET /api/logs` ring | evidence trail for `devops-diagnostician` |
 
 ## Known gaps (recorded honestly — rule 6)
 
-- **Queued UI commands are ephemeral.** `commandQueue`/`commandWaiters` live in bridge
-  memory. If the MCP process dies before a `present_board`/`open_studio` drains the queue,
-  the command intent survives only as a truncated `.logs` line; the full compiled
-  `seedNote` is not written to disk. The heavy payloads themselves DO persist (`.seeds/`,
-  `attachments/`) — only the routing instruction can be lost. Artifact-chat is exempt: its
-  user message hits `artifacts/chat.jsonl` BEFORE dispatch.
-- **open_studio landing brief** (prompt/seedNote) is returned in the tool result only; it
-  reaches `brainstorm.md` when round 1 is presented. Same `.logs` fallback as above.
+- **Queued UI commands are ephemeral.** ✓ CLOSED (2026-07-09) — journaled to
+  `<discussionRoot>/.logs/pending-commands.jsonl` (append-only: command, at, prompt,
+  seedNote, drained?) and reloaded on MCP restart to prevent loss. The full compiled
+  `seedNote` survives. Artifact-chat is still exempt: its user message hits
+  `artifacts/chat.jsonl` BEFORE dispatch.
+- **open_studio landing brief.** ✓ CLOSED (2026-07-09) — persists to
+  `<discussionRoot>/.logs/pending-brief.json` until consumed on round 1; rehydrated on MCP
+  restart so the brief survives browser close/reopen.
 - **`think()` shimmer notes** (`thinking` WS envelope) are ephemeral by design — the
   persisted progress pipe (Table 2 row 4) is the durable channel.
 - **Token cursor files** (`vibr-token-cursor-*.json` in OS temp) are delta cursors, not

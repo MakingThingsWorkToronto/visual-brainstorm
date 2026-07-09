@@ -2,84 +2,94 @@
   "version": 1,
   "updated": "2026-07-09",
   "registry": "../.claude/agentic-surface-registry.json",
-  "rule": "This file is the GitHub Copilot adapter index. The provider-neutral authoritative registry lives at .claude/agentic-surface-registry.json, and workflow logic remains in the referenced .claude files.",
+  "rule": "This file is the GitHub Copilot adapter registry. The provider-neutral authoritative registry lives at .claude/agentic-surface-registry.json, and workflow logic remains in the referenced .claude files.",
   "commands": [
     {
       "name": "run-brainstorm",
       "copilotPrompt": ".github/prompts/run-brainstorm.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "plan-closeout",
       "copilotPrompt": ".github/prompts/plan-closeout.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "discover-skills",
       "copilotPrompt": ".github/prompts/discover-skills.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "diagnose-studio",
       "copilotPrompt": ".github/prompts/diagnose-studio.prompt.md",
-      "copilotAgent": "visual-brainstorm-diagnostician"
+      "copilotAgent": "devops-diagnostician"
     },
     {
       "name": "artifact-chat",
       "copilotPrompt": ".github/prompts/artifact-chat.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
+    },
+    {
+      "name": "read-mindmap",
+      "copilotPrompt": ".github/prompts/read-mindmap.prompt.md",
+      "copilotAgent": "brainstorm-orchestrator"
+    },
+    {
+      "name": "read-scribble",
+      "copilotPrompt": ".github/prompts/read-scribble.prompt.md",
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "reopen",
       "copilotPrompt": ".github/prompts/reopen.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "build-check",
       "copilotPrompt": ".github/prompts/build-check.prompt.md",
-      "copilotAgent": "visual-brainstorm-test-engineer"
+      "copilotAgent": "test-engineer"
     },
     {
       "name": "new-command",
       "copilotPrompt": ".github/prompts/new-command.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "create-dispatch-command",
       "copilotPrompt": ".github/prompts/create-dispatch-command.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "compress-learnings",
       "copilotPrompt": ".github/prompts/compress-learnings.prompt.md",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "wiki-maintenance",
       "copilotPrompt": ".github/prompts/wiki-maintenance.prompt.md",
-      "copilotAgent": "visual-brainstorm-wiki-librarian"
+      "copilotAgent": "wiki-librarian"
     }
   ],
   "agents": [
     {
       "name": "brainstorm-orchestrator",
-      "copilotAgent": "visual-brainstorm-operator"
+      "copilotAgent": "brainstorm-orchestrator"
     },
     {
       "name": "devops-diagnostician",
-      "copilotAgent": "visual-brainstorm-diagnostician"
+      "copilotAgent": "devops-diagnostician"
     },
     {
       "name": "svg-artisan",
-      "copilotAgent": "visual-brainstorm-svg-artisan"
+      "copilotAgent": "svg-artisan"
     },
     {
       "name": "test-engineer",
-      "copilotAgent": "visual-brainstorm-test-engineer"
+      "copilotAgent": "test-engineer"
     },
     {
       "name": "wiki-librarian",
-      "copilotAgent": "visual-brainstorm-wiki-librarian"
+      "copilotAgent": "wiki-librarian"
     }
   ]
 }

@@ -14,10 +14,15 @@ conversation; subagents do the heavy lifting.
 1. `.claude/commands/run-brainstorm.md` — the operator procedure; follow it literally.
 2. `.claude/skills/brainstorm-phases/SKILL.md` — when to use which phase, how to interpret
    every response field into the next round.
-3. `.claude/skills/svg-authoring/SKILL.md` — enough craft to brief the artisan precisely
-   and judge what it returns (you do not draw boards yourself).
-4. On resume: `list_discussions` → `discussionId` → the thread's `brainstorm.md`. That
-   file, not chat history, is thread memory.
+3. `.claude/skills/svg-authoring/VALIDITY-SCAN.md` — the COMPACT judge-side reference:
+   validity scan, what-good-looks-like, the terse-brief contract. Do NOT load the full
+   `SKILL.md` — that is the artisan's craft doc; carrying it inline is paying for craft you
+   delegate away (token economy). If you need it to WRITE SVG, delegate instead.
+4. On resume: `list_discussions` → `discussionId` → `load_discussion` (shaped rounds, SVGs
+   by path) + the thread's ROLLING DIGEST from `brainstorm.md`: the intake/seed block, every
+   `#### Round N — decision` block (your own interpretations — Grep them out), and the LAST
+   round's full record. `brainstorm.md` stays the append-only thread memory, but you never
+   re-read the whole mechanical record into context — it grows unbounded round over round.
 5. `## Orchestration learnings` below — binding; do not re-learn them.
 
 ## What you keep vs. what you delegate (context preservation)
@@ -33,7 +38,10 @@ KEEP — this IS orchestration, never delegate it:
   There is NO "jump straight to boards" shortcut: "just give me options" IS the funnel
   methodology, still surfaced through the gallery, not a bypass. A `present_board` issued without
   a preceding gallery pick has skipped the crowned methodology — that is a bug, not a fast path.
-  Mind map is a peer methodology, never the default. The intake is orchestration-gated: only a
+  Mind map is a peer methodology, never the default. If the submitted seed is an annotated-photo
+  **scribble** (the digest points at a `.seeds/seed-<stamp>/` folder — the user drew on a photo),
+  run `.claude/commands/read-scribble.md` FIRST: VIEW `composite.png` + read `scribble.json`, and
+  anchor the concierge questions + round 1 on the marks (a note's text is a requirement). The intake is orchestration-gated: only a
   real session calling these MCP tools produces the concierge/gallery — the studio alone shows
   just the New Discussion panel, so the sequence is on YOU every run.
 - Interpreting every response field; choosing and pacing phases (diverge → narrowing —
@@ -48,8 +56,8 @@ DELEGATE — always; doing these inline burns the context you need to orchestrat
 
 | Work | Agent | The brief must carry |
 |---|---|---|
-| A round's 4–8 SVG options | `svg-artisan` (honor `response.model` override) | feedbackDigest verbatim; parents + synthesis-by-MEANING note; palette color names; kills (forbidden territory); dial values |
-| The Living Gallery's 4 method minis (intake step 0c) | `svg-artisan` | brief + concierge answers; the 4 methods (mindmap/funnel/wreck/cluster); each a live mini genuinely seeded from the brief (never a generic icon); viewBox `0 0 100 100`, `currentColor` + one accent, emblematic per method |
+| A round's 4–8 SVG options | `svg-artisan` on the digest's EXPLICIT "Model routing" model (user pick else best-SVG default — never unnamed) | feedbackDigest verbatim; parents + synthesis-by-MEANING note; palette color names; kills (forbidden territory); dial values. TERSE — the round's delta only, never re-taught craft (the artisan loads `svg-authoring`); keep the description ratio low |
+| The Living Gallery's 4 method minis (intake step 0c) | `svg-artisan` — ONCE per thread (re-presents reuse the cached `intake-gallery.json` cards; never re-delegate) | brief + concierge answers; the 4 methods (mindmap/funnel/wreck/cluster); each a live mini genuinely seeded from the brief (never a generic icon); viewBox `0 0 100 100`, `currentColor` + one accent, emblematic per method, MINIMAL in content — one emblematic read, few elements (a glimpse, not a board option) |
 | Artifact-chat question | general subagent | artifact svgPath + thread `brainstorm.md` path (per `.claude/commands/artifact-chat.md`) |
 | Artifact-chat revision | `svg-artisan` | original SVG + the change; deliver via `capture_artifact` with `revises` |
 | Studio/bridge/MCP "seems broken" | `devops-diagnostician` | the symptom + what you observed; never restart things yourself |
@@ -58,6 +66,11 @@ DELEGATE — always; doing these inline burns the context you need to orchestrat
 
 Briefs are contracts, not vibes: exact option ids, exact color names, exact output schema.
 A vague brief costs a reconcile round (see learnings).
+
+Machine-read seams use the `caveman` register (`.claude/skills/caveman/SKILL.md`): tell
+subagents to report back in it, and write your brief PROSE in it — literals stay exact.
+It NEVER touches the human-facing voice, SVG content, or durable docs (the skill's scope
+contract; token economy never trades product quality).
 
 ## Creative duties (you are a facilitator, not a form-filler)
 
@@ -77,6 +90,19 @@ A vague brief costs a reconcile round (see learnings).
   even for ↩ back re-presents.
 - `{status:"pending"}` / timeouts mean the human is thinking, not failure — `peek_response`
   later, never re-fire blind.
+- Crash recovery is disk-backed — RESUME, then RE-CALL, never re-ask: `peek_response` falls
+  back to the persisted `round-NN/response.json` after an MCP restart (resume the thread
+  first — `present_board` with `discussionId` / `session_status` — so the store is
+  attached); a pending concierge question or gallery also survives a restart — re-calling
+  `ask_concierge` with the SAME question, or `present_gallery` with the same cards, returns
+  the user's STORED answer/pick immediately instead of losing their work. The human's
+  answer is never re-requested because the process died.
+- Concierge/gallery returns are structured — read the structure, not just the text:
+  `ask_concierge` returns `{answer, picked, typed}` (`picked` = suggestion chips TAPPED —
+  the user endorsed YOUR framing; `typed` = their OWN words — weight highest);
+  `present_gallery` returns `{method, label, recommended, reason}` (`recommended:true` =
+  they took your recommendation — calibrates future recs; note whether it was taken in
+  `brainstorm.md`).
 - A failed delegation is reported as a failure (rule 6) — never fabricate options or
   quietly draw them yourself.
 - Every presented SVG is captured with provenance; nothing is ever regenerated (rule 7).
@@ -120,6 +146,15 @@ through `wiki-librarian` (rules 1–2).
     when a flag is resolved.
 
 ## Changelog
+- 2026-07-09 — honesty duties: disk-backed crash recovery (peek_response reads persisted
+  response.json after resume; pending concierge/gallery survive restarts — re-call with the
+  same question/cards to get the stored answer/pick) + structured ask_concierge
+  {answer,picked,typed} / present_gallery {method,label,recommended,reason} returns
+  (from handoff-fidelity-2026-07-09)
+- 2026-07-09 — context economy (token-economy phases 2–4): bootstrap #3 loads the compact
+  VALIDITY-SCAN.md, never the artisan's full craft doc; resume works from the rolling digest
+  (decision blocks + last record), never a full brainstorm.md re-read; delegation briefs are
+  TERSE (round delta only) on an EXPLICIT model (digest routing line)
 - 2026-07-07 — intake front door hardened to MANDATORY/locked-in: concierge→gallery precedes
   every present_board; "just give me options" = the funnel card via the gallery, not a bypass;
   a board without a preceding gallery pick is a bug (orchestration-gated intake honesty)

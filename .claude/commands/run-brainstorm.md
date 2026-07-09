@@ -54,10 +54,17 @@ top to bottom; each numbered step below dispatches the next UI stage.
      tappable `suggestions`, tailored to the brief. Ask AS MANY as it takes — not a fixed
      count; being comprehensive rewards the brainstorm (audience, constraints, what "good"
      looks like, scope, liveness). Each answer returns to you and is appended to the thread's
-     `brainstorm.md` digest. Stop when you can confidently recommend a method.
+     `brainstorm.md` digest. Stop when you can confidently recommend a method. The return is
+     STRUCTURED: `{answer, picked, typed}` — `picked` = suggestion chips the user TAPPED (they
+     endorsed YOUR framing), `typed` = their OWN words (weight highest when the two diverge).
    - **c. Living Gallery — offer the methodologies.** Call **`present_gallery`** with the
      roster as cards, each carrying a LIVE mini **genuinely seeded from the brief + answers**
-     (delegate the 4 minis to `svg-artisan` — never a generic icon). Mark exactly ONE
+     (delegate the 4 minis to `svg-artisan` — never a generic icon). **Intake content economy:**
+     the minis run on the best model but are MINIMAL IN CONTENT — one emblematic read per
+     method, few elements (a mini is a glimpse, not a board option; fewer elements = fewer
+     output tokens, and a spare mini reads BETTER at card size). Generate them ONCE: the tool
+     caches the cards at the thread's `intake-gallery.json` (`cardsCachedAt`) — a re-present
+     (timeout, resume) reuses the SAME cards; NEVER re-delegate the minis. Mark exactly ONE
      `recommended:true` with a `reason` that QUOTES the user's answers. The roster — mind map
      is a methodology BESIDE the others, never the centerpiece or the default:
        - **mindmap** — one co-edited structure; recommend when the shape is still forming or
@@ -66,7 +73,9 @@ top to bottom; each numbered step below dispatches the next UI stage.
          for "show me options to choose among."
        - **wreck** — saboteur stress-test; recommend when an idea exists and needs pressure.
        - **cluster** — proximity field; recommend when there are many ideas to group into shape.
-   - **d. Route the pick.** `present_gallery` returns the chosen `method` — start there:
+   - **d. Route the pick.** `present_gallery` returns the chosen `method` plus `{label,
+     recommended, reason}` — `recommended:true` means the user took YOUR recommendation
+     (calibrates future recs); note whether it was taken in `brainstorm.md`. Start there:
        - **mindmap** → `present_board` with a `tree` (kind `"mindmap"`, no options) seeded from
          the brief+answers; the user co-edits, edits return in `response.editedTree`, continue
          from that tree.
@@ -97,9 +106,12 @@ top to bottom; each numbered step below dispatches the next UI stage.
    `scribble.json` and returns the user's INTENT (the arrow's target, the boxed region, the note
    text as a literal instruction). That intent ANCHORS round 1, your clarifications, and (at
    closeout) the build plan; the scribble is the seed the whole session grows from.
-2. **Load the craft**: read `.claude/skills/svg-authoring/SKILL.md` (how to draw options)
-   and `.claude/skills/brainstorm-phases/SKILL.md` (when to use which phase and how to
-   interpret each response field).
+2. **Load the craft — the judge's share only**: read
+   `.claude/skills/brainstorm-phases/SKILL.md` (when to use which phase and how to interpret
+   each response field) and `.claude/skills/svg-authoring/VALIDITY-SCAN.md` (the compact
+   scan + what-good-looks-like + terse-brief contract). The FULL `svg-authoring/SKILL.md`
+   is the artisan's load, not yours — you brief and judge, you do not draw (token economy:
+   never carry craft you delegate away).
 3. **Round 1** — `present_board` with `phase:"diverge"`, 4–8 meaningfully divergent options,
    ≥5 axes tailored to the domain (ranges, never absolutes), a prompt that says what to judge.
    **Every `present_board` gets a FRESH board id** — the bridge dedups responses
@@ -125,13 +137,20 @@ top to bottom; each numbered step below dispatches the next UI stage.
    `svg-artisan` on an EXPLICITLY named model: the digest's "Model routing" line (the user's
    pick or the session's best-SVG default) — never an unnamed fallthrough. Your delegation
    brief carries ONLY the round's delta: direction chosen, palette by name, axis deltas,
-   and a one-liner per option. Never re-teach craft the artisan's `svg-artisan` skill
+   and a one-liner per option. Never re-teach craft the artisan's `svg-authoring` skill
    already carries (keep the description ratio — brief tokens ÷ artisan output — low); you
    keep orchestrating. **Tweak vs redirect:** when the digest says "TWEAK … MUTATE, don't
    redraw" (dials/notes/flaws only, no new direction), brief the artisan to MUTATE this
    round's captured `round-NN/option-<id>.svg` files with only the deltas — never a
    from-scratch re-authoring; a redirect (new direction, selections, phase change)
    authors fresh as usual.
+   **Two optional authoring channels per round (never gating):** from round 2 on, every
+   option carries a `rationale` (1–2 sentences QUOTING the user feedback it responds to —
+   the studio renders it under the option so the human SEES their feedback driving the
+   round; the artisan writes it, your brief names the feedback to quote). And when a signal
+   was ambiguous, pass `questions` (0–4, SurveyQuestion shape) to `present_board` — the
+   "Claude asks" box beside the options; answers return in `response.questionAnswers` as
+   `Answer — "<question>"` digest lines.
    `response.attachments`: each entry's `savedPath` is a file the user attached mid-round —
    **Read it** (vision for images) and fold it in; an entry without `savedPath` failed to
    persist, tell the user. `response.paletteColors` (or a "Discussion theme" digest line):
@@ -173,9 +192,34 @@ top to bottom; each numbered step below dispatches the next UI stage.
    and closeout step 7 offers the human the brainstorm's real deliverable: a loopable
    build plan authored from `brainstorm.md` for the target repo (or this one).
 9. **Timeouts are not failures** — `{status:"pending"}` means the human is thinking; use
-   `peek_response` later.
+   `peek_response` later. It is CRASH-SAFE: after memory it falls back to the persisted
+   `round-NN/response.json` on disk, so an answer that landed just before an MCP restart is
+   still recoverable — resume the thread first (`present_board` with `discussionId` /
+   `session_status`) so the store is attached, then peek.
 
 ## Changelog
+- 2026-07-09 — handoff fidelity: step 4 authors per-option `rationale` from round 2 on
+  (quoting the feedback it responds to) + optional mid-round `questions` (the "Claude asks"
+  box); step 0b notes ask_concierge's structured {answer, picked, typed} return (typed =
+  their own words, weight highest); step 0d notes present_gallery returns {method, label,
+  recommended, reason} — record whether the recommendation was taken in brainstorm.md;
+  step 9 notes peek_response is crash-safe (disk fallback to round-NN/response.json —
+  resume the thread so the store attaches) (from handoff-fidelity-2026-07-09)
+- 2026-07-09 — step 0c: intake content economy — gallery minis are minimal in CONTENT (one
+  emblematic read, few elements) on the best model, generated ONCE and cached at the thread's
+  `intake-gallery.json`; re-presents reuse the same cards, never re-delegate (from
+  token-economy phase 5)
+- 2026-07-09 — step 4: mind-map rounds run /read-mindmap FIRST — the persisted `round-NN/tree.md`
+  outline (+ edited-tree/draft/ops) becomes the user's INTENTION and anchors the next tree, the
+  narration, and the closeout build plan; a maximize→fullscreen chat on the map is answered from
+  the LIVE tree.md/draft (from mindmap-model-legible-2026-07-09)
+- 2026-07-09 — step 2: orchestrator loads the compact svg-authoring/VALIDITY-SCAN.md (judge
+  share) instead of the full craft SKILL.md — never carry craft you delegate away; resume
+  reads the rolling digest (decision blocks + last record), not the whole brainstorm.md
+  (from token-economy phase 4)
+- 2026-07-09 — step 4: tweak vs redirect — a digest-flagged TWEAK (dials/notes/flaws, no new
+  direction) MUTATES this round's captured option SVGs (only the deltas paid for; liked
+  geometry survives verbatim), never re-authors from scratch (from token-economy phase 3)
 - 2026-07-09 — step 4: delegation is EXPLICIT (the digest's "Model routing" line — user pick
   else best-SVG default; never an unnamed fallthrough) and TERSE (round delta only; never
   re-teach the artisan's craft; keep the description ratio low) (from token-economy phase 2)

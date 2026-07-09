@@ -1020,7 +1020,12 @@ test('POST /api/concierge → 200 resolves the pending question (id read from st
     const { status, body } = await postJson(bridge, '/api/concierge', { id: state.concierge.id, answer: 'a' });
     assert.equal(status, 200);
     assertMatches(body, expectation('concierge-200.json'));
-    assert.equal(await wait, 'a', 'askConcierge resolves with the posted answer (no leaked timer)');
+    // Structured answer: the assembled string plus which chips were tapped vs typed.
+    assert.deepEqual(
+      await wait,
+      { answer: 'a', picked: [], typed: '' },
+      'askConcierge resolves with the structured answer (no leaked timer)',
+    );
     prove('POST /api/concierge', 200);
   } finally {
     await bridge.stop();
@@ -1075,7 +1080,8 @@ test('POST /api/gallery-pick → 200 resolves the pending living gallery (id rea
     });
     assert.equal(status, 200);
     assertMatches(body, expectation('gallery-pick-200.json'));
-    assert.equal(await wait, 'mindmap', 'presentGallery resolves with the pick (no leaked timer)');
+    // Structured pick: method + card label + whether the recommendation was taken.
+    assert.equal((await wait)?.method, 'mindmap', 'presentGallery resolves with the pick (no leaked timer)');
     prove('POST /api/gallery-pick', 200);
   } finally {
     await bridge.stop();
@@ -1116,7 +1122,7 @@ test('POST /api/gallery-pick → 400 when the method is not a card in this galle
     // Resolve the pending gallery with a real pick so no timer leaks.
     const good = await postJson(bridge, '/api/gallery-pick', { id: state.gallery.id, method: 'funnel' });
     assert.equal(good.status, 200);
-    assert.equal(await wait, 'funnel', 'the real follow-up pick resolves the gallery');
+    assert.equal((await wait)?.method, 'funnel', 'the real follow-up pick resolves the gallery');
   } finally {
     await bridge.stop();
   }
