@@ -17,7 +17,10 @@ wiki/Product/intake-methodologies.md) lets the human PICK the methodology to sta
 intake is **MANDATORY and precedes the funnel** — every real run does brief → `ask_concierge`
 (≥1) → `present_gallery` → route BEFORE any `present_board`; there is no jump-straight-to-boards
 shortcut. The roster is a set of PEER methodologies — **mind map is one of them, never the
-default or the centerpiece.** `present_gallery` returns the pick; route it to a starting mechanic:
+default or the centerpiece.** If the seed is an annotated-photo **scribble** (a `.seeds/seed-<stamp>/`
+folder), **run `.claude/commands/read-scribble.md` FIRST** (skill `reading-scribbles`): VIEW
+`composite.png` + read `scribble.json`, and let the marks anchor the concierge questions and round 1.
+`present_gallery` returns the pick; route it to a starting mechanic:
 
 | pick | starting mechanic | recommend it when |
 |---|---|---|
@@ -31,15 +34,28 @@ answers) live HERE and in run-brainstorm — never in harness code (rule 11). "J
 options" is not a bypass — it routes to the **funnel** card, still surfaced through the gallery
 and picked there. After a
 non-mindmap pick, the funnel below applies as usual; the pick only chose the STARTING mechanic.
-A **mindmap** thread iterates on the tree: read `response.editedTree` as the user's new
-structure AND `response.treeOps` as the ordered node decisions — `editedTree` is the final
-SHAPE, `treeOps` the INTENT. Honor them: an `explode` op (with the node's `topic` + `note`)
-means the studio ALREADY fanned that node into 5 topic+note-anchored PROMPT children
-(`<topic> · <note> — <facet>`); REPLACE/refine each prompt into a genuinely relevant idea in the
-next tree (reshape the placeholders, don't append more) — a different note yields a different set; `delete` means drop that
-branch for good; `add` means the user seeded blank child ideas to help fill; `note` sets steering
-for a future explode. Per-node `note` fields on `editedTree` nodes carry the same steering. Then
-present the next tree (or route into the funnel once the structure is settled).
+A **mindmap** thread iterates on the tree. **READ THE MAP FIRST — run `.claude/commands/read-mindmap.md`**
+before generating the next tree, when answering a mind-map artifact-chat, and at plan-closeout.
+The map is persisted MODEL-LEGIBLY per round: `round-NN/tree.md` is a TRAVERSABLE markdown outline
+(header counts + indented hierarchy, each node's `id` + `note`, `— thin` flags on branches the
+user opened but never grew) — read it FIRST; `edited-tree.json` (submitted) / `draft.json`'s
+`editedTree` (LIVE, mid-edit) give the exact shape; `tree-ops.jsonl` is the ordered decision log.
+The outline is also folded into `brainstorm.md` and the feedback digest, so the tree is never a
+JSON blob you must parse by hand.
+
+**The map IS the user's intention and ANCHORS everything** — the next tree, every artifact-chat
+answer, and the build plan are organized by it. Read `response.editedTree` as the user's new
+structure AND `response.treeOps` as the ordered node decisions — `editedTree` is the final SHAPE,
+`treeOps` the INTENT. Honor them: an `explode` op (with the node's `topic` + `note`) means the
+studio ALREADY fanned that node into 5 topic+note-anchored PROMPT children (`<topic> · <note> —
+<facet>`); REPLACE/refine each prompt into a genuinely relevant idea in the next tree (reshape
+the placeholders, don't append more) — a different note yields a different set; `delete` means
+drop that branch for good (NEVER reintroduce it); `add` means the user seeded blank child ideas
+to help fill; `note` sets steering for a future explode; **`— thin` branches are gaps — where the
+user wants help.** Per-node `note` fields carry the same steering (weight them highest). The user
+can also **maximize the map → the fullscreen viewer with chat on the right** and iteratively
+improve it in words (artifact-chat on the mindmap's snapshot; you read the LIVE `tree.md`/`draft`
+to answer). Then present the next tree (or route into the funnel once the structure is settled).
 
 ## Phase table
 
@@ -69,11 +85,16 @@ present the next tree (or route into the funnel once the structure is settled).
 - **Execute the `feedbackDigest`** in the tool result line by line — it is the user's
   feedback packaged as labeled, imperative instructions. Nothing in it is optional.
 - **Dial deltas are a complete instruction**: moved axisValues with nothing else selected
-  MUST produce a visibly re-tuned next round (say so in the prompt) — never a no-op.
+  MUST produce a visibly re-tuned next round (say so in the prompt) — never a no-op. It is
+  also a TWEAK (the digest says so): the re-tuned round is a MUTATION of this round's
+  captured `round-NN/option-<id>.svg` files — the liked geometry survives verbatim; only
+  the deltas are paid for — never a from-scratch re-authoring.
 - `response.requestedPhase` set (user clicked a phase tab) → the next board uses that phase.
 - `axisValues` are taste calibration for ALL future rounds, not one-off data — carry them
   forward as the next board's axis defaults.
-- `response.model` set → delegate next-round SVG generation to that model (subagent).
+- **Generation always routes to an EXPLICIT model**: the digest's "Model routing" line names
+  it every round (`response.model` when the user picked, else the session's best-SVG
+  default) — delegate to that model by name; never generate on an unnamed fallthrough.
 - `response.commands` non-empty → STOP, run `.claude/commands/<command>.md`
   (new-brainstorm → run-brainstorm.md from step 1).
 - **The pool is alive — every gesture eliminates or builds.** Maintain a thread-wide KILL
@@ -109,6 +130,11 @@ present the next tree (or route into the funnel once the structure is settled).
   on rounds 1..N; when resuming a thread it is the first thing to read.
 
 ## Changelog
+- 2026-07-09 — mindmap section: READ THE MAP FIRST via /read-mindmap — `round-NN/tree.md` is the
+  model-legible outline (ids, notes, `— thin` gap flags; draft.json = the LIVE mid-edit tree);
+  the map IS the user's intention and anchors the next tree, artifact-chat answers, and the
+  build plan; maximize→fullscreen chat is the iterative-improvement channel (from
+  mindmap-model-legible-2026-07-09)
 - 2026-07-07 — intake noted MANDATORY and preceding the funnel; "just give me options" routes
   to the funnel card via the gallery, not a bypass (orchestration-gated intake honesty)
 - 2026-07-07 — intake & methodology-routing section: the concierge→gallery pick routes to a

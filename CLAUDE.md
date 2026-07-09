@@ -19,6 +19,8 @@
 | Need | Use |
 |---|---|
 | Run/resume a visual brainstorm | **agent `brainstorm-orchestrator`** (the primary persona) driving `.claude/commands/run-brainstorm.md` + the two skills; resume via `list_discussions` → `discussionId`; thread memory = its `brainstorm.md` |
+| Understand an annotated-photo scribble seed (user drew on a photo) | `.claude/commands/read-scribble.md` + skill `reading-scribbles` — VIEW `composite.png`, read `scribble.json`, anchor the brainstorm on the marks (a `.seeds/seed-<stamp>/` folder) |
+| Read a mind map the user built (tree = their intention) | `.claude/commands/read-mindmap.md` — read `round-NN/tree.md` (model-legible outline) + edited-tree/draft/ops; the tree ANCHORS the next round, chat answers, and the build plan |
 | Generate board options (esp. when `response.model` routes a round) | **agent `svg-artisan`** (with the model override) |
 | Studio/bridge/MCP "seems broken" | **agent `devops-diagnostician`** or `.claude/commands/diagnose-studio.md`; evidence: `GET /api/health`, `GET /api/logs`, `discussion/.logs/` |
 | Verify work | `.claude/commands/build-check.md` → `npm run build` + `npm test` (unit / smoke / ui-smoke — `wiki/System/testing-observability.md`) |

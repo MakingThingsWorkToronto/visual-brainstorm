@@ -110,6 +110,9 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 7: mind-map threads anchor the build plan on the tree via /read-mindmap —
+  top branches = phases, node notes = requirements, deleted branches = out of scope, `— thin`
+  = open questions (from mindmap-model-legible-2026-07-09)
 - 2026-07-09 — step 10: crash-resume attribution — check plan symbols against HEAD (peers may
   have committed your rounds as riders) and worktree-verify the committed snapshot when the
   TS import graph fuses pending diffs across dead peer sessions (from

@@ -81,9 +81,14 @@ Copilot `/` menu itself is still a VS Code host behavior and should be spot-chec
 
 9. **What happens next depends on your pick:**
    - **Mind map:** The studio opens a live co-edited **mind-elixir canvas**. Double-click any
-     node to rename it, press Tab to add a child, drag to rearrange. As you edit, the tree
-     updates live; your final structure returns to Claude as your brainstorm "response"
-     (structure IS the response). The canvas stays open as long as you need to refine it.
+     node to rename it, press Tab to add a child, drag to rearrange; select a node to
+     **Explode** it into idea prompts, add **+5** ideas, attach a steering **Note**, or
+     **Delete** it. As you edit, the tree updates live; your final structure returns to Claude
+     as your brainstorm "response" (structure IS the response). The **maximize** icon (top-right
+     of the map) opens the map full-screen with a **chat on the right** — ask about it or ask
+     Claude to improve it in words, exactly like any artifact; the map stays put while Claude
+     answers. Your tree is saved with the thread in a form Claude reads and builds the next
+     round + the final plan directly from — the structure you draw anchors everything.
    - **Funnel, Wreck, or Cluster:** The brainstorm continues into the standard funnel:
      diverge, expand, mutate, wreck, cluster, converge. You'll select options, move dials,
      add notes, and steer each round exactly as in a regular brainstorm (see §3).
@@ -121,11 +126,18 @@ the intake** (see above). Top to bottom:
   files now arrive via the composer's **+** menu, not a drop zone. **Annotate a photo:**
   whenever an image lands (Take a photo, or an attached image file) the composer offers to
   **scribble on it** — accept and the photo becomes the pad's background, where a small
-  toolbar lets you **Pen** (draw), **Text** (drop a styled note-overlay card by clicking),
-  and **Arrow** (drag to point). Each tool draws in a color you pick from the current
-  palette swatches (per-tool). The marked-up composite ships as the sketch seed (the photo
-  is embedded inside it), and the original photo also stays a plain attachment so Claude
-  still gets a clean, vision-readable copy;
+  toolbar lets you **Pen** (draw), **Highlighter** (thick translucent emphasis), **Arrow**
+  (drag to point), **Box** (drag to circle a region), and **Text** (click to drop a styled
+  note-overlay card). Each tool draws in a color you pick from the current palette swatches
+  (per-tool); **undo** removes the last mark, **clear** removes all, and **Maximize** opens
+  the pad fullscreen for precise marking (input-only — no chat). The pad keeps the photo's
+  aspect ratio (no stretch). On send, the studio renders a **composite PNG** (the photo WITH
+  your marks — what Claude actually SEES) and persists a traversable folder under
+  `discussion/.seeds/seed-<stamp>/` (`composite.png`, `photo.png`, `scribble.svg`, and
+  `scribble.json` — every mark with its palette color name + coordinates — plus a `README.md`).
+  Claude reads it via `/read-scribble` and **anchors the whole brainstorm on your marks** — an
+  arrow's target is the focus, a note's text is a literal instruction. The original photo also
+  stays a plain attachment (a clean, vision-readable copy);
 - a **composer** with full board-composer parity: **Mic** · **Cancel** (hidden when the
   panel is the landing surface) · **Send & iterate** · **Target Folder** · **+** (Attach
   file, Take a photo, Model for generation). Attachments show as removable chips; the brief
@@ -163,12 +175,13 @@ chrome catches moving light. All of it re-skins with the picked theme and honour
 
 **Wayfinding pulse** — a single glowing point (the same chrome-star look as the nav edge)
 drives you through what to do next. It laps the nav, then flies to the closest point on the
-next card that still needs you, circles it twice, and continues down the surfaces — finishing
-by circling the reply composer twice before flying back to the nav to repeat. Only one box
-pulses at a time. As soon as a card is answered (or was prefilled) the pulse stops visiting
-it, so the trail always points at what's left. While Claude is working on your reply the
-pulse simply circles the nav until the next board arrives. Like the rest of the motion, it
-honours `prefers-reduced-motion` (it disappears entirely).
+next card, circles it twice, and continues down the surfaces — finishing by circling the
+reply composer twice before flying back to the nav to repeat. Only one box pulses at a time.
+As it circles a card whose answer is **complete** (you've done enough to send, or it was
+prefilled) the pulse turns **green** — a card still needing you keeps the accent colour — so
+at a glance the green boxes are ticked off and the accent ones are what's left. While Claude
+is working on your reply the pulse simply circles the nav until the next board arrives. Like
+the rest of the motion, it honours `prefers-reduced-motion` (it disappears entirely).
 
 **Intake surfaces** (New Discussion, ConciergeIntake, LivingGallery) — the three-stage
 intake that seeds every brainstorm. **New Discussion** collects your brief (§2, Stage 1).
@@ -223,10 +236,10 @@ glowing **next-phase pill** at the right end. Once you've judged, **Enter** send
 that phase; the composer shows "Enter sends & asks for …" when it's armed.
 
 **Fullscreen viewer — ONE surface for every artifact and option.** Clicking any captured artifact (a keep on the wayfinder strip or pinned row), a pinned artifact, a previous round's option, or a live board's option opens the same fullscreen surface: a zoom/pan/pinch SVG stage on the left, a right dock with **Notes** above an optional **Chat**. 
-- **Captured artifacts and live board options:** Notes are editable. For artifacts, **Save notes** persists them with the artifact; for live options, notes ship with your response. A chat composer (one box, one **Send**) lets you ask questions or request changes; answers come from Claude via subagents. A requested change is captured as a NEW version (original untouched, marked `revised`); the view switches to the revision while the dialog stays open.
+- **Captured artifacts and live board options:** Notes are editable. For artifacts, **Save notes** persists them with the artifact; for live options, notes ship with your response. A chat composer (one box, one **Send**) lets you ask questions or request changes; answers come from Claude via subagents. A requested change is captured as a NEW version (original untouched, marked `revised`); the view switches to the revision while the dialog stays open. **Asking about a live option never costs you your work:** the board stays put and your **dials, selections, and notes are kept** while Claude answers (your in-progress answer is saved with the thread, so it also survives a reload).
 - **Pinned artifacts:** Same as captured artifacts, but displayed in a dedicated "📌 pinned" row (below the wayfinder strip). Pin/unpin any captured artifact by toggling the 📌 button in the fullscreen header (live threads only).
-- **Previous-round options:** Notes and chat are read-only; they show the conversation history that shaped that option.
-- **Completed threads:** Artifact chat replays read-only (no composer). To continue a conversation, **Reopen** the thread (see below).
+- **Previous-round options:** The note you sent with that round shows read-only, but the **chat is interactive** — ask about an earlier choice whenever you want.
+- **Completed threads:** Artifact chat is interactive too — ask a question on any keep and it is answered in place (the note/pin stay read-only). Revising an archived artifact still needs **Reopen** (see below).
 
 **Reopen a completed thread** — when viewing a completed (archived) thread, a banner at the top shows "Completed thread — fully cached, nothing regenerated" with an **↩ Reopen** button. You can also hover any round's separator to reveal an **↩ reopen from here** action. Clicking either confirms your choice, and Claude moves the thread out of the archive back into the live discussion folder, then resumes the brainstorm at that round. The entire history is preserved (nothing is regenerated; rule 7 still holds). The studio returns to the live view to show the resumed board.
 
