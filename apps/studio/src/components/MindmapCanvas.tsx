@@ -101,7 +101,10 @@ export function MindmapCanvas({
     const at = new Date().toISOString();
     for (const [id, info] of nextMap) {
       const before = prevMap.get(id);
-      if (!before) continue; // newly added nodes ride the add/explode ops
+      // Nodes added via the action bar ride their explicit add/explode ops;
+      // a keyboard add (Tab) reaches the model through editedTree only — a
+      // known, documented gap, not an emission here.
+      if (!before) continue;
       if (before.topic !== info.topic) {
         onOpRef.current({ op: 'rename', nodeId: id, topic: info.topic, note: '', oldTopic: before.topic, at });
       }
@@ -119,6 +122,16 @@ export function MindmapCanvas({
     }
     prevTreeRef.current = next;
     onEditRef.current({ nodeData: next, direction: data.direction });
+    // Keep the action bar's binding fresh: an in-place rename (double-click,
+    // type, Enter) fires no select event, so without this the next Explode/+5/
+    // Note/Delete would build from the STALE topic (e.g. exploded children all
+    // labeled with the node's old name). A deleted node clears the bar.
+    setSelected((prev) => {
+      if (!prev) return prev;
+      const now = nextMap.get(prev.id);
+      if (!now) return null;
+      return now.topic !== prev.topic ? { id: prev.id, topic: now.topic } : prev;
+    });
   };
 
   useEffect(() => {

@@ -134,7 +134,82 @@ Plus: no deterministic guard cross-checks BoardResponse fields ↔ digest ↔ sk
   `npm run smoke:ui` PASS (all 6 phase surfaces). Browser human-sims not run in the earlier
   sandbox (environmental; assertions were updated where contracts changed).
 
-**All six phases complete + verified — ready for `/plan-closeout`.**
+**All six phases complete + verified — ready for the human test below, then `/plan-closeout`.**
+
+## Human testing script (operator walk — the OWED half of journeys #10–#15)
+
+Everything below is the part no harness can honestly prove: a live orchestrator + a real human.
+Backend contracts are already green (`tests/feedback.test.mjs`, `tests/durability.test.mjs`,
+`tests/field-coverage.test.mjs`, smoke). Run ONE real brainstorm (`/run-brainstorm` from a live
+Claude-Code session with the studio open) and walk these in order; each step names what you must
+SEE and where the model-side proof lands (`discussion/<thread>/brainstorm.md` digest blocks).
+
+1. **Claude asks** (journey #10) — during any round where the orchestrator authored `questions`,
+   a "Claude asks" box renders beside the options. Answer it, submit. PROOF: the digest shows
+   `Answer — "<question text>": …` (the question TEXT, not an id). If no round carries a
+   question, tell the orchestrator you're ambivalent about direction — it should ask one.
+2. **Unsure** (journey #11) — on a grid/triage card click **unsure** (turns amber, `unsure ✓`).
+   Submit. PROOF: digest emits the `UNSURE` line; the NEXT round visibly answers with a
+   clarifying variant or a question — the option must NOT silently die.
+3. **Remix recipe** (journey #12) — mark TWO options remix; a recipe input appears for the pair.
+   Type what to take from each (e.g. "layout of A, palette of B"). PROOF: digest's remix line
+   carries your recipe verbatim; the next round's hybrid follows it.
+4. **Annotate ON an option** (journey #13) — open an option fullscreen → **✏️ Annotate** →
+   the option becomes the pad background → draw an arrow at a specific element + a box + a note
+   in a palette color → leave annotate → submit the round. PROOF: `round-NN/` gains
+   `annotated-<optionId>.png`; digest shows `Annotated ON "<label>"` + `VIEW <path>`; the next
+   round responds to the SPECIFIC element you marked. Also check: drawing never pans the viewer;
+   toggling ✏️ off/on keeps your marks.
+5. **Rationale + lineage** (journey #14) — from round 2 on, cards show a rationale quoting YOUR
+   feedback and ↑ lineage chips naming parent options. PROOF: purely visual — you can trace why
+   each option exists.
+6. **Spatial feedback** — in a cluster round, drag related options close and park one far away.
+   PROOF: digest narrates tightness/outliers ("welded/close/loose", nearest cross-cluster pair).
+7. **Mindmap rename + move** — rename a node and drag one under a new parent, submit. PROOF:
+   digest shows `old→new` and the new parent's topic. Then, WITHOUT re-clicking the node,
+   Explode the renamed node — the children must carry the NEW name (regression check for the
+   stale-selection bug fixed 2026-07-09).
+8. **Crash drill** (journey #15) — mid-round, with a board on screen and marks/dials in
+   progress, kill the Claude-Code session (and optionally the bridge). Restart, resume via
+   `list_discussions` → the same round re-presents; answer + submit; the orchestrator's
+   `peek_response` must see it (never "pending" forever). Also: answer a concierge question
+   AFTER killing the session — on resume the stored answer must be returned, not re-asked.
+9. **Reopen** — close the thread out, then reopen it from the studio's archived banner. PROOF:
+   the folder leaves `discussion/_completed/` WITHOUT any manual `git mv`, and the next round
+   lands in the live root.
+
+Record each step's verdict (✓ / ✗ + what you saw) in this plan's Progress; failures become
+fix-items BEFORE closeout. When all nine pass, flip journeys #10–#15's OWED entries to DONE
+(additively) and run `/plan-closeout`.
+
+## Fresh-eyes review round (2026-07-09, pre-human-test)
+
+Operator asked for a fresh-eyes gap hunt before human testing. Registry gap filled: journeys
+#10–#15 predicted (the new affordances had NO journey rows). Targeted adversarial review of the
+four uncontested UI files (a parallel session owns the mcp/BoardSurvey/useBridge stream; the
+review-followups backlog already covers those) found 8 verified issues; fixed in this round:
+
+- **MAJOR — annotate blank off Chromium:** the fullscreen annotate path rasterized the raw
+  option SVG, which (per svg-authoring) has no width/height — Firefox/Safari draw it blank via
+  canvas. `withExplicitSize` now injects dims (mirrors composeSeedSvg's guard); `svgDims` also
+  accepts single quotes + width/height-only roots. Unit-proven in ui-smoke ("annotate guards").
+- **MAJOR — aspect distortion:** the pad clamped `viewH` to [150,600] AND capped the svg's
+  height while width stayed `w-full`, shearing box-aspect away from viewBox-aspect — a portrait
+  option/photo squashed on screen, in stored mark coordinates, AND in the composite the model
+  sees. ViewBox aspect is now preserved exactly (degenerate >10:1 bounded); the height cap
+  moved to the wrapper as `max-width: calc(maxH × aspect)`.
+- **MAJOR — stale topic after rename:** renaming a node then Explode/+5/Note/Delete used the
+  pre-rename `selected.topic` (exploded children all inherited the OLD name). `emitEdit` now
+  refreshes the action-bar binding from the diff (and clears it when the node was deleted).
+  Human-test step 7 carries the regression check.
+- MINOR fixes: Escape while typing (annotate note / notes / chat) no longer closes the whole
+  viewer (field-level cancel only); the annotate raster resets when the shown SVG swaps (never
+  mark a stale background); NewDiscussionPanel's async seedBrief swap now merges answers
+  per-question (one pre-hello tap used to silently block ALL handoff seeding, and orphaned
+  default-question answers vanished).
+- Documented (not fixed): keyboard/Tab node-adds ride `editedTree` but emit no TreeOp (comment
+  made honest in MindmapCanvas); re-presented same-id boards keep first-snapshot labels in
+  `lineageLabels` (owned by the review-followups backlog's recordBoard/useBridge items).
 
 ## Implementation record (for resume — exact state as of 2026-07-09)
 

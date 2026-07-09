@@ -556,6 +556,25 @@ assert.equal(parsed.documentElement.nodeName.toLowerCase(), 'svg', '[scribble] c
 assert.ok(annotated!.includes('width="400" height="240"'), '[scribble] composite root carries explicit width/height matching the viewBox');
 console.log('UI scribble-a-seed composeSeedSvg + toScribbleAnnotations ✓ (photo embed, pen/highlighter/arrow/box/note, palette color names, well-formed SVG, escaped)');
 
+// --- Annotate-on-option rasterize guards (svgDims + withExplicitSize) ---
+// Board options carry a viewBox but NO width/height (svg-authoring craft);
+// Firefox/Safari mis-rasterize an intrinsically-unsized SVG through canvas
+// drawImage (blank or 300x150) — the fullscreen annotate path must inject
+// explicit dims (same guard composeSeedSvg carries) and read the aspect from
+// either quote style, else the pad background is blank/distorted and every
+// stored mark coordinate lands in the wrong space.
+const { svgDims, withExplicitSize } = await import('../apps/studio/src/components/ArtifactFullscreen.js');
+assert.deepEqual(svgDims('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 500"><rect/></svg>'), { w: 300, h: 500 }, '[annotate] double-quoted viewBox parses (portrait aspect preserved, not squared)');
+assert.deepEqual(svgDims("<svg viewBox='0 0 640 360'/>"), { w: 640, h: 360 }, '[annotate] single-quoted viewBox parses');
+assert.deepEqual(svgDims('<svg width="320" height="200"><rect/></svg>'), { w: 320, h: 200 }, '[annotate] width/height-only SVG falls back to the root attrs, not 400x400');
+assert.deepEqual(svgDims('<div>not svg</div>'), { w: 400, h: 400 }, '[annotate] garbage input falls back square');
+const sized = withExplicitSize('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 500"><rect/></svg>', 300, 500);
+assert.ok(sized.includes('width="300"') && sized.includes('height="500"'), '[annotate] intrinsically-unsized option gains explicit width/height before rasterize');
+assert.ok(new DOMParser().parseFromString(sized, 'image/svg+xml').documentElement.nodeName.toLowerCase() === 'svg', '[annotate] sized markup still parses as SVG');
+const already = '<svg width="10" height="20" viewBox="0 0 10 20"/>';
+assert.strictEqual(withExplicitSize(already, 10, 20), already, '[annotate] an already-sized SVG is left byte-identical');
+console.log('UI annotate-on-option rasterize guards ✓ (svgDims quote styles + attr fallback, withExplicitSize injects dims)');
+
 // --- Concierge intake surface (adaptive clarifying question) ---
 // Fixture goes through the schema like every production path (defaults stay in sync).
 const { ConciergeIntake } = await import('../apps/studio/src/components/ConciergeIntake.js');

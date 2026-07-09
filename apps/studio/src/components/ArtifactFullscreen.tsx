@@ -3,12 +3,35 @@ import type { ArtifactChatMessage, PaletteColor } from '@visual-brainstorm/proto
 import { BodyPortal, SvgPane } from './primitives';
 import { PhotoScribble, renderCompositePng, type ScribbleContent } from './PhotoScribble';
 
-/** Parse an SVG's viewBox into {w,h}; falls back to a square-ish default. */
-function svgDims(svg: string): { w: number; h: number } {
-  const match = svg.match(/viewBox\s*=\s*"\s*[\d.eE+-]+[\s,]+[\d.eE+-]+[\s,]+([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*"/);
-  const w = match ? Number(match[1]) : 400;
-  const h = match ? Number(match[2]) : 400;
-  return { w: w > 0 ? w : 400, h: h > 0 ? h : 400 };
+/**
+ * Parse an SVG's viewBox (either quote style) into {w,h}; falls back to the
+ * root width/height attributes, then a square default — a wrong aspect here
+ * stretches the annotate background AND distorts every stored mark coordinate.
+ */
+export function svgDims(svg: string): { w: number; h: number } {
+  const vb = svg.match(/viewBox\s*=\s*["']\s*[\d.eE+-]+[\s,]+[\d.eE+-]+[\s,]+([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*["']/);
+  if (vb && Number(vb[1]) > 0 && Number(vb[2]) > 0) return { w: Number(vb[1]), h: Number(vb[2]) };
+  const open = svg.match(/<svg\b[^>]*>/i)?.[0] ?? '';
+  const w = Number(open.match(/\swidth\s*=\s*["']?([\d.]+)/i)?.[1]);
+  const h = Number(open.match(/\sheight\s*=\s*["']?([\d.]+)/i)?.[1]);
+  if (w > 0 && h > 0) return { w, h };
+  return { w: 400, h: 400 };
+}
+
+/**
+ * Board options carry a viewBox but no width/height (svg-authoring craft rule);
+ * Firefox/Safari mis-rasterize an intrinsically-unsized SVG through canvas
+ * drawImage (blank or the 300×150 default) — inject explicit dims before
+ * rasterizing, mirroring composeSeedSvg's guard in PhotoScribble.
+ */
+export function withExplicitSize(svg: string, w: number, h: number): string {
+  const open = svg.match(/<svg\b[^>]*>/i)?.[0];
+  if (!open) return svg;
+  const add =
+    (/\swidth\s*=/i.test(open) ? '' : ` width="${w}"`) +
+    (/\sheight\s*=/i.test(open) ? '' : ` height="${h}"`);
+  if (!add) return svg;
+  return svg.replace(open, open.replace(/<svg\b/i, `<svg${add}`));
 }
 
 /**
@@ -206,14 +229,26 @@ export function ArtifactFullscreen({
   };
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Escape inside a text field cancels THAT field (the annotate note input,
+      // the notes draft, the chat composer) — never the whole viewer.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Follow the shown source (a revision swaps fetchSlug): re-center + refetch.
+  // Follow the shown source (a revision swaps fetchSlug): re-center + refetch,
+  // and drop any annotate raster of the PREVIOUS image — marks must never land
+  // on a stale background.
   useEffect(() => {
     reset();
+    setAnnotateBg(annotate?.value?.photo ?? null);
+    setAnnotateError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchSlug, svg]);
 
   useEffect(() => setNoteDraft(notes.value), [notes.value]);
@@ -246,7 +281,7 @@ export function ArtifactFullscreen({
     const { w, h } = svgDims(shown);
     const scaleTo = Math.min(4, Math.max(1, 800 / Math.max(w, h)));
     let stale = false;
-    renderCompositePng(shown, w, h, scaleTo)
+    renderCompositePng(withExplicitSize(shown, w, h), w, h, scaleTo)
       .then((png) => {
         if (!stale) setAnnotateBg(png);
       })

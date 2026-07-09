@@ -198,11 +198,23 @@ export function NewDiscussionPanel({
     if (!seedBrief || seededRef.current) return;
     seededRef.current = true;
     if (seedBrief.brief) setPrompt((prev) => (prev.trim() ? prev : seedBrief.brief ?? ''));
-    if (seedBrief.picks) {
-      setAnswers((prev) =>
-        Object.keys(prev).length > 0 ? prev : seedAnswers(seedBrief.picks, activeQuestions(seedBrief)),
-      );
-    }
+    // The handoff may swap the DEFAULT question set for a bespoke one after the
+    // panel already painted (WS hello is async). Merge per QUESTION of the new
+    // set: keep any answer the user already gave to a question that survives,
+    // seed the handoff's pick only where the user hasn't answered, and drop
+    // answers orphaned by the swap (their questions are gone — an all-or-nothing
+    // guard here used to let ONE pre-hello tap silently block ALL seeding).
+    setAnswers((prev) => {
+      const qs = activeQuestions(seedBrief);
+      const seeded = seedAnswers(seedBrief.picks, qs);
+      const next: SurveyAnswers = {};
+      for (const q of qs) {
+        const user = prev[q.id];
+        if (user && (user.picked.length > 0 || (user.other ?? '').trim() !== '')) next[q.id] = user;
+        else if (seeded[q.id]) next[q.id] = seeded[q.id];
+      }
+      return next;
+    });
   }, [seedBrief]);
 
   // The brief box grows with its content; the max-h-[30vh] class caps it at

@@ -346,8 +346,13 @@ export function PhotoScribble({
     img.onload = () => {
       if (cancelled) return;
       if (img.naturalWidth > 0) {
+        // Preserve the photo's aspect EXACTLY — clamping viewH would shear the
+        // linear mapping (box-aspect == viewBox-aspect is the contract) and
+        // distort both the pad and the composite the model sees. A tall pad is
+        // bounded on SCREEN by the wrapper's max-width below, not by lying
+        // about the viewBox. Only degenerate ratios (>10:1) are bounded.
         const h = Math.round((VIEW_W * img.naturalHeight) / img.naturalWidth);
-        setViewH(Math.max(150, Math.min(600, h)));
+        setViewH(Math.max(40, Math.min(4000, h)));
       }
       setMeasuring(false);
     };
@@ -514,15 +519,21 @@ export function PhotoScribble({
       </div>
 
       {/* Canvas: relative wrapper so the note popover can position over it. The
-          aspect-ratio matches the viewBox so a photo renders undistorted. */}
-      <div className="relative">
+          aspect-ratio matches the viewBox so a photo renders undistorted. The
+          height cap lives on the WRAPPER as a max-width (maxH × aspect): capping
+          the svg's height directly while width stayed w-full sheared the box
+          aspect away from the viewBox aspect and distorted tall photos/options. */}
+      <div
+        className="relative mx-auto w-full"
+        style={{ maxWidth: `calc(${maximized ? '78vh' : '60vh'} * ${(VIEW_W / viewH).toFixed(4)})` }}
+      >
         <svg
           ref={svgRef}
           data-testid="scribble-canvas"
           viewBox={`0 0 ${VIEW_W} ${viewH}`}
           preserveAspectRatio="none"
           style={{ aspectRatio: `${VIEW_W} / ${viewH}` }}
-          className={`w-full touch-none rounded-xl border border-dashed border-line bg-surface-2 ${maximized ? 'max-h-[78vh]' : 'max-h-[60vh]'} ${cursor}`}
+          className={`w-full touch-none rounded-xl border border-dashed border-line bg-surface-2 ${cursor}`}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
@@ -587,7 +598,13 @@ export function PhotoScribble({
               onChange={(e) => setPending({ ...pending, text: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') commitNote();
-                if (e.key === 'Escape') setPending(null);
+                if (e.key === 'Escape') {
+                  // Cancel the NOTE only — never let Escape bubble on to close
+                  // a hosting fullscreen viewer (annotate-on-option nests this
+                  // pad inside ArtifactFullscreen).
+                  e.stopPropagation();
+                  setPending(null);
+                }
               }}
               onBlur={commitNote}
               placeholder="type a note"
