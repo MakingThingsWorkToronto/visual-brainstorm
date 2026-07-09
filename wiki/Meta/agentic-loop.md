@@ -73,10 +73,7 @@ stage 4**. This is what makes it a guardrail rather than an archive:
 - **Agents are the muscle memory** (`System/agents.md`): diagnosis, delegated generation,
   testing, and wiki-keeping each have an owner with the procedure embedded — a fresh chat
   doesn't improvise, it routes (CLAUDE.md rule 11 + the quick map).
-- **Weekly maintenance.** `/compress-learnings` (sonnet) compacts `.agents/learnings.md`
-  weekly: recent entries (14-day window) stay verbatim; older entries distill to durable
-  one-liners; full originals archive to `.agents/learnings-archive.md` (rule 6 — nothing lost).
-  Run manually or via `/loop` — not auto-fired by hooks.
+- **Learnings harvest and compaction.** `/compress-learnings` (sonnet) runs manually or via `/loop` (not auto-fired by hooks). Primary job: harvest durable lessons into the agentic layer (commands/skills/agents/wiki) so they enforce next session, surfacing missing commands/skills/agents via AskUserQuestion. Secondary: compact the log every two weeks OR when `.agents/learnings.md` exceeds 700 lines — recent entries (14-day window) stay verbatim, older entries distill to one-liners, full originals archive to `.agents/learnings-archive.md` (rule 6 — nothing lost).
 - **Long-lived subagents replay stale context.** Resuming one agent across a work stream
   (e.g. the wiki-librarian across many UI waves) keeps its context and works well, but its
   repeated "standing flags" come from its OWN old transcript, not the current tree — the

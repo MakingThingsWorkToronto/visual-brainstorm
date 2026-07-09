@@ -1,6 +1,9 @@
 # Specialized Agents (`.claude/agents/`)
 
 Subagents with scoped tools and embedded procedure. Use them instead of ad-hoc work.
+
+**MCP tool-scoping guardrail:** An agent with an explicit `tools:` allowlist gets ONLY those tools — MCP tools do not inherit implicitly (despite `.mcp.json` registration). Add MCP tool names explicitly (e.g., `mcp__visual-brainstorm-wiki__wiki_reload`); agents with `tools: All tools` or `*` get them free. Corollary: when a scoped agent gains an MCP-backed duty, add its tools to `tools:` frontmatter in the SAME edit or the duty is dead letter.
+
 The full interface-task → owner map (which agent/command/script owns every UI mechanic)
 is `wiki/System/interface-coverage.md`.
 
