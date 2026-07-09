@@ -34,8 +34,9 @@ non-mindmap pick, the funnel below applies as usual; the pick only chose the STA
 A **mindmap** thread iterates on the tree: read `response.editedTree` as the user's new
 structure AND `response.treeOps` as the ordered node decisions — `editedTree` is the final
 SHAPE, `treeOps` the INTENT. Honor them: an `explode` op (with the node's `topic` + `note`)
-means expand THAT node into ≥5 children **relevant to its topic and note** and append them under
-it in the next tree — a different note yields a different explosion; `delete` means drop that
+means the studio ALREADY fanned that node into 5 topic+note-anchored PROMPT children
+(`<topic> · <note> — <facet>`); REPLACE/refine each prompt into a genuinely relevant idea in the
+next tree (reshape the placeholders, don't append more) — a different note yields a different set; `delete` means drop that
 branch for good; `add` means the user seeded blank child ideas to help fill; `note` sets steering
 for a future explode. Per-node `note` fields on `editedTree` nodes carry the same steering. Then
 present the next tree (or route into the funnel once the structure is settled).

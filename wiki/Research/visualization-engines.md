@@ -29,10 +29,4 @@ in `packages/protocol`, the live co-edited `MindmapCanvas` (dynamically imported
 effect so ui-smoke's esbuild never touches its `.less`), and a deterministic server-side
 `apps/mcp/src/tree-svg.ts` snapshot for the rule-7 artifact ledger (the browser export path is not
 relied on for capture). Per-node action bar binds to mind-elixir's `selectNode` monkey-patch:
-**Explode** (deferred generation request, steered by node topic + optional note), **+5 ideas** (real
-`mind.addChild()` immediate generation), **Note** (free-text steering folded into `editedTree`),
-**Delete** (node + subtree). Node ops are logged to `round-NN/tree-ops.jsonl` (append-only intent
-log); `TreeOpSchema` ({explode|delete|add|note|rename|move, nodeId, topic, note?, count?, at?})
-and `BoardResponse.treeOps` carry the ordered decision trail. Feedback digest now surfaces mind-map
-decisions: "Mind-map edited", "Node note on …", "EXPLODE … [note: …]", "DELETE", "ADD", "NOTE"
-lines. Proven end-to-end in a real browser by the human-sim.
+**Explode** (IMMEDIATE deterministic 5-prompt fan via `addChild(el, generateNewObj())`; each prompt anchored on node topic + optional note, topic shape `<topic> · <note> — <facet>` where facets are core/variation/bold-take/risk/next-step; these are PROMPT placeholders for orchestrator enrichment, not fabricated ideas), **+5 ideas** (real `mind.addChild()` immediate generation, hardened to pass parent element), **Note** (free-text steering folded into `editedTree`), **Delete** (uses `removeNodes([findEle(id)])` API; root protected; v5.13.0's `removeNode?.()` optional-chain was a no-op; fixed to the real method). Node ops are logged to `round-NN/tree-ops.jsonl` (append-only intent log); `TreeOpSchema` ({explode|delete|add|note|rename|move, nodeId, topic, note?, count?, at?}) and `BoardResponse.treeOps` carry the ordered decision trail. Feedback digest now surfaces mind-map decisions: "Mind-map edited", "Node note on …", "EXPLODE … [note: …]", "DELETE", "ADD", "NOTE" lines. Proven end-to-end in a real browser by the human-sim.

@@ -96,9 +96,11 @@ top to bottom; each numbered step below dispatches the next UI stage.
    remix pairs, axis values, and the phase fields (triage/mutations/flaws/positions/clusters/
    gapNotes) per the phase skill. **Mind-map rounds:** honor `response.editedTree` (the final
    SHAPE, incl. per-node `note`) AND `response.treeOps` (the INTENT log). An `explode` op means
-   expand that node into **≥5 children relevant to its topic AND its note** and append them under
-   it in the next tree (a different note → a different explosion); `delete` drops that branch for
-   good; `add` seeded blank ideas to help fill; `note` sets steering for a future explode.
+   the studio ALREADY fanned that node into 5 topic+note-anchored PROMPT children
+   (`<topic> · <note> — <facet>`); on the next tree **REPLACE/refine each prompt into a genuinely
+   relevant idea** (reshape the placeholder topics — don't just append more), steered by the op's
+   `note` (a different note → a different set); `delete` drops that branch for good; `add` seeded
+   blank ideas to help fill; `note` sets steering for a future explode.
    If `response.model` is set, DELEGATE generation of the next
    round's SVGs to that model via a subagent; you keep orchestrating.
    `response.attachments`: each entry's `savedPath` is a file the user attached mid-round —

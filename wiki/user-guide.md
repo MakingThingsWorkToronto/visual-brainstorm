@@ -160,10 +160,10 @@ you pick one to start (§2, Stage 3).
 **Mind map canvas** — when you pick Mind map in the Living Gallery, the studio opens a
 live co-edited **mind-elixir canvas** instead of the phase funnel. Double-click any node to
 rename, Tab to add a child, drag to rearrange. Select any node and use the per-node action bar:
-- **Explode** — marks the node to be expanded next round into ≥5 children relevant to its topic and note (a deferred request; the orchestrator generates them).
-- **+5 ideas** — immediately seeds five child idea nodes under the selected node.
+- **Explode** — fans the node into 5 topic+note-anchored prompt children immediately (via `addChild(el, generateNewObj())`). Each prompt topic is of the form `<topic> · <note> — <facet>` (facets: core, variation, bold take, risk, next step). These are PROMPT placeholders, not fabricated ideas; the orchestrator enriches each into a genuinely relevant option next round.
+- **+5 ideas** — immediately seeds five blank child nodes under the selected node (hardened to pass parent element explicitly).
 - **Note** — attach free-text steering to the node; a note that changes a node's meaning changes what an explode generates.
-- **Delete** — remove the node and its subtree.
+- **Delete** — removes the node and its subtree; the root cannot be deleted.
 Your tree edits are the "response" that returns to Claude (structure IS the feedback).
 
 **Phase tabs** (Diverge · Expand · Mutate · Wreck · Cluster · Converge) — the funnel,

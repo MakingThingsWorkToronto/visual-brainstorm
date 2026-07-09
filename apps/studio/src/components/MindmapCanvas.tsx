@@ -164,14 +164,27 @@ export function MindmapCanvas({
     window.setTimeout(() => setFlash((cur) => (cur === msg ? null : cur)), 2600);
   };
 
-  const reselect = (id: string) => {
-    const mind = mindRef.current;
-    mind?.selectNode?.(mind.findEle?.(id));
-  };
+  // The five ideation angles an explode fans a node into — honest, deterministic
+  // seed prompts (NOT fabricated AI ideas). A live orchestrator refines each into
+  // a real idea (it reads the explode op); the user sees the expansion immediately.
+  const EXPLODE_FACETS = ['core', 'variation', 'bold take', 'risk', 'next step'];
 
-  const explode = () => {
+  const explode = async () => {
     if (!selected) return;
+    const mind = mindRef.current;
+    if (!mind?.findEle || !mind?.addChild) return;
     const note = (notesRef.current[selected.id] ?? '').trim();
+    // The note STEERS the expansion: it anchors every prompt, so a different note
+    // yields a visibly different set of children.
+    const base = note ? `${selected.topic} · ${note}` : selected.topic;
+    for (const facet of EXPLODE_FACETS) {
+      const el = mind.findEle(selected.id);
+      if (!el) break;
+      // generateNewObj() gives a fresh unique id; we set its topic to the seed.
+      const node = mind.generateNewObj();
+      node.topic = `${base} — ${facet}`;
+      await mind.addChild(el, node);
+    }
     onOpRef.current({
       op: 'explode',
       nodeId: selected.id,
@@ -179,17 +192,23 @@ export function MindmapCanvas({
       note,
       at: new Date().toISOString(),
     });
-    emitEdit(); // ensure the note rides back even with no structural edit
-    flashMsg(`Marked “${selected.topic}” to explode into ≥5 ideas${note ? ' (steered by your note)' : ''} next round.`);
+    emitEdit();
+    flashMsg(
+      `Exploded “${selected.topic}” into ${EXPLODE_FACETS.length} idea prompts${note ? ' steered by your note' : ''} — refine each, or let the next round enrich them.`,
+    );
   };
 
   const addFive = async () => {
     if (!selected) return;
     const mind = mindRef.current;
-    if (!mind) return;
+    if (!mind?.findEle || !mind?.addChild) return;
     for (let i = 0; i < 5; i++) {
-      reselect(selected.id);
-      await mind.addChild?.();
+      // Re-find the parent each time (the tree re-renders on every addChild) and
+      // pass it EXPLICITLY, so all five land under the same node regardless of
+      // where mind-elixir moves the selection.
+      const el = mind.findEle(selected.id);
+      if (!el) break;
+      await mind.addChild(el);
     }
     onOpRef.current({
       op: 'add',
@@ -206,9 +225,19 @@ export function MindmapCanvas({
   const remove = () => {
     if (!selected) return;
     const mind = mindRef.current;
-    reselect(selected.id);
-    mind?.removeNode?.();
+    if (!mind?.findEle) return;
+    // The root anchors the map — mind-elixir cannot remove it; say so honestly.
+    if (mind.nodeData?.id === selected.id) {
+      flashMsg('The root can’t be deleted — it anchors the map.');
+      return;
+    }
+    // mind-elixir v5 exposes removeNodes(Topic[]) — there is NO removeNode(); the
+    // old `mind.removeNode?.()` silently no-op’d (optional-chained past undefined),
+    // which is why delete appeared to do nothing.
+    const el = mind.findEle(selected.id);
+    if (el && mind.removeNodes) mind.removeNodes([el]);
     delete notesRef.current[selected.id];
+    const removed = selected.topic;
     onOpRef.current({
       op: 'delete',
       nodeId: selected.id,
@@ -216,7 +245,6 @@ export function MindmapCanvas({
       note: '',
       at: new Date().toISOString(),
     });
-    const removed = selected.topic;
     setSelected(null);
     setNoteOpen(false);
     emitEdit();
@@ -269,7 +297,7 @@ export function MindmapCanvas({
             data-testid="node-explode"
             disabled={!selected}
             onClick={explode}
-            title="Explode: expand this node into ≥5 ideas relevant to its topic and note, next round"
+            title="Explode: fan this node into 5 idea prompts anchored on its topic + note (the next round enriches them)"
             className={`${btn} ${selected ? 'border-accent bg-accent/15 text-accent hover:brightness-105' : 'border-line'}`}
           >
             <span className="inline-flex items-center gap-1.5">

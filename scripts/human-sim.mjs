@@ -383,58 +383,92 @@ if (browsers.length === 0) {
       );
     });
 
-    // Matt's node-controls matrix (2026-07-07): +5 creates five real nodes; a note
-    // that changes a node's meaning rides back on the explode op (a different note →
-    // a different explosion). All assertions are engine-sourced (mind.getData()) or
-    // taken from the genuine response — never fabricated (rule 6/11).
-    await step('human uses the node action bar — +5 seeds five ideas, note + explode ride back', async () => {
-      // Select the "Mark" leaf (c1); the action bar binds to the selected node.
+    // Matt's node-controls matrix — proven ENTIRELY through the REAL engine, no
+    // fixture-orchestrator (mind.getData() / removeNodes / addChild are the genuine
+    // mind-elixir v5 methods): +5 seeds five real nodes; EXPLODE visibly fans a node
+    // into ≥5 real children whose labels are STEERED by the node's note (a different
+    // note → a different set); DELETE really removes a node from the tree.
+    await step('EXPLODE really fans a node into ≥5 note-steered children (live engine)', async () => {
+      // Select "Mark" (c1) via the engine's REAL selectNode (mind-elixir renders on
+      // a transformed canvas where CDP click coords are unreliable — driving the
+      // genuine engine method is the harness's established pattern, not a fake: the
+      // ACTIONS below are real button clicks and every assertion reads the real
+      // engine). Gate on the SPECIFIC node in the bar (a prior step left another
+      // node selected, so "bar enabled" alone would false-pass).
       await evaluate(
-        `(() => {
-          const el = document.querySelector('[data-testid="mindmap-engine"]');
-          const mind = el && el.mind;
-          mind.selectNode(mind.findEle('c1'));
-        })()`,
+        `(() => { const m = document.querySelector('[data-testid="mindmap-engine"]').mind; m.selectNode(m.findEle('c1')); })()`,
       );
       await waitInPage(
-        'the node action bar enables for the selected node',
-        `!!document.querySelector('[data-testid="node-explode"]') && !document.querySelector('[data-testid="node-explode"]').disabled`,
+        'the node action bar binds to "Mark"',
+        `(document.querySelector('[data-testid="node-actions"]').textContent || '').includes('Mark') && !document.querySelector('[data-testid="node-explode"]').disabled`,
       );
-      // +5 ideas → the REAL engine must show five children under "Mark".
       await click('the +5 ideas button', `document.querySelector('[data-testid="node-add"]')`);
       await waitInPage(
-        'the +5 button created five real child nodes under "Mark"',
+        'the +5 button created five REAL child nodes under "Mark"',
         `(() => {
-          const el = document.querySelector('[data-testid="mindmap-engine"]');
-          const mind = el && el.mind;
+          const mind = document.querySelector('[data-testid="mindmap-engine"]').mind;
           const c1 = mind && mind.getData().nodeData.children.find((n) => n.id === 'c1');
           return !!c1 && (c1.children ? c1.children.length : 0) === 5;
         })()`,
         15_000,
       );
-      // Note + explode on the "Motion" leaf (c2): the note steers the explosion.
+
+      // Note "Motion" (c2) with steering text, then EXPLODE it — the engine must
+      // gain FIVE new children whose topics carry the note (proves the note steers
+      // the explosion, deterministically, without any model in the loop).
       await evaluate(
-        `(() => {
-          const el = document.querySelector('[data-testid="mindmap-engine"]');
-          const mind = el && el.mind;
-          mind.selectNode(mind.findEle('c2'));
-        })()`,
+        `(() => { const m = document.querySelector('[data-testid="mindmap-engine"]').mind; m.selectNode(m.findEle('c2')); })()`,
       );
       await waitInPage(
-        'the node bar rebinds to c2',
-        `!document.querySelector('[data-testid="node-explode"]').disabled`,
+        'the bar rebinds to "Motion"',
+        `(document.querySelector('[data-testid="node-actions"]').textContent || '').includes('Motion') && !document.querySelector('[data-testid="node-explode"]').disabled`,
       );
       await click('the Note button', `document.querySelector('[data-testid="node-note"]')`);
       await waitInPage('the note editor opens', `!!document.querySelector('[data-testid="node-note-input"]')`);
-      await typeInto(
-        'the node note',
-        `document.querySelector('[data-testid="node-note-input"]')`,
-        'make it kinetic — speed lines, motion blur',
-      );
+      await typeInto('the node note', `document.querySelector('[data-testid="node-note-input"]')`, 'make it kinetic');
       await click('save the note', `document.querySelector('[data-testid="node-note-save"]')`);
       await click('the Explode button', `document.querySelector('[data-testid="node-explode"]')`);
+      await waitInPage(
+        'EXPLODE fanned "Motion" into ≥5 children, each label steered by the note',
+        `(() => {
+          const mind = document.querySelector('[data-testid="mindmap-engine"]').mind;
+          const c2 = mind.getData().nodeData.children.find((n) => n.id === 'c2');
+          const kids = c2 && c2.children ? c2.children : [];
+          return kids.length >= 5 && kids.filter((k) => (k.topic || '').includes('kinetic')).length >= 5;
+        })()`,
+        15_000,
+      );
 
-      // Send: editedTree (five +5 nodes + the folded note) and treeOps ride back.
+      // DELETE really removes: grab a +5 child's id, click it, Delete it, and prove
+      // the engine tree lost exactly that node (Mark drops from 5 children to 4).
+      const doomed = await evaluate(
+        `(() => {
+          const mind = document.querySelector('[data-testid="mindmap-engine"]').mind;
+          const c1 = mind.getData().nodeData.children.find((n) => n.id === 'c1');
+          return { id: c1.children[0].id, topic: c1.children[0].topic };
+        })()`,
+      );
+      const doomedId = doomed.id;
+      await evaluate(
+        `(() => { const m = document.querySelector('[data-testid="mindmap-engine"]').mind; m.selectNode(m.findEle(${JSON.stringify(doomedId)})); })()`,
+      );
+      await waitInPage(
+        'the bar rebinds to the doomed child',
+        `(document.querySelector('[data-testid="node-actions"]').textContent || '').includes(${JSON.stringify(doomed.topic)}) && !document.querySelector('[data-testid="node-delete"]').disabled`,
+      );
+      await click('the Delete button', `document.querySelector('[data-testid="node-delete"]')`);
+      await waitInPage(
+        'DELETE really removed the node from the live tree ("Mark" 5 → 4 children)',
+        `(() => {
+          const mind = document.querySelector('[data-testid="mindmap-engine"]').mind;
+          const c1 = mind.getData().nodeData.children.find((n) => n.id === 'c1');
+          const kids = c1 && c1.children ? c1.children : [];
+          return kids.length === 4 && !kids.some((k) => k.id === ${JSON.stringify(doomedId)});
+        })()`,
+        15_000,
+      );
+
+      // Send: the whole real edit rides back — editedTree shape + treeOps intents.
       await click(
         'the mindmap composer Send & iterate button',
         `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Send & iterate')`,
@@ -442,31 +476,32 @@ if (browsers.length === 0) {
       const treeResp = await treeWait;
       assert.ok(treeResp, 'presentAndWait resolved with a response for the mindmap board, not a timeout');
       assert.ok(treeResp.editedTree, 'response carries editedTree');
-      const c1 = treeResp.editedTree.nodeData.children.find((n) => n.id === 'c1');
-      assert.ok(c1 && c1.children && c1.children.length === 5, 'the five +5 nodes rode back in editedTree');
-      const c2 = treeResp.editedTree.nodeData.children.find((n) => n.id === 'c2');
-      assert.ok(c2 && c2.note && c2.note.includes('kinetic'), 'the node note folded into editedTree');
-      const explodeOp = treeResp.treeOps.find((o) => o.op === 'explode' && o.nodeId === 'c2');
-      assert.ok(explodeOp, 'an explode op for "Motion" rode back in treeOps');
+      const c1r = treeResp.editedTree.nodeData.children.find((n) => n.id === 'c1');
+      assert.ok(c1r && c1r.children && c1r.children.length === 4, 'editedTree shows Mark at 4 children (5 added, 1 deleted)');
+      const c2r = treeResp.editedTree.nodeData.children.find((n) => n.id === 'c2');
+      assert.ok(c2r && c2r.children && c2r.children.length >= 5, 'editedTree shows Motion exploded into ≥5 children');
       assert.ok(
-        explodeOp.note.includes('kinetic'),
-        'the explode op carries the steering note — a different note would explode into a different set',
+        c2r.children.filter((k) => (k.topic || '').includes('kinetic')).length >= 5,
+        'the exploded child labels carry the steering note (note-steered expansion)',
       );
+      assert.ok(c2r.note && c2r.note.includes('kinetic'), 'the node note folded into editedTree');
+
+      const explodeOp = treeResp.treeOps.find((o) => o.op === 'explode' && o.nodeId === 'c2');
+      assert.ok(explodeOp && explodeOp.note.includes('kinetic'), 'an explode op for Motion rode back with its steering note');
       assert.ok(treeResp.treeOps.some((o) => o.op === 'add' && o.count === 5), 'the +5 add op rode back');
+      assert.ok(treeResp.treeOps.some((o) => o.op === 'delete'), 'the delete op rode back');
 
       // The decisions persisted as structured jsonl (rule: jsonl for decisions).
       const roundDir = path.join(store.info.dir, `round-${String(treeBoard.round).padStart(2, '0')}`);
-      const opsLines = fs
-        .readFileSync(path.join(roundDir, 'tree-ops.jsonl'), 'utf8')
-        .trim()
-        .split('\n');
-      assert.ok(opsLines.length >= 2, 'tree-ops.jsonl recorded the node ops (add + explode)');
+      const opsLines = fs.readFileSync(path.join(roundDir, 'tree-ops.jsonl'), 'utf8').trim().split('\n');
+      assert.ok(opsLines.length >= 3, 'tree-ops.jsonl recorded add + explode + delete');
 
       const introMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
       assert.ok(introMd.includes('Concierge Q: Who is this glyph for?'), 'brainstorm.md records the concierge question');
       assert.ok(introMd.includes(`Concierge A: ${cAnswer}`), 'brainstorm.md records the concierge answer');
       assert.ok(introMd.includes('Mind-map tree presented'), 'brainstorm.md records the mindmap presentation (recordBoard)');
       assert.ok(introMd.includes('EXPLODE'), 'the digest surfaces the EXPLODE decision for synthesis');
+      assert.ok(introMd.includes('DELETE'), 'the digest surfaces the DELETE decision for synthesis');
     });
 
     // The decision tree is reachable from the wayfinder and renders the round record.

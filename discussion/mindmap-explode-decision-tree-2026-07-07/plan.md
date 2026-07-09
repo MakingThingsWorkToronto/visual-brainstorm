@@ -2,13 +2,16 @@
 
 **Started:** 2026-07-07 · **Owner:** Matt / brainstorm-orchestrator lineage
 **Slug:** `mindmap-explode-decision-tree-2026-07-07`
-**Status:** REOPENED 2026-07-08 — the studio/persistence/UI half is built + proven
-(unit+smoke+ui-smoke+human-sim green, committed `6f992c3`/`8806a8d`), BUT the real-world
-ORCHESTRATION loop is unproven: no live session ever took a real `explode` op and generated
-≥5 relevant children. `human-sim` fakes the orchestrator (fixtures), so Explode's usefulness is
-documentation-only until a live `/run-brainstorm` demonstrates it. P6 (real-path validation) is
-OWED, not "declined." Not closable until a live mind-map round exercises explode → real ≥5
-generation → decision-tree reflection.
+**Status:** REOPENED 2026-07-08 → FIXED 2026-07-09. Two real defects that real-use testing
+surfaced are fixed & proven comprehensively on the real path (no fakes):
+- **Explode was a no-op marker** → now IMMEDIATELY fans the node into 5 topic+note-anchored prompt
+  children via the real engine (`addChild(el, generateNewObj())`); user witnesses ≥5, note-steered.
+  The `explode` op still rides back so a live orchestrator ENRICHES each prompt.
+- **Delete silently did nothing** — mind-elixir v5 has no `removeNode()`, so `mind.removeNode?.()`
+  no-op'd. Fixed to `removeNodes([findEle(id)])` + root guard.
+- **human-sim made comprehensive & non-faked:** the mind-map step now asserts, ALL from the live
+  engine (`mind.getData()`), that +5 adds 5 real nodes, EXPLODE fans ≥5 note-steered children, and
+  DELETE really removes a node (5→4). No fixture-orchestrator. Proven: `npm run test:human` 16 steps.
 
 ## The ask (verbatim intent)
 

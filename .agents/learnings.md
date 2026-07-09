@@ -1,5 +1,28 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-08 — mind-elixir v5 API: it's `removeNodes([Topic])`, NOT `removeNode()` — the optional-chain hid a dead feature
+
+- **`mind.removeNode?.()` silently did NOTHING** because mind-elixir 5.13.0 has no `removeNode`
+  method at all — the delete method is `removeNodes(tpcs: Topic[])` (plural, takes an ARRAY of
+  Topic elements). The optional chain `?.()` swallowed the missing method, so the Delete button
+  appeared wired but was a no-op — and every green test missed it because none actually asserted a
+  node was gone. Correct call: `mind.removeNodes([mind.findEle(id)])`, and guard the root
+  (`mind.nodeData.id === id`) since mind-elixir won't remove it. **Lesson: optional-chaining a
+  third-party method you're not 100% sure exists converts "typo/renamed-API" bugs into silent
+  no-ops — verify the method name against the installed version's `.d.ts` first.** For adding
+  children with a chosen topic: `const n = mind.generateNewObj(); n.topic = '…'; mind.addChild(el, n)`.
+- **CDP mouse-clicks don't reliably select mind-elixir nodes** (it renders on a transformed/scaled
+  canvas, so the element's viewport-rect center often isn't the hit target). Driving the engine's
+  real `selectNode(mind.findEle(id))` is the honest harness pattern (it's the same method a human
+  click invokes internally) — the ACTIONS stay real button-clicks and assertions read the real
+  `getData()`, so nothing is faked. Also: gate a selection wait on the SPECIFIC node's topic showing
+  in the action bar, never just "bar enabled" — a prior step's selection makes "enabled" false-pass.
+- **Explode is now an immediate, deterministic expansion, not a deferred marker.** Clicking Explode
+  fans the node into 5 topic+note-anchored PROMPT children (`<topic> · <note> — <facet>`) via the
+  real engine, so the user witnesses ≥5 options instantly and a different note yields a different
+  set — no model, no fake. The `explode` op still rides back so a live orchestrator ENRICHES each
+  prompt into a real idea (reshape the placeholder), rather than generating from nothing.
+
 ## 2026-07-09 — studio liquid-chrome effects: global CSS over Tailwind, animated conic borders, aurora z-order, transient-UI screenshots
 
 - **A global surface treatment over Tailwind utilities must set ONLY `background-image`, never
