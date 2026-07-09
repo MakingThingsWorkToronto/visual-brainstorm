@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "visual-brainstorm": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["apps/mcp/dist/index.js"],
+      "cwd": "${workspaceFolder}"
+    },
+    "visual-brainstorm-wiki": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["apps/wiki-mcp/dist/index.js"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

@@ -25,3 +25,16 @@ codify it into `.claude/commands/` via `/new-command`. Commands are living docum
 ## 6. Honest Reporting
 Report BLOCKED with evidence rather than fake a success (CLAUDE.md rule 6). Skipped steps are
 reported as skipped.
+
+## 7. GitHub Copilot Parity
+For local GitHub Copilot Chat, `.vscode/mcp.json` is the workspace MCP entry point and
+`.github/hooks/visual-brainstorm.json` is the native hook layer. `.github/mcp.json` is the
+versioned GitHub-compatible payload; GitHub-hosted Copilot starts it only through an
+agent-scoped `mcp-servers` declaration or repository MCP settings, after
+`.github/workflows/copilot-setup-steps.yml` builds the server outputs.
+
+`.github/copilot-instructions.md` dynamically imports the applicable rules from `CLAUDE.md` and
+this file instead of copying a competing policy. The Copilot parity guard runs after changes to
+these source files or Copilot-owned configuration and rejects a broken adapter. A GitHub-hosted
+runner can start the stdio servers but cannot expose its `127.0.0.1` studio to the human; report
+that limitation and route interactive brainstorms through local VS Code Copilot Chat.

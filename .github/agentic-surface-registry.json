@@ -3,6 +3,13 @@
   "updated": "2026-07-09",
   "registry": "../.claude/agentic-surface-registry.json",
   "rule": "This file is the GitHub Copilot adapter registry. The provider-neutral authoritative registry lives at .claude/agentic-surface-registry.json, and workflow logic remains in the referenced .claude files.",
+  "mcp": {
+    "vscodeManifest": "../.vscode/mcp.json",
+    "githubManifest": "mcp.json",
+    "cloudSetupWorkflow": "workflows/copilot-setup-steps.yml",
+    "servers": ["visual-brainstorm", "visual-brainstorm-wiki"],
+    "rule": "VS Code Copilot starts the workspace manifest locally. GitHub-hosted Copilot uses the agent-scoped declarations or repository MCP settings; mcp.json is the versioned payload, not an auto-discovery file. The hosted runner cannot expose the loopback studio to the human."
+  },
   "commands": [
     {
       "name": "run-brainstorm",

@@ -261,7 +261,14 @@ export function buildFeedbackDigest(
     );
   }
   for (const command of response.commands) {
-    digest.push(`Command: run .claude/commands/${command === 'new-brainstorm' ? 'run-brainstorm' : command}.md NOW.`);
+    digest.push(
+      `Command: run .claude/commands/${command === 'new-brainstorm' ? 'run-brainstorm' : command}.md NOW.` +
+        (command === 'artifact-chat'
+          ? ` This was a NON-DESTRUCTIVE detour — the board stayed live. After replying, resume the wait ` +
+            `with present_board {rearmBoardId: "${response.boardId}"} (no options/tree; a submit that ` +
+            `landed during the chat returns immediately).`
+          : ''),
+    );
   }
 
   return digest;

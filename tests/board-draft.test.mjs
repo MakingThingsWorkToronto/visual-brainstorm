@@ -77,13 +77,58 @@ test('SessionStore.recordBoardDraft persists round-NN/draft.json and reloads (se
   assert.equal(reopened.drafts[0].axisValues.glow, 85, 'the persisted dials reload');
 });
 
-test('recordBoard is idempotent by board id (re-present after a chat detour never duplicates the round)', () => {
+// (The old "recordBoard is idempotent by id" contract is gone: the detour resume
+// is now a first-class rearm that never re-records — tests/bridge-rearm.test.mjs
+// proves no duplicate round end to end.)
+
+test('drafts restore dials, not file bytes: attachment payloads are blanked on the draft path only', async () => {
+  const { bridge, store } = await startBridge();
+  const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.recordBoard(board);
+    const messages = [];
+    ws.addEventListener('message', (e) => messages.push(JSON.parse(String(e.data))));
+    await new Promise((res, rej) => {
+      ws.addEventListener('open', res);
+      ws.addEventListener('error', rej);
+    });
+
+    const photo = 'data:image/png;base64,' + 'A'.repeat(4096); // stand-in for a multi-MB upload
+    const draft = { ...draftFor(board.id, { glow: 55 }), attachments: [{ name: 'kitchen.png', dataUri: photo }] };
+    assert.equal((await postJson(bridge, '/api/board-draft', draft)).status, 200);
+
+    // Memory, disk, /api/state, and the WS echo all hold the blanked form.
+    assert.equal(store.drafts[0].attachments[0].dataUri, '', 'in-memory draft holds no bytes');
+    assert.equal(store.drafts[0].attachments[0].name, 'kitchen.png', 'the name survives for recall');
+    const onDisk = JSON.parse(fs.readFileSync(path.join(store.info.dir, 'round-01', 'draft.json'), 'utf8'));
+    assert.equal(onDisk.attachments[0].dataUri, '', 'draft.json holds no bytes');
+    const state = await getState(bridge);
+    assert.equal(state.drafts[0].attachments[0].dataUri, '', 'the hello/state snapshot holds no bytes');
+    for (let i = 0; i < 40 && !messages.some((m) => m.type === 'draft'); i++)
+      await new Promise((r) => setTimeout(r, 25));
+    const envelope = messages.find((m) => m.type === 'draft');
+    assert.ok(envelope, 'a draft WS envelope was broadcast');
+    assert.equal(envelope.draft.attachments[0].dataUri, '', 'the broadcast echoes the STORED (blanked) draft');
+    assert.equal(envelope.draft.axisValues.glow, 55, 'dials ride the echo untouched');
+  } finally {
+    ws.close();
+    await bridge.stop();
+  }
+});
+
+test('recordBoardDraft returns the stored draft (null when no round matches)', () => {
   const root = tmp();
-  const store = new SessionStore('Dedup', root);
+  const store = new SessionStore('Draft return', root);
   const board = loadCanonical('boards/diverge.json', BoardSchema);
   store.recordBoard(board);
-  store.recordBoard(board); // the artifact-chat detour re-presents the SAME board
-  assert.equal(store.rounds.length, 1, 'the round is recorded once');
+  const stored = store.recordBoardDraft({
+    ...draftFor(board.id, { glow: 10 }),
+    attachments: [{ name: 'a.png', dataUri: 'data:image/png;base64,AAAA' }],
+  });
+  assert.equal(stored.attachments[0].dataUri, '', 'the returned draft is the sanitized one');
+  assert.equal(store.recordBoardDraft(draftFor('board-ghost', {})), null, 'no round → null, nothing stored');
+  assert.equal(store.drafts.length, 1);
 });
 
 test('POST /api/board-draft → 200 records + broadcasts + lands in /api/state', async () => {

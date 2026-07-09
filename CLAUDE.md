@@ -31,6 +31,7 @@
 | Turn an accepted idea/brainstorm into a loopable build plan | `.claude/commands/create-dispatch-command.md` — plan.md carries phases + progress; run via `/loop /dispatch-<slug>-next-phase` |
 | Capture facts/guardrails | **agent `wiki-librarian`** → `wiki/` + one line in `wiki/log.md` per edit; **`wiki_reload` after every edit** so the grounding index isn't stale |
 | Read the wiki cheaply (agent context) | MCP **`visual-brainstorm-wiki`** (`apps/wiki-mcp`): `wiki_search` → `wiki_outline` → `wiki_read(path, heading)` — shaped, granular reads so context stays small. Grounding + reload contract: `wiki/System/wiki-grounding.md` |
+| Start GitHub Copilot MCPs | **VS Code:** `.vscode/mcp.json` starts both local stdio servers from the repository root. **GitHub-hosted Copilot:** `.github/mcp.json` is a versioned payload used by agent-scoped `mcp-servers` or repository MCP settings after `.github/workflows/copilot-setup-steps.yml`; the runner's loopback studio is not human-reachable. |
 | Lint/reconcile the whole wiki (drift, orphans, broken links) | `.claude/commands/wiki-maintenance.md` (delegates to `wiki-librarian`; reloads the MCP index) — the cross-plan sweep, distinct from per-plan `/plan-closeout` updates and `/compress-learnings` |
 | Weekly: compact the agentic learnings log | `.claude/commands/compress-learnings.md` (recent verbatim, older distilled; full originals to `.agents/learnings-archive.md`) |
 | Find or ingest craft | `.claude/commands/discover-skills.md` (also Discover skills in the studio composer's More Tools (+) menu; web branch ingests new skills) |
@@ -106,8 +107,9 @@ discussion/      plans + brainstorm thread cache (dirs with session.json);
 .claude/skills/        binding craft (svg-authoring, brainstorm-phases)
 .claude/agents/        specialized subagents (brainstorm-orchestrator, devops-diagnostician,
                        svg-artisan, test-engineer, wiki-librarian)
-.github/               workspace-local GitHub Copilot adapters over the authoritative
-                       `.claude/` layer (prompts/agents/instructions, no workflow SSOT)
+.vscode/               VS Code GitHub Copilot workspace MCP manifest + native-hook load settings
+.github/               workspace-local GitHub Copilot adapters over the authoritative `.claude`
+                       layer (prompts/agents/instructions/MCP payload/hooks, no workflow SSOT)
 .codex/                workspace-local Codex project config, hooks, and custom agents
 .agents/skills/        Codex-discoverable skill mirror of `.claude/skills`
 tests/ + scripts/      unit tests (node:test) + smoke.mjs + ui-smoke.ts

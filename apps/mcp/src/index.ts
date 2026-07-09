@@ -18,6 +18,7 @@ import {
   parseOptionChatSlug,
   type Board,
   type BoardOption,
+  type BoardResponse,
 } from '@visual-brainstorm/protocol';
 import { Bridge, type BridgeOptions } from './bridge-server.js';
 import { buildFeedbackDigest } from './feedback.js';
@@ -165,13 +166,24 @@ server.tool(
           'Answers ride back in response.questionAnswers keyed by question id. Optional — never required to send.',
       ),
     discussionId: z.string().optional().describe('Resume this prior thread (id from list_discussions)'),
+    rearmBoardId: z
+      .string()
+      .optional()
+      .describe(
+        'ONLY when resuming after an artifact-chat detour: the still-live board id from the park response. ' +
+          'Re-arms the wait on THAT board (no new round, dials survive; a mid-detour submit returns ' +
+          'immediately). Omit options/tree/axes — they are ignored.',
+      ),
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
     openBrowser: z.boolean().default(true),
   },
   async (args) => {
     // "Options OR tree", enforced at the tool boundary so cached threads (whose
     // base BoardSchema stays loose) always reload — schema-evolution rule.
-    if (args.tree) {
+    // A rearm re-waits on an already-presented board: nothing new to validate.
+    if (args.rearmBoardId) {
+      // no-op
+    } else if (args.tree) {
       if (args.options.length > 0) {
         return text({ status: 'error', error: 'A mindmap board carries a tree OR options, not both.' });
       }
@@ -201,32 +213,51 @@ server.tool(
     // A thread opened via open_studio has a placeholder title; the first real
     // board names it (display title only — the directory keeps its slug).
     if (store.rounds.length === 0 && !args.discussionId) store.retitle(args.title);
-    const round = store.nextRound();
-    const options: BoardOption[] = args.options.map((option, i) => ({
-      id: option.id ?? `r${round}-o${i + 1}`,
-      label: option.label,
-      description: option.description,
-      svg: option.svg,
-      tags: option.tags ?? [],
-      parents: option.parents ?? [],
-      ...(option.rationale ? { rationale: option.rationale } : {}),
-    }));
-    const board: Board = {
-      id: `board-r${round}-${Date.now()}`,
-      sessionId: store.info.id,
-      round,
-      kind: args.kind,
-      phase: args.phase,
-      title: args.title,
-      prompt: args.prompt,
-      options,
-      ...(args.tree ? { tree: args.tree } : {}),
-      questions: args.questions,
-      survey: SurveyConfigSchema.parse({ ...(args.survey ?? {}), axes: args.axes }),
-      createdAt: new Date().toISOString(),
-    };
-    console.error(`[mcp] presenting round ${round} (${options.length} options) — waiting for user`);
-    const response = await bridge.presentAndWait(board, args.timeoutSeconds * 1000, args.openBrowser);
+    let board: Board;
+    let response: BoardResponse | null;
+    if (args.rearmBoardId) {
+      // Post-detour resume: re-arm the wait on the still-live board. No new
+      // round, no re-record, no studio remount (same board id).
+      const rearmRound = store.rounds.find((r) => r.board.id === args.rearmBoardId);
+      if (!rearmRound) {
+        return text({
+          status: 'error',
+          error:
+            `No board "${args.rearmBoardId}" in this thread — rearmBoardId targets the still-live ` +
+            'board from an artifact-chat detour (the boardId of the park response).',
+        });
+      }
+      board = rearmRound.board;
+      console.error(`[mcp] re-arming ${board.id} after artifact-chat detour — waiting for user`);
+      response = await bridge.rearmAndWait(board.id, args.timeoutSeconds * 1000);
+    } else {
+      const round = store.nextRound();
+      const options: BoardOption[] = args.options.map((option, i) => ({
+        id: option.id ?? `r${round}-o${i + 1}`,
+        label: option.label,
+        description: option.description,
+        svg: option.svg,
+        tags: option.tags ?? [],
+        parents: option.parents ?? [],
+        ...(option.rationale ? { rationale: option.rationale } : {}),
+      }));
+      board = {
+        id: `board-r${round}-${Date.now()}`,
+        sessionId: store.info.id,
+        round,
+        kind: args.kind,
+        phase: args.phase,
+        title: args.title,
+        prompt: args.prompt,
+        options,
+        ...(args.tree ? { tree: args.tree } : {}),
+        questions: args.questions,
+        survey: SurveyConfigSchema.parse({ ...(args.survey ?? {}), axes: args.axes }),
+        createdAt: new Date().toISOString(),
+      };
+      console.error(`[mcp] presenting round ${round} (${options.length} options) — waiting for user`);
+      response = await bridge.presentAndWait(board, args.timeoutSeconds * 1000, args.openBrowser);
+    }
     if (!response) {
       return text({
         status: 'pending',

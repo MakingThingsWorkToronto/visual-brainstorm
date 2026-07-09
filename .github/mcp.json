@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "visual-brainstorm": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["apps/mcp/dist/index.js"],
+      "tools": [
+        "present_board",
+        "open_studio",
+        "ask_concierge",
+        "present_gallery",
+        "peek_response",
+        "capture_artifact",
+        "reply_artifact_chat",
+        "compose_poster",
+        "list_discussions",
+        "load_discussion",
+        "session_status"
+      ]
+    },
+    "visual-brainstorm-wiki": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["apps/wiki-mcp/dist/index.js"],
+      "tools": [
+        "wiki_search",
+        "wiki_outline",
+        "wiki_read",
+        "wiki_list",
+        "wiki_toc",
+        "wiki_related",
+        "wiki_reload"
+      ]
+    }
+  }
+}

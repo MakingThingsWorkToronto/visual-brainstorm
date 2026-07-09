@@ -1,0 +1,8 @@
+{
+  "chat.hookFilesLocations": {
+    ".github/hooks": true,
+    ".claude/settings.local.json": true,
+    ".claude/settings.json": false,
+    "~/.claude/settings.json": true
+  }
+}

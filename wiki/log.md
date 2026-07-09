@@ -206,3 +206,9 @@
 - 2026-07-09 — Product/phase-funnel.md — response contract extended: questionAnswers / uncertainties / remixNotes / optionAnnotations; the "Claude asks" mid-round question box — reason: handoff-fidelity phase 2
 
 - 2026-07-09 — user-guide.md — new affordances documented: Annotate an option (✏️ in fullscreen), Unsure toggle, Remix recipes, Claude asks box, lineage chips + rationale — reason: rule 12, handoff-fidelity phase 2 is user-visible
+
+- 2026-07-09 — System/harness-copilot.md — documented local VS Code discovery/start, GitHub-hosted MCP configuration and loopback boundary, native hooks, authority mirror, and real-stdio proof scope — reason: discussion/copilot-mcp-parity-2026-07-09
+- 2026-07-09 — System/testing-observability.md — added `tests/copilot-mcp.test.mjs` proof scope and the remaining VS Code/GitHub host-controlled checks — reason: discussion/copilot-mcp-parity-2026-07-09
+- 2026-07-09 — System/harness-codex.md — corrected the Codex MCP definition location to `.codex/config.toml`, not `.codex/mcp.json` — reason: discussion/copilot-mcp-parity-2026-07-09
+- 2026-07-09 — Requirements/system-architecture.md — documented the local and hosted GitHub Copilot MCP architecture and hosted loopback boundary — reason: discussion/copilot-mcp-parity-2026-07-09
+- 2026-07-09 — user-guide.md — documented the local VS Code Copilot interactive route and GitHub-hosted runner limitation — reason: discussion/copilot-mcp-parity-2026-07-09

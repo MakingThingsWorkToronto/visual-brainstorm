@@ -22,10 +22,15 @@ apps/wiki-mcp        @visual-brainstorm/wiki-mcp — read-only stdio MCP server 
                      dependency-free search, stdio-only. Registered in `.mcp.json` as
                      `visual-brainstorm-wiki` (node apps/wiki-mcp/dist/index.js). Built by the
                      root npm run build; tested by tests/wiki-mcp.test.mjs.
-.github/             workspace-local GitHub Copilot instructions, prompts, and agents — thin
-                     adapters over `.claude/`, `.claude/agentic-surface-registry.json`, and the
-                     MCP tool surface. They improve command discovery but do not own workflow
-                     logic or change the current engine model.
+.github/             workspace-local GitHub Copilot instructions, prompts, agents, hooks, and
+                     cloud setup — thin adapters over `.claude/`,
+                     `.claude/agentic-surface-registry.json`, and the MCP tool surface. They
+                     improve command discovery but do not own workflow logic. `.vscode/mcp.json`
+                     is the local VS Code `servers` manifest; `.github/mcp.json` is a versioned
+                     GitHub-compatible `mcpServers` payload, supplied through agent-scoped
+                     declarations or repository MCP settings rather than auto-discovered by
+                     GitHub.com. Hosted agents run stdio in an ephemeral runner whose loopback
+                     bridge cannot expose the human-facing browser studio.
 .codex/              workspace-local Codex project config, hooks, and custom-agent `.toml`
                      files. Thin adapter over `.claude/`; no duplicated workflow logic.
 .agents/skills/      Codex-discoverable skill mirror of `.claude/skills/` so Codex loads the

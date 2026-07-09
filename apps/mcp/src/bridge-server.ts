@@ -812,8 +812,10 @@ export class Bridge {
               res.end(JSON.stringify({ ok: false, error: `no board "${draft.boardId}" in the live thread` }));
               return;
             }
-            this.store.recordBoardDraft(draft);
-            this.broadcast({ type: 'draft', draft });
+            // Broadcast what was actually STORED (attachment bytes blanked —
+            // drafts restore dials, not file bytes), never the raw upload.
+            const stored = this.store.recordBoardDraft(draft);
+            if (stored) this.broadcast({ type: 'draft', draft: stored });
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true }));
           } catch (err) {
@@ -1195,6 +1197,41 @@ export class Bridge {
   }
 
   /**
+   * First-class resume after a non-destructive artifact-chat detour
+   * (present_board.rearmBoardId): re-arm the wait on the STILL-LIVE board
+   * instead of presenting a new one — no new round is minted or recorded, and
+   * the studio's BoardSurvey keeps its state (same board id → React reconciles
+   * in place). A submit that landed MID-detour had no resolver and was parked
+   * (memory + round-NN/response.json) — consume it here instead of blocking
+   * until timeout on a question the user already answered.
+   */
+  async rearmAndWait(boardId: string, timeoutMs: number): Promise<BoardResponse | null> {
+    await this.start();
+    const round = this.store.rounds.find((r) => r.board.id === boardId);
+    const parked = this.responses.get(boardId) ?? round?.response ?? null;
+    if (parked) {
+      this.log(`rearm ${boardId}: answered mid-detour — returning the parked response, not re-presenting`);
+      return parked;
+    }
+    if (!round) return null; // tool layer validates; honest pending if raced
+    // Normally a no-op re-assert (the detour never cleared activeBoard); after
+    // an MCP restart mid-detour it honestly restores the board to the studio.
+    this.activeBoard = round.board;
+    this.broadcast({ type: 'board', board: round.board });
+    this.log(`rearm ${boardId}: resolver re-armed after artifact-chat detour (board stayed live)`);
+    return new Promise<BoardResponse | null>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(boardId);
+        resolve(null); // board stays live; peek_response recovers the late answer
+      }, timeoutMs);
+      this.pending.set(boardId, (response) => {
+        clearTimeout(timer);
+        resolve(response);
+      });
+    });
+  }
+
+  /**
    * Start serving and open the browser with no board — the New Discussion
    * landing. `seed` is the handoff from Claude Code: the brief pre-fills the
    * composer, and (on a real run-brainstorm) a summary, a bespoke intake survey
@@ -1421,9 +1458,10 @@ export class Bridge {
         // NON-DESTRUCTIVE detour: hand the chat to the blocked present_board
         // WITHOUT recording a park response or clearing the board. The board
         // stays live so the user's in-progress dials/selections survive the chat
-        // (they never unmount); the orchestrator answers, then re-enters
-        // present_board (same board id — recordBoard is idempotent) to re-arm the
-        // resolver. A real park/plan-closeout still goes through acceptResponse.
+        // (they never unmount); the orchestrator answers, then calls
+        // present_board with rearmBoardId=<this board> → rearmAndWait re-arms
+        // the resolver (and consumes a mid-detour submit instead of blocking).
+        // A real park/plan-closeout still goes through acceptResponse.
         const resolve = this.pending.get(this.activeBoard.id);
         this.pending.delete(this.activeBoard.id);
         this.log(`artifact-chat detour delivered via present_board (board ${this.activeBoard.id} stays live)`);

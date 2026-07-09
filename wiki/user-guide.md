@@ -23,17 +23,34 @@ claude mcp add visual-brainstorm -- node C:/Code/svgbrainstorm/apps/mcp/dist/ind
 
 Tip: raise the tool timeout so boards can wait for humans: `MCP_TOOL_TIMEOUT=1800000`.
 
-**Use GitHub Copilot in this workspace.** This repo now ships workspace-local Copilot prompt
-files and custom agents under `.github/`. In VS Code, open Copilot Chat, type `/`, and VS Code
-should surface
-`run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`, `diagnose-studio`,
-`artifact-chat`, `reopen`, `new-command`, or `create-dispatch-command`. These are thin
-adapters over the authoritative `.claude/` workflows and the same local MCP/studio stack.
-The studio now renders runtime-aware action copy and structured model labels from bridge
-metadata, but the only implemented live orchestration runtime is still Claude Code; the
-adapter layer does not change thread or artifact semantics. Repo tests prove the registry →
-adapter-map → prompt/agent chain stays aligned; whether those slash entries are shown in the
-Copilot `/` menu itself is still a VS Code host behavior and should be spot-checked after host upgrades.
+**Use GitHub Copilot locally in VS Code (the interactive path).** This repo ships the
+discoverable `.vscode/mcp.json` workspace manifest for both local stdio servers. After
+installing dependencies and running `npm run build`, trust the workspace, open **MCP: List
+Servers**, and start/trust `visual-brainstorm` plus `visual-brainstorm-wiki`. The manifest uses
+VS Code's `servers` schema and `${workspaceFolder}` as the working directory. This is the
+supported full-studio route: the browser can reach the bridge on your local `127.0.0.1` and you
+can answer its boards.
+
+In Copilot Chat, type `/` to use workspace prompts such as `run-brainstorm`, `build-check`,
+`plan-closeout`, `discover-skills`, `diagnose-studio`, `artifact-chat`, `reopen`,
+`new-command`, or `create-dispatch-command`. They remain thin adapters over the authoritative
+`.claude/` workflows and the same local MCP/studio stack. Repo tests prove the registry →
+adapter-map → prompt/agent chain and real MCP startup contracts; whether slash entries appear in
+the Copilot `/` menu remains a VS Code host behavior to spot-check after host upgrades.
+
+**GitHub-hosted Copilot is a noninteractive runner path.** `.github/mcp.json` is a versioned,
+GitHub-compatible `mcpServers` payload with explicit tool allowlists, but GitHub.com does not
+discover it automatically. GitHub-hosted agents receive it through relevant agent-scoped
+`mcp-servers` declarations or a repository administrator pastes it into **Settings > Copilot >
+MCP servers**. The setup workflow runs `npm ci` and `npm run build` before cloud agents launch
+the dist-based servers.
+
+Those servers run inside an ephemeral Actions runner. Its product bridge listens only on the
+runner's `127.0.0.1`, so it cannot show you the browser studio or collect a board response. A
+hosted run must not claim that it completed a full interactive brainstorm; use local VS Code
+Copilot Chat for that journey. Its read-only wiki server and other noninteractive MCP operations
+can still be useful. A Copilot-run tool call is a Copilot action, not a Claude-engine run merely
+because the bridge's runtime metadata may mention Claude.
 
 **Use Codex in this workspace.** This repo also ships a Codex adapter: `.codex/config.toml`
 registers the local `visual-brainstorm` and `visual-brainstorm-wiki` MCP servers, `.codex/hooks.json`
@@ -46,11 +63,12 @@ layer is intentionally a wrapper: read and execute `.claude/commands/*.md` for p
 
 1. **Open a terminal in the project you want artifacts saved to.** In this repo the MCP
    server auto-loads via `.mcp.json`; in any other project register it first (see §1).
-2. **Start Claude Code or Codex:** `claude` for the native harness; Codex after trusting the
-   repo so `.codex/` project config loads.
-3. **Check the connection (first time):** type `/mcp` — `visual-brainstorm` should be listed
-   as connected. If it isn't, the register step didn't take or the Codex project config did
-   not load; re-run setup and restart the client.
+2. **Start Claude Code, Codex, or local VS Code Copilot Chat:** use `claude` for the native
+  harness; start Codex after trusting the repo so `.codex/` project config loads; or use VS
+  Code Copilot after starting/trusting both servers through **MCP: List Servers**.
+3. **Check the connection (first time):** type `/mcp` in Claude Code or Codex —
+  `visual-brainstorm` should be listed as connected. In VS Code Copilot, verify both entries
+  in **MCP: List Servers**. If they are absent, repeat the relevant setup and restart the host.
 4. **Say what you want, prefixed however feels natural:**
    - *"brainstorm: app icons for a note-taking tool — warm, hand-drawn, must read at 16px"*
    - *"let's visually brainstorm the architecture for our search feature"*

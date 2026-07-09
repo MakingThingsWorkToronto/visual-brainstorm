@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "node scripts/copilot-hook.mjs post-tool-use",
+        "cwd": "${workspaceFolder}",
+        "timeout": 15
+      }
+    ],
+    "SubagentStop": [
+      {
+        "type": "command",
+        "command": "node scripts/copilot-hook.mjs pipe-progress",
+        "cwd": "${workspaceFolder}",
+        "timeout": 15
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node scripts/copilot-hook.mjs pipe-progress",
+        "cwd": "${workspaceFolder}",
+        "timeout": 15
+      }
+    ]
+  }
+}

@@ -119,9 +119,13 @@ export function useBridge() {
               return { ...prev, artifactChat: [...prev.artifactChat, msg.message] };
             case 'draft': {
               // Upsert the in-progress board answer by boardId (restores dials on
-              // a re-presented board / reload). Ignore an echo of our OWN current
-              // edit only matters for cursor; drafts feed useState initializers
-              // (mount-time), so a live upsert never disrupts an in-flight edit.
+              // a re-presented board / reload). Drafts feed useState initializers
+              // (mount-time only): while the ACTIVE board's BoardSurvey is mounted
+              // it OWNS that state, so its own debounced echo (~2×/s during
+              // mind-map editing) would re-render the whole App for data no
+              // consumer reads — drop it. Reload/re-present restores from the
+              // hello snapshot, which carries the persisted drafts.
+              if (msg.draft.boardId === prev.activeBoard?.id) return prev;
               const exists = prev.drafts.some((d) => d.boardId === msg.draft.boardId);
               return {
                 ...prev,

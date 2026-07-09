@@ -419,25 +419,63 @@ export function BoardSurvey({
     respondedAt: new Date().toISOString(),
   });
 
+  // The draft form of the answer: dials, not file bytes — attachment payloads
+  // are blanked (name kept for recall) so a debounced photo never re-uploads on
+  // every edit. The ONE spelling every flush site uses (debounce, mind-map
+  // maximize, option chat); the real submit (send) ships the bytes.
+  const buildDraft = (): BoardResponse => {
+    const draft = buildResponse('iterate', localPhase, [...selected]);
+    return draft.attachments.some((a) => a.dataUri !== '')
+      ? { ...draft, attachments: draft.attachments.map((a) => ({ ...a, dataUri: '' })) }
+      : draft;
+  };
+
   // Persist the in-progress answer as generation meta (dials/selections/notes/…,
   // and for a mind-map the LIVE editedTree + treeOps): debounced so a drag/edit
   // doesn't spam the bridge. The snapshot uses a neutral action — it is a draft,
   // never a submitted response. This makes dials/tree PERSIST through an
   // artifact-chat detour and be recallable + readable (tree.md) mid-edit.
-  // Key excludes respondedAt (which changes every render) so the effect fires
-  // only on real CONTENT change, not on a clock tick.
-  const { respondedAt: _draftAt, ...draftStable } = buildResponse('iterate', localPhase, [...selected]);
-  const draftKey = JSON.stringify(draftStable);
+  // Keyed on the state values feeding buildResponse (useState identities change
+  // exactly on content change) — nothing is serialized per render; the draft is
+  // assembled only inside the debounce. respondedAt is stamped at build time,
+  // inside the debounce — never a render-time trigger.
   useEffect(() => {
     if (!onDraft) return;
-    const timer = setTimeout(
-      () => onDraft({ ...(JSON.parse(draftKey) as Omit<BoardResponse, 'respondedAt'>), respondedAt: new Date().toISOString() }),
-      500,
-    );
+    const timer = setTimeout(() => onDraft(buildDraft()), 500);
     return () => clearTimeout(timer);
-    // draftKey captures every field that matters; re-run only when it changes.
+    // buildDraft's identity changes every render; the state it READS is the
+    // real dependency list below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftKey, onDraft]);
+  }, [
+    board.id,
+    elaboration,
+    notes,
+    axisValues,
+    remixPairs,
+    remixNotes,
+    questionAnswers,
+    unsure,
+    optionMarks,
+    paletteColors,
+    model,
+    triage,
+    mutations,
+    flaws,
+    positions,
+    clusters,
+    clusterTouched,
+    gapNotes,
+    deckVerdicts,
+    duelResults,
+    deckRanking,
+    intake.attachments,
+    finalId,
+    editedTree,
+    treeOps,
+    localPhase,
+    selected,
+    onDraft,
+  ]);
 
   const send = async (action: ResponseAction, phaseOverride?: Phase) => {
     const steeredPhase = phaseOverride ?? localPhase;
@@ -584,7 +622,7 @@ export function BoardSurvey({
               ? () => {
                   // Flush the live tree so the fullscreen chat / orchestrator reads
                   // the CURRENT structure, then open the unified viewer.
-                  onDraft?.(buildResponse('iterate', localPhase, [...selected]));
+                  onDraft?.(buildDraft());
                   onMaximizeMindmap();
                 }
               : undefined
@@ -1161,7 +1199,7 @@ export function BoardSurvey({
                     messages: optionChat.messagesFor(slug),
                     busy: optionChat.busyFor(slug),
                     onSend: (text: string) => {
-                      onDraft?.({ ...buildResponse('iterate', localPhase, [...selected]) });
+                      onDraft?.(buildDraft());
                       optionChat.onSend(slug, text);
                     },
                     emptyHint:

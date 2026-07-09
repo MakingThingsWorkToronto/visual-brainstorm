@@ -298,10 +298,6 @@ export class SessionStore {
   }
 
   recordBoard(board: Board): void {
-    // Idempotent by board id: an artifact-chat detour re-presents the SAME board
-    // to re-establish the pending resolver (non-destructive park) — that must not
-    // duplicate the round on disk or in memory.
-    if (this.rounds.some((r) => r.board.id === board.id)) return;
     this.rounds.push({ board, response: null });
     const dir = this.roundDir(board.round);
     writeFileAtomic(path.join(dir, 'board.json'), JSON.stringify(board, null, 2));
@@ -407,24 +403,32 @@ export class SessionStore {
    * `rounds[].response`). A later real response supersedes it (the round's
    * `response.json` is authoritative for what was actually submitted).
    */
-  recordBoardDraft(draft: BoardResponse): void {
+  recordBoardDraft(draft: BoardResponse): BoardResponse | null {
     const round = this.rounds.find((r) => r.board.id === draft.boardId);
-    if (!round) return; // no board to attach a draft to — ignore silently
-    const idx = this.drafts.findIndex((d) => d.boardId === draft.boardId);
-    if (idx >= 0) this.drafts[idx] = draft;
-    else this.drafts.push(draft);
+    if (!round) return null; // no board to attach a draft to — ignore silently
+    // Drafts restore dials, NOT file bytes: blank attachment payloads (name kept
+    // for recall) so a debounced multi-MB photo is never pretty-printed into
+    // draft.json, held in memory, shipped in hello snapshots, or embedded into
+    // session_status. The REAL submit carries the bytes (persistAttachment).
+    const stored: BoardResponse = draft.attachments.some((a) => a.dataUri !== '')
+      ? { ...draft, attachments: draft.attachments.map((a) => ({ ...a, dataUri: '' })) }
+      : draft;
+    const idx = this.drafts.findIndex((d) => d.boardId === stored.boardId);
+    if (idx >= 0) this.drafts[idx] = stored;
+    else this.drafts.push(stored);
     try {
       const dir = this.roundDir(round.board.round);
-      writeFileAtomic(path.join(dir, 'draft.json'), JSON.stringify(draft, null, 2));
+      writeFileAtomic(path.join(dir, 'draft.json'), JSON.stringify(stored, null, 2));
       // A mind-map draft carries the LIVE in-progress tree — keep the model-legible
       // outline current so read-mindmap/an artifact-chat reads the tree the user is
       // actually looking at, not the originally-presented one.
-      if (draft.editedTree) {
-        this.writeTreeOutline(dir, draft.editedTree, `Live tree — round ${round.board.round} (in progress)`);
+      if (stored.editedTree) {
+        this.writeTreeOutline(dir, stored.editedTree, `Live tree — round ${round.board.round} (in progress)`);
       }
     } catch (err) {
       console.error(`[store] draft.json write failed: ${String(err)}`);
     }
+    return stored;
   }
 
   /**

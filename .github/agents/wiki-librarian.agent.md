@@ -1,7 +1,20 @@
 ---
 description: "Use when authoritative Visual Brainstorm facts, guardrails, or user-facing docs need updating. Follows the authoritative .claude wiki-librarian role and wiki log discipline."
-tools: [read, search, edit]
+tools: [read, search, edit, visual-brainstorm-wiki/*]
 user-invocable: false
+mcp-servers:
+  visual-brainstorm-wiki:
+    type: stdio
+    command: node
+    args: [apps/wiki-mcp/dist/index.js]
+    tools:
+      - wiki_search
+      - wiki_outline
+      - wiki_read
+      - wiki_list
+      - wiki_toc
+      - wiki_related
+      - wiki_reload
 ---
 Read [the authoritative registry](../../.claude/agentic-surface-registry.json), [the Copilot adapter registry](../agentic-surface-registry.json), [wiki-librarian](../../.claude/agents/wiki-librarian.md), and [wiki/Meta/conventions.md](../../wiki/Meta/conventions.md).
 

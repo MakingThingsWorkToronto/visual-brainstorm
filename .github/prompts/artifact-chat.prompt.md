@@ -8,6 +8,7 @@ Read and follow these files in order:
 - [Authoritative registry](../../.claude/agentic-surface-registry.json)
 - [Copilot adapter registry](../agentic-surface-registry.json)
 - [Workflow](../../.claude/commands/artifact-chat.md)
+- [Mind-map reader (the workflow's mind-map branch runs it FIRST)](../../.claude/commands/read-mindmap.md)
 - [Persona](../../.claude/agents/brainstorm-orchestrator.md)
 - [SVG delegate](../../.claude/agents/svg-artisan.md)
 - [SVG craft](../../.claude/skills/svg-authoring/SKILL.md)

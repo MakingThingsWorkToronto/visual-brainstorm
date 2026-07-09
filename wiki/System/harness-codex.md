@@ -5,6 +5,9 @@ workflow system. Project Codex configuration and hooks live in `.codex/`; Codex 
 subagents live in `.codex/agents/*.toml`; Codex-discoverable skills mirror the authoritative
 craft files in `.agents/skills/`.
 
+The Codex MCP definitions live in `.codex/config.toml`; `.codex/mcp.json` is not a Codex
+configuration file in this repository.
+
 **Entry point.** Start Codex from the repo root after the project is trusted. Codex reads
 `AGENTS.md`, then the repo-scoped `.codex/config.toml` and `.codex/hooks.json`. The config
 registers the same two local MCP servers as `.mcp.json`:

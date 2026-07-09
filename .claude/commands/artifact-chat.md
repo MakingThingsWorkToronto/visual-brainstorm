@@ -58,11 +58,18 @@ Users can ask about any artifact whenever they want — you answer in place, in 
    (rule 8). If the subagent fails, report the failure honestly via `reply_artifact_chat`
    — never fabricate a result (rule 6). Keep replies SHORT: the panel is a chat, not an
    essay.
-5. **Resume.** Return to exactly what the session was doing before the chat arrived —
-   re-present the pending board, keep waiting, or continue the command in progress. The
-   chat changes nothing about the funnel state.
+5. **Resume.** Return to exactly what the session was doing before the chat arrived. If the
+   chat interrupted a blocked `present_board` (the park digest says so), resume the wait with
+   `present_board {rearmBoardId: "<the parked boardId>"}` — NO options/tree/axes; the board
+   stayed live in the studio (dials intact), no new round is minted, and if the user submitted
+   DURING the chat the rearm returns their answer immediately. Never re-send the board's
+   content to resume — that would mint a duplicate round. Otherwise continue whatever command
+   was in progress. The chat changes nothing about the funnel state.
 
 ## Changelog
+- 2026-07-09 — resume is now a first-class rearm: `present_board {rearmBoardId}` re-arms the
+  still-live board (and consumes a mid-detour submit) instead of re-sending the board content
+  (from review-followups-2026-07-09: mid-detour submits used to strand until timeout)
 - 2026-07-09 — mind-map branch: a chat on the mindmap snapshot runs /read-mindmap FIRST (live
   draft/tree.md, never the stale presented snapshot); improvements re-present an improved TREE
   (auto-captured), never an svg-artisan SVG redraw (from mindmap-chat-hardening-2026-07-09)

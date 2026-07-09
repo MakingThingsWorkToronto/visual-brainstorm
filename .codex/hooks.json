@@ -18,6 +18,15 @@
             "command": "node scripts/check-agentic-surface.mjs --hook"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/check-copilot-parity.mjs --hook"
+          }
+        ]
       }
     ],
     "SubagentStop": [

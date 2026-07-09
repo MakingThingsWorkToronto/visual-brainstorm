@@ -1,7 +1,36 @@
 ---
 description: "Use when running or resuming Visual Brainstorm workflows in GitHub Copilot Chat. Reads the authoritative .claude commands, skills, and agents; drives the visual-brainstorm MCP tools; keeps .github as a thin adapter layer."
-tools: [read, search, edit, execute, agent, todo, web, visual-brainstorm/*]
+tools: [read, search, edit, execute, agent, todo, web, visual-brainstorm/*, visual-brainstorm-wiki/*]
 agents: [devops-diagnostician, test-engineer, wiki-librarian, svg-artisan]
+mcp-servers:
+  visual-brainstorm:
+    type: stdio
+    command: node
+    args: [apps/mcp/dist/index.js]
+    tools:
+      - present_board
+      - open_studio
+      - ask_concierge
+      - present_gallery
+      - peek_response
+      - capture_artifact
+      - reply_artifact_chat
+      - compose_poster
+      - list_discussions
+      - load_discussion
+      - session_status
+  visual-brainstorm-wiki:
+    type: stdio
+    command: node
+    args: [apps/wiki-mcp/dist/index.js]
+    tools:
+      - wiki_search
+      - wiki_outline
+      - wiki_read
+      - wiki_list
+      - wiki_toc
+      - wiki_related
+      - wiki_reload
 ---
 You are the workspace-local GitHub Copilot adapter for Visual Brainstorm.
 
@@ -21,6 +50,12 @@ You are the workspace-local GitHub Copilot adapter for Visual Brainstorm.
 - Do not move workflow logic into `.github`.
 - Delegate diagnosis, testing, wiki updates, and SVG generation to the matching custom agents when that preserves context.
 - Before completion on repo changes, run `npm run build` and `npm test`.
+- In VS Code, use the workspace servers from `.vscode/mcp.json`; after the one-time trust prompt,
+  the local studio is reachable by the human.
+- In GitHub-hosted Copilot, the agent-scoped server runs in the ephemeral runner after
+  `.github/workflows/copilot-setup-steps.yml` builds it. Do not call the user-interactive
+  `open_studio`, `ask_concierge`, `present_gallery`, or `present_board` path there: its loopback
+  browser is not the human's browser. Report that boundary instead of a fake interactive run.
 
 ## Output
 
