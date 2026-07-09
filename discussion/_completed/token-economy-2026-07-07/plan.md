@@ -1,8 +1,9 @@
 # Token-economy for the Visual Brainstorm
 
-**Status:** phases 1–6 implemented 2026-07-09 — ONLY the live-session A/B (a real human brainstorm
-measured against the phase-1 baseline) remains before closeout; everything buildable is built,
-tested, and codified
+**Status:** closed 2026-07-09 — phases 1–6 implemented, tested, and codified. The live-session
+A/B (a real human brainstorm measured against the phase-1 baseline) remains as FUTURE
+verification, accepted by the operator at closeout; run it during the next real brainstorm and
+compare `progress.jsonl` per-sink accounting against the phase-1 baseline.
 **Owner persona:** brainstorm-orchestrator (loop owner) delegating BUILD to svg-artisan / test-engineer / wiki-librarian
 **Trigger:** operator directive — "create a token-economy plan; then explore token efficiency. The SVGs must stay pretty."
 
@@ -188,6 +189,13 @@ from token economy and should get its own plan. Captured here so it isn't lost; 
   (shared append), .agents/learnings.md (shared append), this plan folder. Subject:
   `chore(closeout-token-economy): explicit routing + tweak-mutation + context/intake economy +
   fable bake-off` · **11** report.
+- 2026-07-09 — **CLOSED (resume session).** Step 2 unblocked: the peer (handoff-fidelity)
+  landed its concierge picked/typed + BoardSurvey wiring; on the converged tree `npm run build`
+  GREEN, `npm run test:unit` 217/217, `npm run smoke` PASS (incl. the previously-red
+  smoke.mjs:959 structured-concierge assertion), `npm run smoke:ui` PASS. Steps 8–10 executed:
+  Status closed, folder archived to `discussion/_completed/`, committed `--only` this plan's
+  paths with riders declared (shared sources also carry handoff-fidelity-2026-07-09 edits).
+  Live-session A/B = accepted future verification (measure next real brainstorm vs baseline).
 - 2026-07-09 — **phase 1 landed (instrumentation + UI).** New `ProgressEvent.category`
   (`TokenSink`) + `StudioState.tokensBySink`; honest per-sink attribution in `SessionStore`
   (boundary label declares a sink → next Stop-hook delta inherits it, consume-once, else
