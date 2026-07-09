@@ -46,3 +46,34 @@ test('bridge normalizes legacy string models against the configured runtime', as
     await bridge.stop();
   }
 });
+
+test('bridge serves only models usable on the live harness', async () => {
+  const root = tmp();
+  const store = new SessionStore('Harness scoping', root);
+  const bridge = new Bridge(store, {
+    discussionRoot: root,
+    runtime: { id: 'claude', label: 'Claude Code', provider: 'Anthropic' },
+    themes: [BUILTIN_THEMES[0]],
+    theme: BUILTIN_THEMES[0].name,
+    // A Claude model, a cross-harness Copilot-only model, and a legacy string
+    // (which normalizes to the live runtime). Only Claude-usable ones should show.
+    models: [
+      { id: 'claude-opus-4-8', label: 'Claude Opus 4.8', provider: 'Anthropic', engineIds: ['claude'] },
+      { id: 'copilot-gpt-5', label: 'Copilot GPT-5', provider: 'GitHub', engineIds: ['copilot'] },
+      'claude-sonnet-5',
+    ],
+    defaultModel: 'claude-opus-4-8',
+  });
+  await bridge.start(0);
+  try {
+    const res = await fetch(`http://127.0.0.1:${bridge.port}/api/state`);
+    const body = await res.json();
+    assert.deepEqual(
+      body.models.map((m) => m.id),
+      ['claude-opus-4-8', 'claude-sonnet-5'],
+      'Copilot-only model must not be offered in a Claude session',
+    );
+  } finally {
+    await bridge.stop();
+  }
+});
