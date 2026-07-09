@@ -7,9 +7,10 @@
 
   <!-- center -->
   <circle cx="280" cy="280" r="86" fill="#a855f7" opacity="0.08" stroke="none"/>
-  <text x="280" y="268" text-anchor="middle" font-size="13" font-weight="700" fill="#a855f7">every cycle leaves</text>
-  <text x="280" y="286" text-anchor="middle" font-size="13" font-weight="700" fill="#a855f7">the repo smarter</text>
-  <text x="280" y="306" text-anchor="middle" font-size="10" fill="#8a8a94">commands &#183; skills &#183; wiki &#183; tests</text>
+  <text x="280" y="258" text-anchor="middle" font-size="13" font-weight="700" fill="#a855f7">every cycle leaves</text>
+  <text x="280" y="276" text-anchor="middle" font-size="13" font-weight="700" fill="#a855f7">the repo smarter</text>
+  <text x="280" y="296" text-anchor="middle" font-size="10" fill="#8a8a94">commands &#183; skills &#183; wiki &#183; tests</text>
+  <text x="280" y="316" text-anchor="middle" font-size="9" fill="#8a8a94">grounded on the wiki &#183; rule 1</text>
 
   <!-- ring arrows (clockwise pentagon) -->
   <g fill="none" stroke="#a855f7" stroke-width="2.5" marker-end="url(#la)">
@@ -42,7 +43,7 @@
   <!-- DOCUMENT (bottom left) -->
   <rect x="10" y="440" width="160" height="72" rx="12" fill="none" stroke="#8a8a94" stroke-width="2"/>
   <text x="90" y="464" text-anchor="middle" font-size="14" font-weight="700" fill="#a855f7">4 &#183; DOCUMENT</text>
-  <text x="90" y="480" text-anchor="middle" font-size="9.5" fill="#8a8a94">facts &#8594; wiki (+ log.md line);</text>
+  <text x="90" y="480" text-anchor="middle" font-size="9.5" fill="#8a8a94">facts &#8594; wiki (+log.md +reload);</text>
   <text x="90" y="493" text-anchor="middle" font-size="9.5" fill="#8a8a94">humans &#8594; wiki/user-guide.md;</text>
   <text x="90" y="506" text-anchor="middle" font-size="9.5" fill="#8a8a94">evidence &#8594; .logs (observable)</text>
 

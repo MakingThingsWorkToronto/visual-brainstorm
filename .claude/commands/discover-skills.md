@@ -53,9 +53,13 @@ web — the goal is that brainstorm quality compounds every turn.
 | Codify recurring work | `new-command.md` |
 | Turn an accepted idea/brainstorm into a loopable build plan | `create-dispatch-command.md` (emits `/dispatch-<slug>-next-phase`; run via `/loop`) |
 | Weekly: shrink the agentic learnings log without losing facts | `compress-learnings.md` |
-| Query the authoritative wiki cheaply (search + granular per-heading read) | MCP `visual-brainstorm-wiki` (apps/wiki-mcp): `wiki_search` → `wiki_outline` → `wiki_read(path, heading)` |
+| Query the authoritative wiki cheaply (search + granular per-heading read) | MCP `visual-brainstorm-wiki` (apps/wiki-mcp): `wiki_search` → `wiki_outline` → `wiki_read(path, heading)`; grounding + reload contract in `wiki/System/wiki-grounding.md` |
+| Lint/reconcile the whole wiki (drift, orphans, broken links) + reload the index | `wiki-maintenance.md` (delegates to `wiki-librarian`; cross-plan sweep) |
 
 ## Changelog
+- 2026-07-09 — task map: registered `wiki-maintenance.md` (cross-plan wiki lint/reconcile) and
+  pointed the wiki-read row at `wiki/System/wiki-grounding.md` (from
+  wiki-mcp-grounding-and-maintenance-2026-07-09)
 - 2026-07-08 — task map: registered `compress-learnings.md` (weekly log compaction) and the
   `visual-brainstorm-wiki` MCP (apps/wiki-mcp) for cheap wiki reads (from
   wiki-mcp-and-learnings-compaction)

@@ -37,7 +37,10 @@ done/skipped-with-reason.
     registered harness layers when they are real) so comparable results remain achievable
     across harnesses. If nothing adapter-visible changed, explicitly skip this with reason.
 5. **Update the wiki** — any fact or guardrail established by this plan moves to the
-   relevant `wiki/` page; append the edit to `wiki/log.md` (rule 2).
+   relevant `wiki/` page; append the edit to `wiki/log.md` (rule 2). After the edits land,
+   call `mcp__visual-brainstorm-wiki__wiki_reload` so the grounding index reflects them
+   (`wiki/System/wiki-grounding.md` § reload contract); skip gracefully if the MCP is not
+   registered in the session.
 6. **Hand off final artifacts to the target repo** — resolve the thread's target
    repo/folder: `targetRepo` in the thread's `session.json` (set via the studio 📁 button),
    else `targetRepo` in `visual-brainstorm.config.json`. If neither is set, skip. If set:
@@ -93,6 +96,8 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 5: call `wiki_reload` after wiki edits so the grounding MCP index isn't
+  stale (from wiki-mcp-grounding-and-maintenance-2026-07-09)
 - 2026-07-07 — step 10: inspect the STAGED index before committing (`git diff --cached
   --name-status`) — a concurrent session's staged changes/deletions ride a plain `git commit`
   even when you only `git add` your own files (from studio-survey-intake-2026-07-07)

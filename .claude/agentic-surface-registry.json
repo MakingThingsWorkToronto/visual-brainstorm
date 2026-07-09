@@ -89,6 +89,14 @@
       "workflow": "learnings-compaction"
     },
     {
+      "kind": "command",
+      "name": "wiki-maintenance",
+      "path": ".claude/commands/wiki-maintenance.md",
+      "model": "sonnet",
+      "purpose": "Cross-plan wiki lint/reconcile sweep; delegates to wiki-librarian and reloads the visual-brainstorm-wiki MCP index",
+      "workflow": "wiki-maintenance"
+    },
+    {
       "kind": "skill",
       "name": "brainstorm-phases",
       "path": ".claude/skills/brainstorm-phases/SKILL.md",

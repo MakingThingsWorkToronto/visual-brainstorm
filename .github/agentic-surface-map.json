@@ -53,6 +53,11 @@
       "name": "compress-learnings",
       "copilotPrompt": ".github/prompts/compress-learnings.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
+    },
+    {
+      "name": "wiki-maintenance",
+      "copilotPrompt": ".github/prompts/wiki-maintenance.prompt.md",
+      "copilotAgent": "visual-brainstorm-wiki-librarian"
     }
   ],
   "agents": [

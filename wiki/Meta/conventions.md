@@ -1,10 +1,18 @@
 # Conventions
 
 ## Wiki
-- Plain markdown, read with normal file tools. Authoritative per CLAUDE.md rule 1.
+- Plain markdown; edits are plain-file (Edit/Write). Authoritative per CLAUDE.md rule 1.
+- **Ground via the `visual-brainstorm-wiki` MCP** (`wiki_search` → `wiki_outline` →
+  `wiki_read(path, heading)`), not whole-page dumps — see
+  [System/wiki-grounding.md](../System/wiki-grounding.md). Plain file tools are the fallback.
+- **Reload after every edit.** The MCP index is a cache; after ANY wiki change call
+  `mcp__visual-brainstorm-wiki__wiki_reload` so grounding isn't stale (binding for the
+  wiki-librarian, `/plan-closeout`, `/wiki-maintenance`). Skip gracefully if the MCP is absent.
 - Every edit appends one line to `wiki/log.md`: date — page — what — why.
 - Pages state facts and guardrails, not narration. If it's a plan, it belongs in
   `discussion/`; if it's a hard-won gotcha, in `.agents/learnings.md`.
+- Periodic cross-plan wiki lint/reconcile is `/wiki-maintenance`; per-plan wiki updates are
+  `/plan-closeout` step 5; learnings compaction is `/compress-learnings` (separate homes).
 
 ## Discussion / plans
 - Path: `discussion/<slug>-<yyyy-mm-dd>/plan.md`.

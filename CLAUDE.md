@@ -4,8 +4,11 @@
 
 1. **This file** (rules + the quick map below).
 2. **`wiki/README.md`**, then the wiki pages your task touches — the wiki is AUTHORITATIVE
-   (rule 1). Architecture lock: `wiki/Requirements/system-architecture.md`. The improvement
-   flywheel: `wiki/Meta/agentic-loop.md`.
+   (rule 1): ground on it BEFORE acting and reconcile any code↔wiki drift rather than drifting.
+   Read it cheaply via the `visual-brainstorm-wiki` MCP (`wiki_search` → `wiki_outline` →
+   `wiki_read`; contract in `wiki/System/wiki-grounding.md`). Architecture lock:
+   `wiki/Requirements/system-architecture.md`. The improvement flywheel:
+   `wiki/Meta/agentic-loop.md`.
 3. **The skill for your task type** — brainstorming: `.claude/skills/brainstorm-phases` +
    `.claude/skills/svg-authoring`. Skills are binding craft, not suggestions.
 4. **Open plans** — newest folders in `discussion/` (not `_completed/`) with `plan.md`.
@@ -24,8 +27,9 @@
 | Write/extend tests | **agent `test-engineer`** (three layers, frameworkless, no mocks) |
 | Close a plan or thread | `.claude/commands/plan-closeout.md` (also Plan closeout in the studio composer's More Tools (+) menu, and Finalize & close out) |
 | Turn an accepted idea/brainstorm into a loopable build plan | `.claude/commands/create-dispatch-command.md` — plan.md carries phases + progress; run via `/loop /dispatch-<slug>-next-phase` |
-| Capture facts/guardrails | **agent `wiki-librarian`** → `wiki/` + one line in `wiki/log.md` per edit |
-| Read the wiki cheaply (agent context) | MCP **`visual-brainstorm-wiki`** (`apps/wiki-mcp`): `wiki_search` → `wiki_outline` → `wiki_read(path, heading)` — shaped output + granular per-heading reads so context stays small |
+| Capture facts/guardrails | **agent `wiki-librarian`** → `wiki/` + one line in `wiki/log.md` per edit; **`wiki_reload` after every edit** so the grounding index isn't stale |
+| Read the wiki cheaply (agent context) | MCP **`visual-brainstorm-wiki`** (`apps/wiki-mcp`): `wiki_search` → `wiki_outline` → `wiki_read(path, heading)` — shaped, granular reads so context stays small. Grounding + reload contract: `wiki/System/wiki-grounding.md` |
+| Lint/reconcile the whole wiki (drift, orphans, broken links) | `.claude/commands/wiki-maintenance.md` (delegates to `wiki-librarian`; reloads the MCP index) — the cross-plan sweep, distinct from per-plan `/plan-closeout` updates and `/compress-learnings` |
 | Weekly: compact the agentic learnings log | `.claude/commands/compress-learnings.md` (recent verbatim, older distilled; full originals to `.agents/learnings-archive.md`) |
 | Find or ingest craft | `.claude/commands/discover-skills.md` (also Discover skills in the studio composer's More Tools (+) menu; web branch ingests new skills) |
 | Recurring task with no procedure | `.claude/commands/new-command.md` — asked twice = failure |

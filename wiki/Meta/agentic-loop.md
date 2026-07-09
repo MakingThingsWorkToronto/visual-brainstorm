@@ -11,10 +11,31 @@ tests. Skipping a stage is a process failure, not a shortcut.
 | Stage | Home | Entry | Exit criteria |
 |---|---|---|---|
 | 1 · PLAN | `discussion/<slug>-<date>/plan.md` | any multi-step task (rule 3) | scope, authority, phases written BEFORE implementation; the plan is **loopable** — phase table with Status + append-only Progress log in the same file (`/create-dispatch-command` scaffolds or retrofits it; its emitted `/dispatch-<slug>-next-phase` runs one phase per tick and persists progress back to the plan) |
-| 2 · BUILD | agents (`.claude/agents/`) + skills (`.claude/skills/`) + commands (`.claude/commands/`) do the work (rule 11) | plan exists | features ship WITH tests; `npm run build` + `npm test` green (rule 10); verified units committed (see Ship discipline) |
+| 2 · BUILD | agents (`.claude/agents/`) + skills (`.claude/skills/`) + commands (`.claude/commands/`) do the work (rule 11) | plan exists; **grounded on the authoritative wiki** (below) | features ship WITH tests; `npm run build` + `npm test` green (rule 10); verified units committed (see Ship discipline); no unreconciled wiki↔code drift |
 | 3 · LEARN | `.agents/learnings.md` (newest first) | anything discovered the hard way | one entry per non-obvious fact + why it matters; nothing re-learned next session (rule 4) |
-| 4 · DOCUMENT | facts → `wiki/` + `wiki/log.md` line (rules 1–2); human-facing → `wiki/user-guide.md` (rule 12); runtime evidence self-documents via logs/health (`System/testing-observability.md`) | facts or UX changed | wiki and code agree; every edit logged; guide matches the product |
+| 4 · DOCUMENT | facts → `wiki/` + `wiki/log.md` line (rules 1–2); human-facing → `wiki/user-guide.md` (rule 12); runtime evidence self-documents via logs/health (`System/testing-observability.md`) | facts or UX changed | wiki and code agree; every edit logged; guide matches the product; **grounding index reloaded** (`wiki_reload`) so the next cycle grounds on current bytes |
 | 5 · IMPROVE | `/plan-closeout` (`.claude/commands/plan-closeout.md`) | plan's work verified | each learning EDITS the command/skill it implicates (+ `## Changelog` footer line); plan + threads archived to `_completed/`; closeout commit **pushed to origin** |
+
+## The wiki is the loop's guardrail (rule 1), not just its stage-4 output
+
+The wiki is authoritative, so it is **read as a guardrail at every stage, not only written at
+stage 4**. This is what makes it a guardrail rather than an archive:
+
+- **Ground before you PLAN and while you BUILD.** Before scoping work and before changing a
+  contract, ground on the pages your task touches via the `visual-brainstorm-wiki` MCP —
+  `wiki_search` → `wiki_outline` → `wiki_read(path, heading)` (context-shaped, never
+  whole-page dumps). The procedure is `System/wiki-grounding.md`; the cheap entry is the
+  CLAUDE.md §Session bootstrap + quick map.
+- **On drift, reconcile — never silently proceed.** If code contradicts the wiki, the cycle
+  STOPS and reconciles: fix whichever side is wrong, with evidence, and log it (rule 1). A
+  BUILD that ships against a wiki it quietly contradicts has skipped a stage. Unresolvable
+  contradictions open a `discussion/` plan (see `/wiki-maintenance`), they are not papered over.
+- **Close the read/write circuit at DOCUMENT.** Stage 4 writes plain-file, logs the edit
+  (rule 2), and **reloads the grounding index** (`wiki_reload`) so the next cycle grounds on
+  the current bytes — a stale index would let the guardrail drift out from under the loop.
+- **Owners.** The `wiki-librarian` grounds-then-reloads on every capture; `/plan-closeout`
+  step 5 reloads per plan; `/wiki-maintenance` is the cross-plan lint/reconcile sweep. See
+  `System/wiki-grounding.md` for the binding contract.
 
 ## Ship discipline — a cycle ends on origin, not on "green"
 
@@ -62,13 +83,14 @@ tests. Skipping a stage is a process failure, not a shortcut.
   coordinator verifies a repeated flag against the file before acting and tells the agent
   explicitly when a flag is resolved.
 - **Cold-start guarantee:** a brand-new session reads CLAUDE.md §Session bootstrap and is
-  fully operational — wiki authority, plans, learnings, commands, skills, agents, tests,
-  logs — without any chat history.
+  fully operational — wiki authority (grounded via the `visual-brainstorm-wiki` MCP), plans,
+  learnings, commands, skills, agents, tests, logs — without any chat history.
 
 ## Memory map (what persists where — never blur these)
 
 ```
-wiki/                  facts & guardrails (authoritative; every edit logged)
+wiki/                  facts & guardrails (authoritative; every edit logged; grounded/read via
+                       the visual-brainstorm-wiki MCP, reloaded after edits — wiki-grounding.md)
 discussion/      plans + brainstorm threads (boards, SVGs, responses, brainstorm.md)
 wiki/user-guide.md    how humans use the tool (SVG-illustrated)
 .agents/learnings.md   hard-won gotchas (recent 14-day window, verbatim)

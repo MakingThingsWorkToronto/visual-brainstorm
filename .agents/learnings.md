@@ -1,5 +1,83 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — A handoff that carries a UI structure: move the SHAPE and its DEFAULT DATA into protocol
+
+- **When an orchestrator→studio handoff needs to carry a UI structure (here the New Discussion
+  intake survey), the structure's TYPE belongs in `packages/protocol` (rule 5), not in the
+  component.** `SurveyQuestion` lived in `apps/studio/.../Survey.tsx`; the moment `SeedBrief`
+  needed to ship a bespoke question set (`open_studio` `questions`), the type became a wire
+  contract. Move it to protocol as a zod schema (`SurveyQuestionSchema` + inferred type) so the
+  MCP tool param validates against the SAME shape the studio renders. Keep the studio module as
+  the single import site by re-exporting: `export type { SurveyQuestion } from '@visual-brainstorm/protocol'`
+  in `Survey.tsx` — no churn at the ~dozen call sites.
+- **Promote the DEFAULT DATA too, not just the type.** The blank-UI preset became
+  `DEFAULT_INTAKE_QUESTIONS` in protocol, so one canonical set is referenced by the panel (blank
+  path), the tool description, the wiki, and the agent prose. A default that lives in a component
+  can't be cited by the layers that need to describe it.
+- **Design principle the operator insisted on: a handoff REPLACES, it doesn't pigeonhole.** The
+  orchestrator authors creative questions anchored to THIS brief; they *replace* the preset in the
+  panel rather than pre-filling a fixed set. The generic preset is only the fallback for a UI-started
+  New Discussion where Claude hasn't heard the idea. Encode "author your own, don't reuse the preset"
+  in the tool description + `run-brainstorm` step 0a + the orchestrator agent, or the model defaults
+  to the safe-looking preset every time.
+- **Layout must stop hardcoding ids once the set is variable.** The panel had hand-placed rows
+  (`questionBox('making'), questionBox('vibe')`, …). A handoff set of arbitrary count/ids breaks
+  that — chunk a flat `formBoxes` array two-per-row generically instead; the fixed-five output is
+  byte-identical, so nothing regresses.
+
+## 2026-07-09 — Concurrent working tree: a red human-sim can belong to another session's untracked WIP
+
+- **In a heavily shared working tree, `npm test`'s human-sim can fail on a feature you never
+  touched.** Here it failed at the PhotoScribble "annotate the photo" step. Attribution: `git status`
+  showed `PhotoScribble.tsx` as UNTRACKED (`??`) and `human-sim.mjs` as modified with freshly-injected
+  diagnostic code (a synthetic-PointerEvent probe logging `[diag after canvas click]`) — i.e. someone
+  is mid-debug on that exact failure right now. Prove your innocence by reading the failing handler
+  (the note-input was gated purely by PhotoScribble's own `onDown`/`pending` state, self-contained) and
+  confirming your change renders the component with identical props. Then report BLOCKED-by-other-plan,
+  don't "fix" it (rule 9: not in scope; racing their loop corrupts both).
+- **Closeout verify is build + smoke, NOT the full human-sim** (`/plan-closeout` step 2) — precisely so
+  an unrelated in-flight UI feature can't block an otherwise-green plan from closing. Your feature's real
+  proof was on its OWN surfaces: `protocol.test` (schema/default), `smoke.mjs` (real-bridge SeedBrief
+  round-trip), `ui-smoke` (real-component render proving bespoke questions replace the preset).
+
+## 2026-07-09 — Scoped-tools subagents don't inherit MCP tools; name them or the call silently fails
+
+- **An agent whose frontmatter `tools:` is an explicit allowlist gets ONLY those tools — MCP
+  tools are NOT included implicitly**, even though they're registered in `.mcp.json` and
+  available to the main session. `wiki-librarian` had `tools: Read, Edit, Write, Grep, Glob`
+  and therefore could not call `wiki_reload` at all; the "binding reload after every edit"
+  contract would have silently no-opped in that agent. Fix: add the exact
+  `mcp__<server>__<tool>` names (e.g. `mcp__visual-brainstorm-wiki__wiki_reload`) to the
+  allowlist. Agents with `tools: All tools` / `*` get MCP tools for free — only scoped agents
+  need the explicit wiring.
+- **Corollary: when you give a scoped agent a new MCP-backed duty, widen its `tools:` in the
+  SAME edit.** A duty in the prose that the tool list can't satisfy is a dead letter — grep the
+  frontmatter, don't assume registration is enough.
+
+## 2026-07-09 — Harness model-picker scoping: enforce `engineIds` at the bridge, not the selects
+
+- **The `engineIds` field on `ModelCatalogEntry` already existed as the harness-scoping mechanism
+  — but nothing enforced it.** The bridge served the whole configured catalog and both composer
+  `<select>`s (`NewDiscussionPanel`, `BoardSurvey`) filtered only on `capabilities.delegate`. It
+  *looked* correct because the defaults are all `claude` + runtime is `claude`; a Copilot/CODEX-only
+  entry would have wrongly appeared in a Claude session. Lesson: a field that documents an intent
+  ("which runtimes can honestly delegate to this model") is not a guarantee until a filter reads it.
+- **Enforce it once, where the runtime is authoritative: the bridge constructor.** `Bridge` already
+  holds `this.runtime`; filtering `modelsList` to `engineIds.includes(this.runtime.id)` at
+  construction makes the served `state.models` the single "usable on this harness" list. Every
+  downstream consumer (both selects, the `modelLabels` map) is then correct for free — no need to
+  thread `runtime` into `BoardSurvey` (which doesn't even receive it). Prefer the one authoritative
+  filter over duplicating a client-side check per select.
+- **Legacy string models are self-matching, so the filter is safe by default.** `normalizeModel`
+  stamps a string-configured model with `engineIds: [runtime.id]`, so it always passes the filter;
+  only *explicit* cross-harness object entries are withheld. A misconfigured all-Copilot catalog in
+  a Claude session yields an empty picker — which is the honest outcome, not a bug.
+- **When a UI journey test fails during an unrelated fix, attribute before touching it.**
+  `test:human:archived` failed on "no chat composer on archived threads" — but the working tree
+  already carried the separate `artifact-chat-everywhere` WIP that deliberately made archived chat
+  interactive (`onSend: sendFsChat` unconditionally). The failing assertion belongs to that in-flight
+  feature, not the model-list change. `git diff <file>` on pre-modified paths confirms ownership fast.
+
 ## 2026-07-09 — New Discussion box/layout polish: legend misalignment, sticky-flush composer, global radius, row-coupled collapse
 
 - **A native `<legend>` never aligns with padded fieldset content.** The browser renders a legend

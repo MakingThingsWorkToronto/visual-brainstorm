@@ -14,7 +14,7 @@ Every agent (and command/skill) pins a `model:` tier — see
 | `devops-diagnostician` | sonnet | studio/bridge/MCP "seems broken", hangs, stale content, port suspicion | evidence-first: /api/health → process census → logs; never restart-loops; kills node pids, not npm wrappers |
 | `svg-artisan` | opus | delegated option generation — esp. when `BoardResponse.model` routes a round to a specific model | opus for best board-SVG quality (the artifact the human judges); frontmatter tier is the default, `BoardResponse.model` overrides per round; reads svg-authoring skill; returns pure JSON options; synthesis by MEANING, never overlay |
 | `test-engineer` | sonnet | features land/change (tests ship with features), failures, coverage doubts | knows the three layers + conventions; frameworkless; no mocks |
-| `wiki-librarian` | haiku | authoritative facts need capturing, closeout doc steps, wiki/code drift | mechanical transcription + log discipline → haiku; enforces rule 1 authority + rule 2 log discipline; owns command/skill changelog footers |
+| `wiki-librarian` | haiku | authoritative facts need capturing, closeout doc steps, wiki/code drift | mechanical transcription + log discipline → haiku; enforces rule 1 authority + rule 2 log discipline; owns command/skill changelog footers; grounds via the `visual-brainstorm-wiki` MCP and calls `wiki_reload` after every edit ([wiki-grounding.md](wiki-grounding.md)) |
 
 Model delegation flow: user picks a model in the composer → `BoardResponse.model` →
 orchestrator spawns `svg-artisan` with that model override → artisan returns options JSON →

@@ -48,7 +48,7 @@ tier, so efficiency improves for free as models ship. Values accepted: `haiku`, 
 Agents: `brainstorm-orchestrator` opus · `svg-artisan` opus (best board-SVG quality) ·
 `test-engineer` sonnet · `devops-diagnostician` sonnet · `wiki-librarian` haiku.
 Commands: `run-brainstorm` opus · `plan-closeout` / `create-dispatch-command` / `new-command`
-/ `discover-skills` / `diagnose-studio` / `compress-learnings` / both `dispatch-*-next-phase` sonnet ·
+/ `discover-skills` / `diagnose-studio` / `compress-learnings` / `wiki-maintenance` / both `dispatch-*-next-phase` sonnet ·
 `artifact-chat` / `build-check` / `add-theme` haiku · `revisit-round` inherit.
 Skills: `brainstorm-phases` / `svg-authoring` inherit.
 
