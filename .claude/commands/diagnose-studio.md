@@ -48,7 +48,23 @@ verdict. Most reports are a port-conflict ghost, not a failure.
    start — a server predating a `discussionDir` (or other config) change keeps writing to
    the OLD location. `/api/health` → `session.dir` shows the root it ACTUALLY uses; expect
    stray writes there until the server restarts, and migrate them.
-6. **Report** the verdict with evidence (health JSON, log lines, pids killed).
+6. **Leaked test-browsers?** (Only if the machine feels starved — slow CDP launches, `no
+   DevTools endpoint within 40s`, `Input.dispatchMouseEvent: no reply` — after LOOPED
+   `test:human*` runs.) The per-run cleanup (`killBrowserTree` + `killProfileStragglers`)
+   sits in a `finally` that a SIGINT/SIGKILL of the node process skips, so headless browsers
+   from prior runs pile up (renderer/GPU children outlive the root on Windows). Census then
+   kill the WHOLE tree — matched narrowly so the user's normal browser is never touched
+   (headless + this repo's profile dirs only):
+   ```
+   Get-CimInstance Win32_Process |
+     ? { $_.Name -match 'chrome|msedge' -and $_.CommandLine -match '--headless' -and $_.CommandLine -match 'vibr|Temp' } |
+     % { Stop-Process -Id $_.ProcessId -Force }
+   ```
+   SAFE ONLY for a single agent that owns the machine — a blanket sweep would murder a
+   CONCURRENT session's `npm test` browser (harnesses are concurrency-safe: per-run `mkdtemp`
+   profiles + ephemeral ports). A single `npm test` from a clean process table never needs
+   this; the drain is from LOOPED runs. Don't auto-run it at harness startup.
+7. **Report** the verdict with evidence (health JSON, log lines, pids killed).
 
 ## Failure table
 
@@ -64,6 +80,9 @@ verdict. Most reports are a port-conflict ghost, not a failure.
 | a control appears in one session state but not another | a `viewingLive`/live-state render gate, NOT a bug — controls key off `viewingLive &&` (or live-state) conditions | check the `viewingLive &&` (or live-state) condition on the control before hunting elsewhere |
 
 ## Changelog
+- 2026-07-09 — step 6: leaked test-browser recovery sweep (all-`--headless` `vibr|Temp` census →
+  Stop-Process the tree; single-owner only) — harvested from the leaked-headless-drain +
+  ui-break-sweep learnings via /compress-learnings
 - 2026-07-07 — failure table: "works in preview but not real" = a `viewingLive` state gate,
   not preview slop (from ui-changes wave: reopen divider misdiagnosis)
 - 2026-07-07 — step 1: bridge-port.json is the authoritative real-port source (and the
