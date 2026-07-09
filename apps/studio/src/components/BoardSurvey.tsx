@@ -371,6 +371,9 @@ export function BoardSurvey({
         </div>
       </div>
 
+      {/* The phase mechanic — the actionable "answer" surface. The guide pulse
+          traces it until the user has touched it (or it was prefilled). */}
+      <div className="space-y-4" data-guide="step" data-guide-done={touched ? 'true' : undefined}>
       {isMindmap && board.tree && (
         <MindmapCanvas
           tree={board.tree}
@@ -598,6 +601,7 @@ export function BoardSurvey({
       )}
         </>
       )}
+      </div>
 
       {iterationPreview && (
         <div
@@ -614,7 +618,7 @@ export function BoardSurvey({
         </div>
       )}
 
-      <div className="rounded-2xl border border-line bg-surface p-4">
+      <div data-guide="input" className="rounded-2xl border border-line bg-surface p-4">
         <textarea
           value={elaboration}
           onChange={(e) => setElaboration(e.target.value)}

@@ -37,11 +37,19 @@ top to bottom; each numbered step below dispatches the next UI stage.
      ADAPTIVE deep-dive on top of it. The panel is step 0a of the ONE front door, never a second
      intake — after submit the studio holds a "preparing your questions" veil (never the bare
      panel again) until the concierge arrives. **If the human ALREADY described the purpose in
-     THIS Claude Code session, pass it as `open_studio`'s `brief`** — it pre-fills the panel
-     so they refine instead of retyping (the handoff; no rework). Omit `brief` ONLY when they
-     truly said nothing about what to make. The submission arrives as a new-brainstorm command
-     whose prompt/seed notes carry their brief; do NOT interrogate them in chat first.
-     `{status:"waiting"}` timeout is not failure — call `open_studio` again.
+     THIS Claude Code session, hand it off via `open_studio`** — pass `brief` (pre-fills the
+     composer), and on a real run-brainstorm ALSO pass: `summary` (a friendly one-liner shown in
+     the panel's opening bubble in place of the generic "what do you want to explore?" prompt —
+     so it reads as continuity); **`questions` — a BESPOKE intake survey YOU author, creative and
+     anchored to THIS brief** (do NOT reuse the generic making/vibe/range preset — that preset is
+     only for a blank UI-started New Discussion; invent the 3–6 high-signal questions this
+     brainstorm actually needs, each with 3–6 tappable options and one `recommended` where you
+     have a lean); and `picks` (your recommended answers, pre-selected, keyed by YOUR question
+     ids, using exact option strings). Together they land the human ONE tap from Send & iterate
+     instead of a blank form. Omit all of these ONLY when they truly said nothing about what to
+     make. The submission arrives as a new-brainstorm command whose prompt/seed notes carry their
+     brief; do NOT interrogate them in chat first. `{status:"waiting"}` timeout is not failure —
+     call `open_studio` again.
    - **b. Concierge — clarify adaptively.** Call **`ask_concierge`** with ONE question + a few
      tappable `suggestions`, tailored to the brief. Ask AS MANY as it takes — not a fixed
      count; being comprehensive rewards the brainstorm (audience, constraints, what "good"
@@ -126,6 +134,15 @@ top to bottom; each numbered step below dispatches the next UI stage.
    discover-skills, stop brainstorming and run that command file immediately. An
    `artifact-chat` command is a DETOUR, not a stop: run `.claude/commands/artifact-chat.md`
    (always a subagent), then resume the funnel where it was.
+   **Real chats reach you two ways — handle BOTH:** (a) while you BLOCK in `present_board`, a
+   chat parks the board and returns it to you as a response carrying `commands:['artifact-chat']`
+   (the question in `elaboration`/`seedNote`); (b) when NO board is live, the chat QUEUES —
+   so whenever `present_board` returns `{status:"pending"}` (timeout), and again before you
+   present the next round, **check `session_status.pendingUiCommands` and run
+   `.claude/commands/artifact-chat.md` for every queued `artifact-chat`** before continuing.
+   A queued chat left undrained is a real question the human asked that never gets answered —
+   never leave the studio's chat spinning. (Answers only happen while THIS session is engaged;
+   that is by design — a chat sent with no session running waits for the next one.)
 8. **Capture** — on `accept`, call `capture_artifact` for every kept option (provenance:
    boardId + optionIds). On `park`, summarize state and stop; the thread resumes later via
    `discussionId`. On **`finalize`** (`finalOptionId` set): capture the final artifact,
@@ -138,6 +155,10 @@ top to bottom; each numbered step below dispatches the next UI stage.
    `peek_response` later.
 
 ## Changelog
+- 2026-07-09 — step 7: real chats reach the orchestrator TWO ways — the parked-board response
+  AND `session_status.pendingUiCommands` when no board is live; drain queued artifact-chats on
+  every present_board timeout and before each new round so no real question is left unanswered
+  (from artifact-chat-everywhere)
 - 2026-07-07 — step 0 rewritten as the concierge → Living Gallery intake (handoff brief to
   open_studio, adaptive ask_concierge, present_gallery with live method minis + one
   recommendation, route the pick — mindmap→tree board, others→their phase). Mind map is a
@@ -164,3 +185,7 @@ top to bottom; each numbered step below dispatches the next UI stage.
 - 2026-07-08 — step 4: interpret mind-map `response.treeOps` (explode → expand node into ≥5
   children relevant to its topic+note; delete/add/note) + per-node `editedTree.note` steering
   (from mindmap-explode-decision-tree-2026-07-07)
+- 2026-07-09 — step 0a: on a real run-brainstorm, hand off via `open_studio` not just `brief`
+  but a `summary` (panel bubble), a BESPOKE `questions` survey YOU author anchored to the brief
+  (replaces the generic preset — never reuse it), and pre-selected `picks` — human lands one tap
+  from Send & iterate (from seed-brief-handoff-2026-07-09)

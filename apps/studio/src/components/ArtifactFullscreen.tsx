@@ -21,6 +21,12 @@ export function ChatSection({
   autoFocus?: boolean;
 }) {
   const [draft, setDraft] = useState('');
+  // Honest pending (rule 6): a reply comes from a LIVE brainstorm orchestrator
+  // (run-brainstorm handles the artifact-chat detour). If none is engaged the
+  // message is recorded + queued but nothing answers — so after a short wait we
+  // stop claiming "Claude is thinking…" and tell the truth instead of spinning
+  // a lie forever.
+  const [waited, setWaited] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +37,15 @@ export function ChatSection({
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, busy]);
+
+  useEffect(() => {
+    if (!busy) {
+      setWaited(false);
+      return;
+    }
+    const timer = setTimeout(() => setWaited(true), 25_000);
+    return () => clearTimeout(timer);
+  }, [busy]);
 
   return (
     <>
@@ -55,7 +70,15 @@ export function ChatSection({
             </div>
           </div>
         ))}
-        {busy && <div className="shimmer text-xs text-ink-dim">Claude is thinking…</div>}
+        {busy &&
+          (waited ? (
+            <div className="text-xs text-ink-dim">
+              Sent — your message is saved to this artifact. A reply comes when a brainstorm
+              session is running (in Claude Code); it will appear here the moment it does.
+            </div>
+          ) : (
+            <div className="shimmer text-xs text-ink-dim">Claude is thinking…</div>
+          ))}
         <div ref={endRef} />
       </div>
 

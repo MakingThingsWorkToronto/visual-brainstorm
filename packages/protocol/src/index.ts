@@ -184,6 +184,79 @@ export const SeedIntakeSchema = z.discriminatedUnion('kind', [
 export type SeedIntake = z.infer<typeof SeedIntakeSchema>;
 
 // ---------------------------------------------------------------------------
+// Intake survey — the New Discussion panel's tappable questions. The DEFAULT
+// set below drives a BLANK (UI-started) New Discussion; a run-brainstorm
+// handoff from Claude Code instead carries a BESPOKE, brainstorm-anchored set
+// on SeedBrief.questions — the orchestrator authors questions specific to the
+// brief rather than reusing a preset.
+// ---------------------------------------------------------------------------
+
+export const SurveyQuestionSchema = z.object({
+  /** Stable id — answers and pre-selected picks are keyed by it. */
+  id: z.string(),
+  /** The prompt, shown as the box title + the group's aria-label. */
+  question: z.string(),
+  /** Tappable answer options. */
+  options: z.array(z.string()),
+  /** Multi-select (checkbox semantics); default single (radio semantics). */
+  multi: z.boolean().optional(),
+  /** One option accented + badged as the recommendation (the artifact's ribbon). */
+  recommended: z.string().optional(),
+  /** Show a free-text "other" input (default true). */
+  allowOther: z.boolean().optional(),
+});
+export type SurveyQuestion = z.infer<typeof SurveyQuestionSchema>;
+
+/**
+ * The intake questions for a BLANK New Discussion started from the studio UI
+ * (no orchestrator handoff). A run-brainstorm launched from Claude Code does
+ * NOT reuse these — it hands off a bespoke, brainstorm-anchored set via
+ * SeedBrief.questions (do not pigeonhole a real brief into this preset).
+ */
+export const DEFAULT_INTAKE_QUESTIONS: SurveyQuestion[] = [
+  { id: 'making', question: 'What are you making?', options: ['icons', 'a logo', 'a ui flow', 'a palette', 'a system map', 'new feature', 'comparison'], multi: true },
+  { id: 'vibe', question: "What's the vibe?", options: ['calm', 'playful', 'bold', 'minimal', 'neon', 'formal', 'professional'], multi: true },
+  { id: 'range', question: 'How far should it push convention?', options: ['stay close to convention', 'go wild'] },
+  { id: 'audience', question: 'Who is it for?', options: ['just me', 'my team', 'customers', 'kids', 'executives'] },
+  { id: 'constraints', question: 'Any hard constraints?', options: ['works tiny', 'monochrome-safe', 'high contrast', 'print friendly', 'square format'], multi: true },
+];
+
+/**
+ * Orchestrator → studio handoff for the New Discussion panel. When Claude Code
+ * already knows what the human wants to make (a real run-brainstorm), it hands
+ * off not just the raw brief but a friendly SUMMARY (shown in the panel's
+ * opening bubble in place of the generic prompt), a BESPOKE set of intake
+ * QUESTIONS anchored to this brainstorm (replacing the generic preset), and
+ * PRE-SELECTED answers, so the human starts one tap from "Send & iterate"
+ * instead of facing a blank form. A bare New Discussion (no handoff) leaves
+ * this null and the panel uses DEFAULT_INTAKE_QUESTIONS.
+ */
+export interface SeedBrief {
+  /** Pre-fills the New Discussion textarea — the raw brief/prompt. */
+  brief?: string;
+  /**
+   * A short, human-friendly summary of the brainstorm being started, shown in
+   * the panel's opening bubble instead of the generic "What do you want to
+   * explore?" prompt. Present only on a real run-brainstorm handoff.
+   */
+  summary?: string;
+  /**
+   * A bespoke intake survey the orchestrator authored for THIS brainstorm —
+   * creative, specific questions (not the generic preset). When present it
+   * replaces DEFAULT_INTAKE_QUESTIONS in the panel; `picks` are keyed by these
+   * questions' ids.
+   */
+  questions?: SurveyQuestion[];
+  /**
+   * Pre-selected survey answers keyed by question id (the handoff's own
+   * questions, or the default ids when none were handed off). Values SHOULD be
+   * exact option strings; any value not among a question's options falls back
+   * to its free-text "other".
+   */
+  picks?: Record<string, string[]>;
+}
+
+// ---------------------------------------------------------------------------
 // Response
 // ---------------------------------------------------------------------------
 
@@ -519,11 +592,22 @@ export interface StudioState {
   /** Artifact chat dialogs (all slugs mixed — filter by artifactSlug client-side). */
   artifactChat: ArtifactChatMessage[];
   /**
-   * Handoff from Claude Code: the purpose the human already described when they
-   * launched the brainstorm (open_studio brief). Pre-fills the New Discussion
-   * brief so the studio hosts that content — no retyping (requires no rework).
+   * In-progress board answers ("the meta for generating these artifacts"): the
+   * user's dials/selections/notes/elaboration/model on a live board, persisted
+   * to `round-NN/draft.json` and restored on reload OR when a board re-presents
+   * after an artifact-chat detour — so dials PERSIST through chat and are
+   * recallable later. One entry per board that has a saved draft (by boardId).
+   * A draft is an un-submitted `BoardResponse` (rule 5 — no separate shape).
    */
-  seedBrief: string | null;
+  drafts: BoardResponse[];
+  /**
+   * Handoff from Claude Code for the New Discussion panel: the brief that
+   * pre-fills the composer, plus (on a real run-brainstorm) a friendly summary
+   * for the panel's opening bubble and pre-selected survey answers — so the
+   * human refines instead of retyping (requires no rework). Null on a bare
+   * New Discussion with nothing handed off. See `SeedBrief`.
+   */
+  seedBrief: SeedBrief | null;
   /** Pending adaptive-concierge question, null when none is awaiting an answer. */
   concierge: ConciergeExchange | null;
   /** Pending Living Gallery (method cards), null when none is awaiting a pick. */
@@ -537,7 +621,8 @@ export type ServerToStudio =
   | { type: 'responded'; boardId: string; response: BoardResponse }
   | { type: 'artifact'; artifact: Artifact }
   | { type: 'progress'; event: ProgressEvent }
-  | { type: 'artifact-chat'; message: ArtifactChatMessage }
+  | { type: 'artifact-chat'; message: ArtifactChatMessage; discussionId?: string }
+  | { type: 'draft'; draft: BoardResponse }
   | { type: 'concierge'; exchange: ConciergeExchange | null }
   | { type: 'gallery'; gallery: LivingGallery | null };
 

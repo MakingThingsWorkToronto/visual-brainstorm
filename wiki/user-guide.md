@@ -50,7 +50,11 @@ Copilot `/` menu itself is still a VS Code host behavior and should be spot-chec
    A **bare `/run-brainstorm`** (no topic) skips the terminal interrogation: the studio
    opens directly on the **New Discussion** panel (via the `open_studio` tool) and Claude
    waits for whatever you submit there. If you already described the purpose to Claude in
-   step 4, the brief box is **pre-filled** and you refine instead of retyping.
+   step 4, the panel greets you with a **summary of the brainstorm** (in place of the generic
+   prompt), the brief box is **pre-filled**, and the intake questions are **written for your
+   specific brainstorm** and **pre-answered with recommendations** — so you can refine or just
+   click **Send & iterate**, no retyping. (Starting from the **New Discussion button** in the UI
+   instead shows a generic starter set of questions, since Claude hasn't heard your idea yet.)
 5. **Your browser opens automatically** at the studio (default `http://127.0.0.1:5199`) on
    the **New Discussion** panel. If no tab appears, the URL is in Claude's message.
 
@@ -114,7 +118,14 @@ the intake** (see above). Top to bottom:
 - a **Scribble a seed** pad, collapsed by default (expand it to sketch; it then fills the
   remaining space; sketches are saved
   under `discussion/.seeds/` and Claude reads the file as part of the brief); photos and
-  files now arrive via the composer's **+** menu, not a drop zone;
+  files now arrive via the composer's **+** menu, not a drop zone. **Annotate a photo:**
+  whenever an image lands (Take a photo, or an attached image file) the composer offers to
+  **scribble on it** — accept and the photo becomes the pad's background, where a small
+  toolbar lets you **Pen** (draw), **Text** (drop a styled note-overlay card by clicking),
+  and **Arrow** (drag to point). Each tool draws in a color you pick from the current
+  palette swatches (per-tool). The marked-up composite ships as the sketch seed (the photo
+  is embedded inside it), and the original photo also stays a plain attachment so Claude
+  still gets a clean, vision-readable copy;
 - a **composer** with full board-composer parity: **Mic** · **Cancel** (hidden when the
   panel is the landing surface) · **Send & iterate** · **Target Folder** · **+** (Attach
   file, Take a photo, Model for generation). Attachments show as removable chips; the brief
@@ -149,6 +160,15 @@ the nav's edge like a star circling it.
 theme fill), and a slow, theme-tinted **aurora** drifts unpredictably behind the app so the
 chrome catches moving light. All of it re-skins with the picked theme and honours
 `prefers-reduced-motion` (the motion stops; the surfaces stay).
+
+**Wayfinding pulse** — a single glowing point (the same chrome-star look as the nav edge)
+drives you through what to do next. It laps the nav, then flies to the closest point on the
+next card that still needs you, circles it twice, and continues down the surfaces — finishing
+by circling the reply composer twice before flying back to the nav to repeat. Only one box
+pulses at a time. As soon as a card is answered (or was prefilled) the pulse stops visiting
+it, so the trail always points at what's left. While Claude is working on your reply the
+pulse simply circles the nav until the next board arrives. Like the rest of the motion, it
+honours `prefers-reduced-motion` (it disappears entirely).
 
 **Intake surfaces** (New Discussion, ConciergeIntake, LivingGallery) — the three-stage
 intake that seeds every brainstorm. **New Discussion** collects your brief (§2, Stage 1).
@@ -231,7 +251,11 @@ total.
   artwork that ships with your response. On a **previous round's** option the note you sent
   with that round shows read-only, with a **chat** beneath it — ask about an earlier choice
   or request a change in plain words (answers persist with the thread; a change is captured
-  as a new artifact). In archived threads those conversations replay read-only.
+  as a new artifact). **You can chat on any artifact, on any thread — including archived
+  (completed) ones — whenever you want:** the composer is always there, so open a finished
+  brainstorm and ask a question about a keep and it is answered in place (the running
+  brainstorm answers it; if none is running, your question waits until one is). Revising an
+  archived artifact needs the thread reopened first — a question never resurrects it.
   (On the diverge/expand grid, select cards via the label/checkbox row — the image itself is
   the zoom affordance.)
 - **Mic** (the first button in the composer row, a flat two-color microphone icon): dictate

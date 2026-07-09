@@ -220,12 +220,43 @@ body {
   animation: chrome-spin 2.4s linear infinite;
 }
 
+/* guide-pulse — the single wayfinding pulse (GuidePulse.tsx). A fixed, full-
+   viewport SVG that traces one box border at a time. The head mimics the
+   nav-edge-glow chrome star: a bright core with an accent glow, trailing a
+   short accent comet. pointer-events:none so it never blocks the UI. */
+.guide-pulse {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  overflow: visible;
+  transition: opacity 240ms ease;
+}
+.guide-pulse-head {
+  fill: #fff;
+  filter:
+    drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 95%, white 30%))
+    drop-shadow(0 0 9px var(--accent));
+}
+.guide-pulse-halo {
+  fill: color-mix(in srgb, var(--accent) 55%, transparent);
+  filter: blur(3px);
+}
+.guide-pulse-tail {
+  fill: var(--accent);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-aurora::before,
   .app-aurora::after,
   .nav-edge-glow::after,
   .chrome-spin-border::before {
     animation: none;
+  }
+  /* The wayfinding pulse is pure motion — hide it entirely when reduced. */
+  .guide-pulse {
+    display: none;
   }
 }
 

@@ -21,7 +21,10 @@ const EXPECT: Record<string, string[]> = {
   // 'text-[10px] tabular-nums leading-none' is the axis-value tag's own class list —
   // unique to the new bordered-tag markup (the old postfix span had no border/padding
   // classes), so it proves the tag exists without over-fitting to exact colors.
-  diverge: ['remix', 'Send &amp; iterate', 'Playful', 'Back', 'judge deck', 'More Tools', 'Voice', 'Target Folder', 'text-[10px] tabular-nums leading-none'],
+  diverge: ['remix', 'Send &amp; iterate', 'Playful', 'Back', 'judge deck', 'More Tools', 'Voice', 'Target Folder', 'text-[10px] tabular-nums leading-none',
+    // The wayfinding pulse (GuidePulse) drives itself off these tags: the phase
+    // mechanic is a `step` (skipped once answered) and the composer is the `input`.
+    'data-guide="step"', 'data-guide="input"'],
   expand: ['remix', 'Amplify what resonates', 'select at least one option to expand from'],
   mutate: ['X-ray', 'the rest is hidden on purpose'],
   wreck: ['Wreckage mode', 'What breaks first'],
@@ -350,7 +353,7 @@ const open = renderToString(
 for (const marker of [
   'New Discussion',
   'Scribble a seed',
-  'data-testid="survey"',
+  'data-testid="survey-field"',
   'What are you making?',
   'Who is it for?',
   'How far should it push convention?',
@@ -369,25 +372,113 @@ for (const marker of [
 }
 console.log('UI new-discussion panel renders ✓ (survey questions + colors + full composer)');
 
-// --- Claude-Code handoff: openStudio(brief) pre-fills the New Discussion brief textarea ---
-// initialPrompt seeds the composer via useState(initialPrompt), so the brief text
-// appears in the rendered <textarea> value under renderToString (no retype).
-const prefilled = renderToString(
+// --- Claude-Code handoff: open_studio(SeedBrief) — brief + summary + BESPOKE questions + picks ---
+// On a real run-brainstorm the orchestrator hands off a survey it AUTHORED for
+// this brief (not the generic preset), pre-answered with recommendations. The
+// panel: pre-fills the composer, shows the summary in the bubble (not the
+// generic prompt), renders the bespoke questions IN PLACE OF the default set,
+// and pre-selects the picks (checked pills) — all visible under renderToString.
+const handoff = renderToString(
   createElement(NewDiscussionPanel, {
     themes: [{ name: 'neon-purple', label: 'Neon Purple', light: vars, dark: vars }],
     models: ['claude-fable-5'],
     defaultModel: 'claude-fable-5',
     targetRepo: null,
-    initialPrompt: 'app icons for a note-taking tool',
+    seedBrief: {
+      brief: 'app icons for a note-taking tool',
+      summary: 'Exploring a set of playful app icons for your note-taking tool.',
+      questions: [
+        { id: 'metaphor', question: 'Which metaphor for the icon?', options: ['a folded note', 'a pencil', 'a spark'], recommended: 'a spark' },
+        { id: 'motion', question: 'Any motion feel?', options: ['static', 'subtle pulse', 'bouncy'], multi: true },
+      ],
+      picks: { metaphor: ['a spark'], motion: ['subtle pulse'] },
+    },
     onCancel: () => {},
     onStart: () => {},
   }),
 );
 assert.ok(
-  prefilled.includes('app icons for a note-taking tool'),
-  '[new-discussion handoff] initialPrompt must pre-fill the brief textarea',
+  handoff.includes('app icons for a note-taking tool'),
+  '[new-discussion handoff] brief must pre-fill the textarea',
 );
-console.log('UI new-discussion handoff prefill ✓');
+assert.ok(
+  handoff.includes('Exploring a set of playful app icons for your note-taking tool.'),
+  '[new-discussion handoff] summary must replace the generic bubble prompt on a run-brainstorm',
+);
+assert.ok(
+  !handoff.includes('What do you want to explore?'),
+  '[new-discussion handoff] the generic prompt must NOT show once a summary is handed off',
+);
+// The bespoke questions render; the generic preset does NOT (they replace it).
+assert.ok(
+  handoff.includes('Which metaphor for the icon?') && handoff.includes('a folded note'),
+  '[new-discussion handoff] bespoke handoff questions must render',
+);
+assert.ok(
+  !handoff.includes('What are you making?'),
+  '[new-discussion handoff] handoff questions must REPLACE the generic preset, not append to it',
+);
+// Pre-selected answers render as checked pills (aria-checked="true"); a bare
+// panel has none — so their presence here (and absence above) proves the picks
+// were seeded, not merely that the option labels rendered.
+assert.ok(
+  handoff.includes('aria-checked="true"'),
+  '[new-discussion handoff] picks must pre-select survey answers (checked pills)',
+);
+assert.ok(
+  !open.includes('aria-checked="true"'),
+  '[new-discussion handoff] a bare New Discussion must have no pre-selected answers',
+);
+console.log(
+  'UI new-discussion handoff ✓ (brief prefill + summary bubble + bespoke questions replace preset + pre-selected picks)',
+);
+
+// --- Scribble-a-seed photo annotation: composeSeedSvg embeds the photo + colored marks ---
+// Pure function (no DOM), the exact seed markup shipped as { kind:'sketch', svg }.
+const { composeSeedSvg } = await import('../apps/studio/src/components/PhotoScribble.js');
+const PHOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+const annotated = composeSeedSvg({
+  photo: PHOTO,
+  strokes: [{ color: '#00ff00', points: [{ x: 10, y: 10 }, { x: 40, y: 40 }] }],
+  arrows: [{ color: '#ff0000', from: { x: 100, y: 100 }, to: { x: 200, y: 120 } }],
+  notes: [{ color: '#0000ff', at: { x: 50, y: 60 }, text: 'here' }],
+});
+assert.ok(annotated, '[scribble] annotated composite must not be null');
+for (const marker of [
+  `<image href="${PHOTO}"`, // photo embedded as background
+  'preserveAspectRatio="xMidYMid slice"',
+  'stroke="#00ff00"', // pen stroke keeps its per-tool color
+  '<polygon', // arrowhead
+  'fill="#ff0000"', // arrow color
+  '<rect', // note card
+  'stroke="#0000ff"', // note border color
+  '>here</text>', // note text, escaped + rendered
+]) {
+  assert.ok(annotated!.includes(marker), `[scribble] annotated seed missing "${marker}"`);
+}
+// No annotations → null (a bare photo is already carried as an attachment).
+assert.strictEqual(
+  composeSeedSvg({ photo: PHOTO, strokes: [], arrows: [], notes: [] }),
+  null,
+  '[scribble] a bare photo (no marks) must not become a seed',
+);
+// Plain scribble (no photo) still works — the original behavior is subsumed.
+const plain = composeSeedSvg({
+  photo: null,
+  strokes: [{ color: '#123456', points: [{ x: 1, y: 1 }, { x: 2, y: 2 }] }],
+  arrows: [],
+  notes: [],
+});
+assert.ok(plain && plain.includes('<polyline') && !plain.includes('<image'), '[scribble] plain scribble seed');
+// Note text is escaped, not injected as markup.
+const escaped = composeSeedSvg({
+  photo: null,
+  strokes: [],
+  arrows: [],
+  notes: [{ color: '#000', at: { x: 0, y: 0 }, text: '<script>x</script>' }],
+});
+assert.ok(escaped && !escaped.includes('<script>'), '[scribble] note text must be escaped');
+console.log('UI scribble-a-seed composeSeedSvg ✓ (photo embed + colored pen/arrow/note, null-when-empty, escaped)');
 
 // --- Concierge intake surface (adaptive clarifying question) ---
 // Fixture goes through the schema like every production path (defaults stay in sync).

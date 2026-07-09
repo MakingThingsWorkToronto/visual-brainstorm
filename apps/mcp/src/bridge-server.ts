@@ -23,6 +23,7 @@ import {
   type ModelCatalogEntry,
   type ResponseAttachment,
   type RuntimeEngine,
+  type SeedBrief,
   type SeedIntake,
   type ServerToStudio,
   type StudioState,
@@ -119,14 +120,19 @@ export class Bridge {
   private commandWaiters: ((request: CommandRequest) => void)[] = [];
   /** Live theme list — refreshed when the studio saves a palette edit. */
   private themesList: Theme[];
-  /** Structured model catalog served to the studio, even from legacy callers. */
+  /**
+   * Structured model catalog served to the studio, even from legacy callers.
+   * Scoped to the LIVE runtime: only models whose engineIds include this
+   * harness can honestly be delegated to, so the studio's picker never offers a
+   * model the running harness (Claude today; Copilot/CODEX when built) can't use.
+   */
   private readonly modelsList: ModelCatalogEntry[];
   /** Runtime adapter that owns orchestration-facing metadata/copy. */
   private readonly engine: EngineAdapter;
   /** Live orchestration runtime metadata served to the studio. */
   private readonly runtime: RuntimeEngine;
   /** Orchestrator → studio handoff: the purpose the human already described. */
-  private seedBrief: string | null = null;
+  private seedBrief: SeedBrief | null = null;
   /** Pending concierge question + its answer resolver (adaptive intake). */
   private concierge: ConciergeExchange | null = null;
   private conciergeResolve: ((answer: string | null) => void) | null = null;
@@ -154,8 +160,14 @@ export class Bridge {
   ) {
     this.engine = options.engine ?? createEngineAdapter(options.runtime);
     this.themesList = options.themes;
-    this.modelsList = options.models.map((model) => this.engine.normalizeModel(model));
     this.runtime = this.engine.runtime;
+    // Only surface models usable on THIS harness: an entry is offered iff its
+    // engineIds include the live runtime. String-configured models always match
+    // (normalizeModel stamps them with the runtime's id); explicitly cross-harness
+    // entries (e.g. a Copilot-only model in a Claude session) are filtered out.
+    this.modelsList = options.models
+      .map((model) => this.engine.normalizeModel(model))
+      .filter((model) => model.engineIds.includes(this.runtime.id));
   }
 
   /**
@@ -558,20 +570,38 @@ export class Bridge {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            const { artifactSlug, text } = z
-              .object({ artifactSlug: z.string(), text: z.string().min(1).max(4000) })
+            const { artifactSlug, text, discussionId } = z
+              .object({
+                artifactSlug: z.string(),
+                text: z.string().min(1).max(4000),
+                // Present when chatting on an archived (non-live) thread; absent
+                // means the live thread. Users can ask about any artifact whenever.
+                discussionId: z.string().optional(),
+              })
               .parse(JSON.parse(body));
+            // Resolve the owning thread (live store or an archived thread opened
+            // in place). A bad id → 404 rather than silently answering the wrong
+            // thread.
+            let target: SessionStore;
+            try {
+              target = this.resolveChatStore(discussionId);
+            } catch (err) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `no discussion "${discussionId}": ${String(err)}` }));
+              return;
+            }
+            const isLive = target.info.id === this.store.info.id;
             // The chat subject is a captured artifact OR a board option from
             // any round (previous choices), addressed by its option: slug.
-            const artifact = this.store.artifacts.find((a) => a.slug === artifactSlug);
+            const artifact = target.artifacts.find((a) => a.slug === artifactSlug);
             const optionRef = artifact ? null : parseOptionChatSlug(artifactSlug);
             const optionRound = optionRef
-              ? this.store.rounds.find((r) => r.board.id === optionRef.boardId)
+              ? target.rounds.find((r) => r.board.id === optionRef.boardId)
               : undefined;
             const option = optionRound?.board.options.find((o) => o.id === optionRef?.optionId);
             if (!artifact && !option) {
               res.writeHead(404, { 'content-type': 'application/json' });
-              res.end(JSON.stringify({ ok: false, error: `no artifact or board option "${artifactSlug}" in the live thread` }));
+              res.end(JSON.stringify({ ok: false, error: `no artifact or board option "${artifactSlug}" in thread "${target.info.id}"` }));
               return;
             }
             this.announceArtifactChat(
@@ -581,19 +611,38 @@ export class Bridge {
                 text,
                 at: new Date().toISOString(),
               }),
+              target.info.id,
             );
+            // A dialog on an archived thread names it so the orchestrator loads
+            // it (load_discussion) and replies in place with discussionId. Since
+            // capture_artifact writes to the LIVE store, revisions on an archived
+            // thread are answered honestly ("reopen to revise") — never captured
+            // into the wrong thread (rules 6/7).
+            const where = isLive
+              ? ''
+              : ` This artifact belongs to ARCHIVED thread "${target.info.id}" (NOT the live thread): ` +
+                `first load_discussion("${target.info.id}") to read it, then reply_artifact_chat with ` +
+                `discussionId "${target.info.id}". A question is answered in place; a CHANGE request cannot be ` +
+                `captured into an archived thread — reply honestly that reopening the thread is required to revise.`;
             const seedNote = artifact
               ? `Artifact chat: the user is asking about artifact "${artifact.name}" (slug ${artifact.slug}, ` +
                 `SVG at ${artifact.svgPath}). Run .claude/commands/artifact-chat.md: ALWAYS delegate to a ` +
-                `subagent; answer with the reply_artifact_chat tool; if the artifact is changed, capture the ` +
-                `revision with capture_artifact (revises: "${artifact.slug}") and include revisedSlug in the reply.`
+                `subagent; answer with the reply_artifact_chat tool` +
+                (isLive
+                  ? `; if the artifact is changed, capture the revision with capture_artifact (revises: "${artifact.slug}") and include revisedSlug in the reply.`
+                  : `.`) +
+                where
               : `Artifact chat about a board option: the user is asking about option "${option!.label}" ` +
                 `(round ${optionRound!.board.round}, id ${option!.id}) — SVG at ` +
-                `${path.join(this.store.info.dir, `round-${String(optionRound!.board.round).padStart(2, '0')}`, `option-${option!.id}.svg`)}. ` +
+                `${path.join(target.info.dir, `round-${String(optionRound!.board.round).padStart(2, '0')}`, `option-${option!.id}.svg`)}. ` +
                 `Run .claude/commands/artifact-chat.md: ALWAYS delegate to a subagent; answer with the ` +
-                `reply_artifact_chat tool using artifactSlug "${artifactSlug}" EXACTLY. If the user asks for a ` +
-                `change, capture the result as a NEW artifact (capture_artifact with boardId/optionIds provenance) ` +
-                `and include its slug as revisedSlug in the reply — round options are never overwritten (rule 7).`;
+                `reply_artifact_chat tool using artifactSlug "${artifactSlug}" EXACTLY.` +
+                (isLive
+                  ? ` If the user asks for a change, capture the result as a NEW artifact (capture_artifact with ` +
+                    `boardId/optionIds provenance) and include its slug as revisedSlug in the reply — round options ` +
+                    `are never overwritten (rule 7).`
+                  : ``) +
+                where;
             const delivered = this.dispatchCommand('artifact-chat', text, seedNote);
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, delivered }));
@@ -934,15 +983,25 @@ export class Bridge {
 
   /**
    * Start serving and open the browser with no board — the New Discussion
-   * landing. `brief` is the handoff from Claude Code: the purpose the human
-   * already described. It pre-fills the New Discussion brief so the studio hosts
-   * that content instead of asking them to retype it (requires no rework).
+   * landing. `seed` is the handoff from Claude Code: the brief pre-fills the
+   * composer, and (on a real run-brainstorm) a summary, a bespoke intake survey
+   * (`questions`), and pre-selected `picks` let the human refine instead of
+   * retyping (requires no rework). Empty fields are dropped so a bare
+   * open_studio leaves the panel generic.
    */
-  async openStudio(brief?: string, open = true): Promise<void> {
+  async openStudio(seed?: SeedBrief, open = true): Promise<void> {
     await this.start();
-    const trimmed = brief?.trim();
-    if (trimmed) {
-      this.seedBrief = trimmed;
+    const brief = seed?.brief?.trim();
+    const summary = seed?.summary?.trim();
+    const questions = seed?.questions && seed.questions.length > 0 ? seed.questions : undefined;
+    const picks = seed?.picks && Object.keys(seed.picks).length > 0 ? seed.picks : undefined;
+    if (brief || summary || questions || picks) {
+      this.seedBrief = {
+        ...(brief && { brief }),
+        ...(summary && { summary }),
+        ...(questions && { questions }),
+        ...(picks && { picks }),
+      };
       this.broadcast({ type: 'hello', state: this.state() });
     }
     if (open && !this.browserOpened) {
@@ -1209,14 +1268,32 @@ export class Bridge {
     this.broadcast({ type: 'artifact', artifact });
   }
 
-  /** Persist + broadcast one artifact-chat message (HTTP user messages and MCP replies both land here). */
-  announceArtifactChat(message: ArtifactChatMessage): void {
-    this.store.recordArtifactChat(message);
+  /**
+   * The store an artifact-chat targets. Absent/matching discussionId → the live
+   * store (in-memory truth, reflected in /api/state). A DIFFERENT id → an
+   * archived thread opened in place (answer-in-place, no reopen): disk is the
+   * truth and the studio follows via the WS envelope's discussionId. Throws if
+   * the thread folder does not exist.
+   */
+  resolveChatStore(discussionId?: string): SessionStore {
+    if (!discussionId || discussionId === this.store.info.id) return this.store;
+    return SessionStore.open(SessionStore.resolveDir(this.options.discussionRoot, discussionId));
+  }
+
+  /**
+   * Persist + broadcast one artifact-chat message (HTTP user messages and MCP
+   * replies both land here). `discussionId` addresses the owning thread — the
+   * live thread when absent, an archived thread otherwise — so a dialog on a
+   * completed thread records into ITS chat.jsonl and routes to that view.
+   */
+  announceArtifactChat(message: ArtifactChatMessage, discussionId?: string): void {
+    const target = this.resolveChatStore(discussionId);
+    target.recordArtifactChat(message);
     this.log(
-      `artifact-chat (${message.artifactSlug}) ${message.role}: "${message.text.slice(0, 80)}"` +
+      `artifact-chat (${message.artifactSlug}@${target.info.id}) ${message.role}: "${message.text.slice(0, 80)}"` +
         (message.revisedSlug ? ` → revised as ${message.revisedSlug}` : ''),
     );
-    this.broadcast({ type: 'artifact-chat', message });
+    this.broadcast({ type: 'artifact-chat', message, discussionId: target.info.id });
   }
 
   async stop(): Promise<void> {

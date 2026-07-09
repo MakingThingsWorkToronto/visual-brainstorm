@@ -59,7 +59,10 @@ export function Sidebar({
 }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   return (
-    <nav className="nav-edge-glow flex h-full w-64 shrink-0 flex-col border-r border-line bg-surface">
+    <nav
+      data-guide="hub"
+      className="nav-edge-glow flex h-full w-64 shrink-0 flex-col border-r border-line bg-surface"
+    >
       {brand && <div className="border-b border-line px-4 py-4">{brand}</div>}
       <div className="px-4 pb-2 pt-4 text-xs font-semibold uppercase tracking-wide text-ink-dim">
         Discussions

@@ -33,7 +33,7 @@ Every round is persisted before the user ever responds — a closed browser lose
 
 | Tool | Blocking | Purpose |
 |---|---|---|
-| `open_studio` | yes (timeout → `waiting`) | open the studio with NO board — the New Discussion landing panel — and block until the panel submits a brief (arrives as a new-brainstorm command with prompt/seed notes) or timeout returns `{status:"waiting"}` (the studio stays open; call again or check `session_status.pendingUiCommands`). For a bare `/run-brainstorm` (its step 0): land the user on the panel and build AskUserQuestion clarifications on the submission. The placeholder "New discussion" thread is retitled by the first `present_board` (`SessionStore.retitle` — display title only, directory slug unchanged). Blocking: `discussionId` resumes a cached thread |
+| `open_studio` | yes (timeout → `waiting`) | open the studio with NO board — the New Discussion landing panel — and block until the panel submits a brief (arrives as a new-brainstorm command with prompt/seed notes) or timeout returns `{status:"waiting"}` (the studio stays open; call again or check `session_status.pendingUiCommands`). **Handoff (`SeedBrief`, carried on `StudioState.seedBrief`):** `brief` pre-fills the composer; on a real run-brainstorm, `summary` replaces the panel's generic opening-bubble prompt with a friendly one-liner (reads as continuity), `questions` is a **bespoke intake survey the orchestrator authors anchored to the brief** (each `{ id, question, options[], multi?, recommended?, allowOther? }` — validated by `SurveyQuestionSchema`; replaces the panel's generic preset rather than appending), and `picks` (answers keyed by those question ids — or the default preset ids when no `questions` were handed off; exact option strings, unknown values fall back to free-text) pre-selects the intake so the human lands one tap from Send & iterate. A bare New Discussion (no handoff) leaves the panel generic, using `DEFAULT_INTAKE_QUESTIONS` (protocol-owned: making/vibe/range/audience/constraints). For a bare `/run-brainstorm` (its step 0): land the user on the panel and build AskUserQuestion clarifications on the submission. The placeholder "New discussion" thread is retitled by the first `present_board` (`SessionStore.retitle` — display title only, directory slug unchanged). Blocking: `discussionId` resumes a cached thread |
 | `ask_concierge` | yes (timeout → `pending`) | adaptive concierge intake (wiki/Product/intake-methodologies.md): after the New Discussion brief, ask ONE clarifying question in the studio and block for the answer. Ask AS MANY as it takes — not a fixed count; comprehensiveness rewards the brainstorm. Provide tappable `suggestions` (user picks any/all/none, or types their own). Presented in ConciergeIntake surface. Each answer returns and appends to the thread's `brainstorm.md` digest. Returns `{status:"answered", answer}` or `{status:"pending"}` on timeout |
 | `present_gallery` | yes (timeout → `pending`) | Living Gallery (wiki/Product/intake-methodologies.md): after the concierge Q&A, present the methodologies as method cards — Mind map, Funnel, Wreck, Cluster. Each card carries a LIVE mini SVG genuinely seeded from the brief + answers (delegate the 4 minis to `svg-artisan`). Mark exactly ONE `recommended:true` with a `reason` quoting user's answers; it is accent-ringed + ribboned in the studio's LivingGallery surface. Block until the user picks one. The pick routes to the starting mechanic (mindmap → tree board; funnel/wreck/cluster → that phase). Returns `{status:"picked", method}` or `{status:"pending"}` on timeout |
 | `present_board` | yes (timeout → `pending`) | push a board, await the survey response; `discussionId` resumes a cached thread |
@@ -43,32 +43,57 @@ Every round is persisted before the user ever responds — a closed browser lose
 | `load_discussion` | no | reload a full cached thread so a chat reinitializes without regenerating anything |
 | `session_status` | no | thread dir, round count, artifact list, effective targetRepo, pendingUiCommands |
 | `compose_poster` | no | DETERMINISTIC (no model) decision-poster composition: winner embedded large + lineage tree (parents/grandparents from cached rounds) + the notes that decided it (lineage perOptionNotes + elaborations) as ONE self-contained SVG; captured via the normal artifact path (rule 7 provenance) and copied to the effective targetRepo like any artifact; throws honestly if the optionId is in no cached round |
-| `reply_artifact_chat` | no | Claude's answer channel for the artifact chat: `{artifactSlug, text, revisedSlug?}` — persists a `claude`-role `ArtifactChatMessage` to `<thread dir>/artifacts/chat.jsonl` and broadcasts the `artifact-chat` WS envelope. `artifactSlug` may be an `option:<boardId>:<optionId>` slug (option chat, below) — used EXACTLY as delivered |
+| `reply_artifact_chat` | no | Claude's answer channel for the artifact chat: `{artifactSlug, text, revisedSlug?, discussionId?}` — persists a `claude`-role `ArtifactChatMessage` to the owning thread's `artifacts/chat.jsonl` and broadcasts the `artifact-chat` WS envelope (carrying `discussionId`). `artifactSlug` may be an `option:<boardId>:<optionId>` slug (option chat, below) — used EXACTLY as delivered. Pass `discussionId` for an ARCHIVED thread so the reply records in place |
 
 ## Artifact chat
 
-Clicking a captured artifact in the studio opens it fullscreen with a chat panel
-(simplified composer: one input + Send). The loop:
+Clicking a captured artifact (or a previous-round option) in the studio opens it fullscreen
+with an interactive chat panel (simplified composer: one input + Send) — available on ANY
+thread, live or archived, so the user can ask about any artifact whenever they want. The loop:
 
-1. **Studio → bridge.** `POST /api/artifact-chat` `{artifactSlug, text}`. The bridge
-   persists the user message (append-only `<thread dir>/artifacts/chat.jsonl` plus a
-   `brainstorm.md` line), broadcasts an `artifact-chat` WS envelope, and routes the request
-   to Claude Code through the EXISTING UI-command plumbing as command `artifact-chat`:
-   board awaiting response → synthetic park response with `commands:['artifact-chat']` and
-   the question in `elaboration`/`seedNote`; otherwise queued into `pendingUiCommands` /
-   the next tool result / `waitForCommand`. Unknown slug → honest 404 (rule 6).
+1. **Studio → bridge.** `POST /api/artifact-chat` `{artifactSlug, text, discussionId?}`.
+   `discussionId` addresses an ARCHIVED (non-live) thread — absent means the live thread. The
+   bridge resolves the owning thread (`resolveChatStore`: the live store, or an archived
+   thread opened in place — a bad id → 404), persists the user message (append-only that
+   thread's `artifacts/chat.jsonl` plus a `brainstorm.md` line), broadcasts an `artifact-chat`
+   WS envelope **carrying the owning `discussionId`** (the studio routes it to the live state
+   OR the archived view accordingly), and routes the request to Claude Code through the
+   EXISTING UI-command plumbing as command `artifact-chat`: board awaiting response → synthetic
+   park response with `commands:['artifact-chat']` and the question in `elaboration`/`seedNote`
+   (the seedNote names the archived `discussionId` + `load_discussion` when non-live);
+   otherwise queued into `pendingUiCommands` / the next tool result / `waitForCommand`. Unknown
+   slug or thread → honest 404 (rule 6). The answerer is the live brainstorm orchestrator,
+   which receives the chat TWO ways and must handle both (`run-brainstorm.md` step 7): the
+   parked-board response while it blocks in `present_board`, AND `session_status.pendingUiCommands`
+   when no board is live (drained on every `present_board` timeout and before each new round).
+   There is NO fake/preview responder — a reply exists only when a real session authored it via
+   `reply_artifact_chat`. **Honest pending (rule 6):** the composer shows "Claude is thinking…"
+   only briefly; if no engaged session answers within ~25s it stops spinning and states the
+   message is saved and will be answered when a brainstorm session is running — it never lies
+   with a perpetual "thinking" state.
 2. **Orchestrator → subagent, ALWAYS** (operator mandate). Procedure:
    `.claude/commands/artifact-chat.md`. Questions go to a general subagent (Reads the SVG +
    the thread's `brainstorm.md` for provenance); change requests go to `svg-artisan`
    (thread model override applies), which produces a full self-contained revised SVG. The
    orchestrator never answers or regenerates inline — it only routes and replies.
-3. **Reply.** A change: `capture_artifact` with `revises: <original slug>` (new artifact,
-   original untouched — rule 7), then `reply_artifact_chat` with text + `revisedSlug`; the
-   studio refreshes every display of the artifact. A question: `reply_artifact_chat` with
-   the answer text only.
+3. **Reply.** A change (LIVE thread): `capture_artifact` with `revises: <original slug>` (new
+   artifact, original untouched — rule 7), then `reply_artifact_chat` with text + `revisedSlug`;
+   the studio refreshes every display of the artifact. A question: `reply_artifact_chat` with
+   the answer text only. On an ARCHIVED thread pass the `discussionId` so the reply records in
+   place; a CHANGE request cannot be captured into an archived thread (`capture_artifact` writes
+   the live store) — the orchestrator answers honestly that reopening is required to revise.
 4. **Shapes** (packages/protocol, rule 5): `ArtifactChatMessage
-   { artifactSlug, role: 'user'|'claude', text, at, revisedSlug? }`; `StudioState.artifactChat`;
-   `ServerToStudio` `artifact-chat` envelope; `Artifact.provenance.revises?`.
+   { artifactSlug, role: 'user'|'claude', text, at, revisedSlug? }` (the owning thread is its
+   folder); `StudioState.artifactChat`; `ServerToStudio` `artifact-chat` envelope with optional
+   `discussionId` (transport-level routing); `Artifact.provenance.revises?`.
+
+**Optimistic echo.** The user's own message renders IMMEDIATELY (a local `pendingChats`
+overlay in App, merged into the fullscreen dialog and de-duped by role+text), independent of
+the WS round-trip — so the bubble never depends on the envelope's timing or routing to appear.
+The server still persists + broadcasts the message (the single truth); the optimistic copy is
+dropped as soon as its persisted twin arrives, and rolled back if the POST fails. Proven on the
+real path by `scripts/human-sim-livechat.mjs` (type + Send → the user bubble is in frame and on
+disk, for both artifact and `option:` slugs).
 
 **Notes panel.** The fullscreen artifact view docks a **Notes** panel above the chat.
 **Save notes** → `POST /api/artifact-notes` `{artifactSlug, notes}` (live thread only;
@@ -222,6 +247,16 @@ The studio composer carries a model picker in its More Tools (+) menu (list from
 `BoardResponse.model` returns the choice; the orchestrator (Claude Code) MUST delegate the
 next round's generation to that model — e.g. spawn a subagent with the model override — and
 may keep orchestrating in its own model.
+
+**The picker only ever offers models usable on the live harness.** Each
+`ModelCatalogEntry.engineIds` names the runtimes that can honestly delegate to it; the bridge
+serves `state.models` filtered to entries whose `engineIds` include the active `runtime.id`
+(`claude` today; Copilot/CODEX when built). This is enforced once, at the bridge (where the
+runtime is authoritative), so both composer selects — new-discussion and per-round — are
+correct without either knowing the runtime. Legacy string-configured models always match (they
+are normalized with the live runtime's id); only explicitly cross-harness object entries (e.g.
+a Copilot-only model in a Claude session) are withheld. Honesty guardrail (rule 6): never
+offer a model the running harness cannot actually reach.
 
 ## Timeout strategy
 

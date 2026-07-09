@@ -24,8 +24,10 @@ conversation; subagents do the heavy lifting.
 
 KEEP — this IS orchestration, never delegate it:
 - The intake front door (run-brainstorm step 0) is MANDATORY and locked-in — the front door of
-  EVERY real run, never skipped: `open_studio` with the session's purpose as `brief` (the Claude
-  Code handoff — no retyping) → `ask_concierge` adaptively (≥1 turn, as many as it takes) →
+  EVERY real run, never skipped: `open_studio` handing off the session's purpose (`brief` +, on a
+  real run-brainstorm, a `summary`, a BESPOKE `questions` survey you author anchored to this brief —
+  never the generic preset — and pre-selected `picks`, so the human lands one tap from Send &
+  iterate — no retyping) → `ask_concierge` adaptively (≥1 turn, as many as it takes) →
   `present_gallery` (recommending ONE method with a reason that quotes the answers) → ROUTE the
   returned pick — mindmap → a `tree` board, funnel/wreck/cluster → `present_board` at that phase.
   There is NO "jump straight to boards" shortcut: "just give me options" IS the funnel
@@ -129,3 +131,6 @@ through `wiki-librarian` (rules 1–2).
 - 2026-07-07 — created (discussion/brainstorm-orchestrator-2026-07-07/plan.md): primary
   brainstorm persona; keep/delegate contract to preserve context; creative + honesty
   duties; orchestration-learnings living section (operator mandate).
+- 2026-07-09 — intake handoff: `open_studio` now carries a summary + a BESPOKE `questions`
+  survey the orchestrator authors anchored to the brief (replacing the generic preset) +
+  pre-selected `picks` — do not pigeonhole into the preset (from seed-brief-handoff-2026-07-09)

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { DEFAULT_INTAKE_QUESTIONS } from '@visual-brainstorm/protocol';
 import type {
   ModelCatalogEntry,
   PaletteColor,
   ResponseAttachment,
   RuntimeEngine,
+  SeedBrief,
   SeedIntake,
+  SurveyQuestion,
   Theme,
 } from '@visual-brainstorm/protocol';
 import { Bubble } from './primitives';
@@ -17,8 +20,16 @@ import {
   cameraAvailable,
   useAttachments,
 } from './composer';
+import { PhotoScribble, PhotoOfferBanner } from './PhotoScribble';
 import { useVoice } from '../lib/useVoice';
-import { Survey, surveyWords, type SurveyQuestion, type SurveyAnswers } from './Survey';
+import {
+  SurveyField,
+  answerOf,
+  pickAnswer,
+  setOtherAnswer,
+  surveyWords,
+  type SurveyAnswers,
+} from './Survey';
 
 /**
  * "Open with anything" as a blank chat panel: the landing surface for a new
@@ -31,73 +42,72 @@ import { Survey, surveyWords, type SurveyQuestion, type SurveyAnswers } from './
  * starts a fresh live session when the attached runtime can handle it.
  */
 
-type Stroke = { x: number; y: number }[];
-
 export interface NewDiscussionExtras {
   attachments: ResponseAttachment[];
   model?: string;
   palette: PaletteColor[];
 }
 
-// The pre-session intake as questions (the winning concierge→gallery design,
-// panel 2): each former chip group reworded as a question with tappable
-// answers. Static here — the panel runs before Claude attaches; adaptive
-// follow-ups are the live ask_concierge's job. Single-select where the answer
-// is a spectrum or a one-of.
-const QUESTIONS: SurveyQuestion[] = [
-  { id: 'making', question: 'What are you making?', options: ['icons', 'a logo', 'a ui flow', 'a palette', 'a system map', 'new feature', 'comparison'], multi: true },
-  { id: 'vibe', question: "What's the vibe?", options: ['calm', 'playful', 'bold', 'minimal', 'neon', 'formal', 'professional'], multi: true },
-  { id: 'range', question: 'How far should it push convention?', options: ['stay close to convention', 'go wild'] },
-  { id: 'audience', question: 'Who is it for?', options: ['just me', 'my team', 'customers', 'kids', 'executives'] },
-  { id: 'constraints', question: 'Any hard constraints?', options: ['works tiny', 'monochrome-safe', 'high contrast', 'print friendly', 'square format'], multi: true },
-];
+// The panel's intake questions come from ONE of two sources: a run-brainstorm
+// handoff supplies a bespoke set anchored to the brief (seedBrief.questions),
+// and a blank UI-started New Discussion falls back to the generic preset
+// (DEFAULT_INTAKE_QUESTIONS, protocol-owned). The panel is otherwise identical.
+const activeQuestions = (seed?: SeedBrief | null): SurveyQuestion[] =>
+  seed?.questions && seed.questions.length > 0 ? seed.questions : DEFAULT_INTAKE_QUESTIONS;
 
-/** One collapsible intake card — every box on the panel shares this shell. */
-function Section({
+/**
+ * Map a handoff's pre-selected picks (SeedBrief.picks) onto survey answers for
+ * the ACTIVE question set, respecting each question's single/multi arity: known
+ * option strings become picked pills; any value not among the options falls
+ * back to the question's free-text "other" so nothing handed off is lost.
+ */
+function seedAnswers(picks: SeedBrief['picks'], questions: SurveyQuestion[]): SurveyAnswers {
+  if (!picks) return {};
+  const out: SurveyAnswers = {};
+  for (const q of questions) {
+    const vals = picks[q.id];
+    if (!vals || vals.length === 0) continue;
+    const known = vals.filter((v) => q.options.includes(v));
+    const rest = vals.filter((v) => !q.options.includes(v));
+    out[q.id] = { picked: q.multi ? known : known.slice(0, 1), other: rest.join(', ') };
+  }
+  return out;
+}
+
+/**
+ * The ONE collapsible card shell every intake box shares — survey questions,
+ * Colors, and the scribble pad all render inside this identical box, so they
+ * look and behave the same. Collapse is driven by the caller (rows are coupled).
+ */
+function Box({
   title,
-  grow = false,
   collapsed,
   onToggle,
   children,
 }: {
   title: string;
-  /** Expands to fill the panel's leftover vertical space when open. */
-  grow?: boolean;
   collapsed: boolean;
   onToggle: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={`rounded-2xl border border-line bg-surface p-4 ${
-        grow && !collapsed ? 'flex min-h-[16rem] flex-1 flex-col' : ''
-      }`}
-    >
+    <div className="flex h-full flex-col rounded-2xl border border-line bg-surface p-4">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={!collapsed}
-        className="flex w-full items-center justify-between text-left text-sm font-semibold capitalize"
+        className="flex w-full items-center justify-between text-left text-sm font-semibold"
       >
         {title}
-        <span className={`text-ink-dim transition-transform ${collapsed ? '' : 'rotate-90'}`}>▸</span>
+        <span
+          className={`ml-2 shrink-0 text-ink-dim transition-transform ${collapsed ? '' : 'rotate-90'}`}
+        >
+          ▸
+        </span>
       </button>
-      {!collapsed && (
-        <div className={grow ? 'mt-2 flex min-h-0 flex-1 flex-col' : 'mt-2'}>{children}</div>
-      )}
+      {!collapsed && <div className="mt-3 flex min-h-0 flex-1 flex-col">{children}</div>}
     </div>
   );
-}
-
-function strokesToSvg(strokes: Stroke[]): string {
-  const lines = strokes
-    .filter((s) => s.length > 1)
-    .map(
-      (s) =>
-        `<polyline points="${s.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ')}" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`,
-    )
-    .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240">${lines}</svg>`;
 }
 
 export function NewDiscussionPanel({
@@ -107,7 +117,7 @@ export function NewDiscussionPanel({
   runtime = { id: 'claude', label: 'Claude Code', provider: 'Anthropic' },
   targetRepo = null,
   cancellable = true,
-  initialPrompt = '',
+  seedBrief = null,
   onCancel,
   onStart,
 }: {
@@ -119,28 +129,36 @@ export function NewDiscussionPanel({
   /** False when the panel IS the landing surface (nothing to go back to). */
   cancellable?: boolean;
   /**
-   * Handoff from Claude Code: the purpose the human already described, used to
-   * pre-fill the brief so the studio hosts that content (no retyping).
+   * Handoff from Claude Code (open_studio): pre-fills the brief, and on a real
+   * run-brainstorm also supplies a summary for the opening bubble and
+   * pre-selected survey answers, so the human refines instead of retyping.
    */
-  initialPrompt?: string;
+  seedBrief?: SeedBrief | null;
   onCancel: () => void;
   onStart: (prompt: string, seed: SeedIntake | undefined, extras: NewDiscussionExtras) => void;
 }) {
-  const [prompt, setPrompt] = useState(initialPrompt);
-  const [answers, setAnswers] = useState<SurveyAnswers>({});
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  // The intake question set: the handoff's bespoke questions, or the generic
+  // preset for a blank New Discussion. Everything below is keyed off this.
+  const questions = activeQuestions(seedBrief);
+  const [prompt, setPrompt] = useState(seedBrief?.brief ?? '');
+  const [answers, setAnswers] = useState<SurveyAnswers>(() =>
+    seedAnswers(seedBrief?.picks, activeQuestions(seedBrief)),
+  );
+  // Scribble pad: an optional background photo + the composed annotation SVG it
+  // emits (null when there are no annotations). photoOffer holds a just-attached
+  // image awaiting the "scribble on it?" decision.
+  const [bgPhoto, setBgPhoto] = useState<string | null>(null);
+  const [sketchSvg, setSketchSvg] = useState<string | null>(null);
+  const [photoOffer, setPhotoOffer] = useState<string | null>(null);
   const [genTheme, setGenTheme] = useState<string | null>(null);
   const [palette, setPalette] = useState<PaletteColor[]>([]);
   const [model, setModel] = useState(defaultModel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
-  // Scribble starts collapsed — it's an optional seed, not the primary intake,
-  // and expanded it pushes the composer into main's scroll-fade band.
+  // Collapse is coupled by ROW, keyed by the row's first box id. Scribble starts
+  // collapsed (optional seed); every other row starts open.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ scribble: true });
-  const toggleSection = (key: string) =>
-    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
-  const drawing = useRef(false);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const toggleRow = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   const textRef = useRef<HTMLTextAreaElement>(null);
   const voice = useVoice((heard) =>
     setPrompt((prev) => (prev.trim() ? `${prev.trim()} ${heard}` : heard)),
@@ -154,15 +172,20 @@ export function NewDiscussionPanel({
     )
     .filter((candidate) => candidate.capabilities.delegate);
 
-  // Handoff seed arrives async over WS (hello.seedBrief). Fill the brief the
-  // first time it lands, but never clobber text the user has already typed.
+  // Handoff seed arrives async over WS (hello.seedBrief). Fill the brief AND the
+  // pre-selected survey answers the first time it lands, but never clobber input
+  // the user has already made (typed brief / tapped answers).
   const seededRef = useRef(false);
   useEffect(() => {
-    if (initialPrompt && !seededRef.current) {
-      seededRef.current = true;
-      setPrompt((prev) => (prev.trim() ? prev : initialPrompt));
+    if (!seedBrief || seededRef.current) return;
+    seededRef.current = true;
+    if (seedBrief.brief) setPrompt((prev) => (prev.trim() ? prev : seedBrief.brief ?? ''));
+    if (seedBrief.picks) {
+      setAnswers((prev) =>
+        Object.keys(prev).length > 0 ? prev : seedAnswers(seedBrief.picks, activeQuestions(seedBrief)),
+      );
     }
-  }, [initialPrompt]);
+  }, [seedBrief]);
 
   // The brief box grows with its content; the max-h-[30vh] class caps it at
   // 30% of the viewport, after which it scrolls internally.
@@ -173,23 +196,88 @@ export function NewDiscussionPanel({
     el.style.height = `${el.scrollHeight}px`;
   }, [prompt]);
 
-  const point = (e: React.PointerEvent): { x: number; y: number } => {
-    const rect = svgRef.current!.getBoundingClientRect();
-    return {
-      x: ((e.clientX - rect.left) / rect.width) * 400,
-      y: ((e.clientY - rect.top) / rect.height) * 240,
-    };
-  };
+  // When a new image lands in the composer (camera or attached file), offer to
+  // open it in the scribble pad as a background to mark up. Non-image files and
+  // re-renders don't re-trigger; the photo stays a plain attachment regardless.
+  const prevAttachCount = useRef(0);
+  useEffect(() => {
+    const list = intake.attachments;
+    if (list.length > prevAttachCount.current) {
+      const newest = list[list.length - 1];
+      if (newest?.dataUri?.startsWith('data:image/') && newest.dataUri !== bgPhoto) {
+        setPhotoOffer(newest.dataUri);
+      }
+    }
+    prevAttachCount.current = list.length;
+  }, [intake.attachments, bgPhoto]);
 
-  const hasSketch = strokes.some((s) => s.length > 1);
-  const seed: SeedIntake | undefined = hasSketch
-    ? { kind: 'sketch', svg: strokesToSvg(strokes) }
-    : undefined;
-  const chipWords = surveyWords(QUESTIONS, answers);
+  const hasSketch = sketchSvg !== null;
+  const seed: SeedIntake | undefined = sketchSvg ? { kind: 'sketch', svg: sketchSvg } : undefined;
+  const chipWords = surveyWords(questions, answers);
   const composedPrompt = [prompt.trim(), chipWords.length > 0 ? `(${chipWords.join(' · ')})` : '']
     .filter(Boolean)
     .join(' ');
   const canStart = composedPrompt.length > 0 || seed !== undefined || intake.attachments.length > 0;
+
+  // Every intake box — survey questions, Colors, the scribble pad — is the same
+  // shell. The question boxes come from the ACTIVE set (handoff or preset) and
+  // are chunked two-per-row below, so a variable number of bespoke questions
+  // lays out the same way the fixed five did; collapse couples per row.
+  type BoxDef = { id: string; title: string; content: React.ReactNode };
+  const questionBox = (q: SurveyQuestion): BoxDef => ({
+    id: q.id,
+    title: q.question,
+    content: (
+      <SurveyField
+        question={q}
+        answer={answerOf(answers, q.id)}
+        onPick={(o) => setAnswers((a) => pickAnswer(a, q, o))}
+        onOther={(o) => setAnswers((a) => setOtherAnswer(a, q.id, o))}
+      />
+    ),
+  });
+  const colorsBox = {
+    id: 'colors',
+    title: 'Colors',
+    content: (
+      <>
+        <div className="mb-2 text-[11px] text-ink-dim">
+          Pick a theme to draw the generated options with its palette; click a swatch to
+          change a color or its name, + to add one. Leave unselected for free choice.
+        </div>
+        <PalettePicker
+          themes={themes}
+          selectedTheme={genTheme}
+          onSelect={(theme, colors) => {
+            setGenTheme(theme?.name ?? null);
+            setPalette(colors);
+          }}
+        />
+      </>
+    ),
+  };
+  const scribbleBox = {
+    id: 'scribble',
+    title: 'Scribble a seed',
+    content: (
+      <PhotoScribble
+        palette={palette}
+        photo={bgPhoto}
+        onRemovePhoto={() => setBgPhoto(null)}
+        onSvgChange={setSketchSvg}
+      />
+    ),
+  };
+  // Question boxes + Colors (when themes exist) flow two-per-row so Colors fills
+  // the slot beside the last question rather than dropping to its own row; the
+  // scribble pad always gets its own full-width row.
+  const formBoxes: BoxDef[] = [
+    ...questions.map(questionBox),
+    ...(themes.length > 0 ? [colorsBox] : []),
+  ];
+  const rows: BoxDef[][] = [];
+  for (let i = 0; i < formBoxes.length; i += 2) rows.push(formBoxes.slice(i, i + 2));
+  rows.push([scribbleBox]);
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -197,82 +285,43 @@ export function NewDiscussionPanel({
         <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-dim">
           New Discussion
         </div>
-        What do you want to explore? Type it, say it, scribble it, or attach a photo or file.
-        Whatever arrives seeds the first board.
+        {/* On a real run-brainstorm handoff, Claude Code sends a summary of what
+            we're starting — show it here instead of the generic prompt so the
+            panel reads as continuity, not a blank form. */}
+        {seedBrief?.summary ? (
+          seedBrief.summary
+        ) : (
+          <>
+            What do you want to explore? Type it, say it, scribble it, or attach a photo or
+            file. Whatever arrives seeds the first board.
+          </>
+        )}
       </Bubble>
 
-      <Survey questions={QUESTIONS} answers={answers} onChange={setAnswers} />
-      {themes.length > 0 && (
-        <Section
-          title="Colors"
-          collapsed={!!collapsed.colors}
-          onToggle={() => toggleSection('colors')}
-        >
-          <div className="mb-2 text-[11px] text-ink-dim">
-            Pick a theme to draw the generated options with its palette; click a swatch to
-            change a color or its name, + to add one. Leave unselected for free choice.
+      {rows.map((row) => {
+        const key = row[0].id;
+        const isCollapsed = !!collapsed[key];
+        return (
+          <div key={key} className={`grid gap-4 ${row.length > 1 ? 'sm:grid-cols-2' : ''}`}>
+            {row.map((box) => (
+              <Box
+                key={box.id}
+                title={box.title}
+                collapsed={isCollapsed}
+                onToggle={() => toggleRow(key)}
+              >
+                {box.content}
+              </Box>
+            ))}
           </div>
-          <PalettePicker
-            themes={themes}
-            selectedTheme={genTheme}
-            onSelect={(theme, colors) => {
-              setGenTheme(theme?.name ?? null);
-              setPalette(colors);
-            }}
-          />
-        </Section>
-      )}
+        );
+      })}
 
-      <Section
-        title="Scribble a seed"
-        grow
-        collapsed={!!collapsed.scribble}
-        onToggle={() => toggleSection('scribble')}
+      <div
+        data-guide="input"
+        data-guide-done={canStart ? 'true' : undefined}
+        className="sticky bottom-0 z-20 rounded-2xl border border-line bg-surface p-4 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.5)]"
       >
-        {hasSketch && (
-          <div className="mb-1 flex justify-end text-[11px] text-ink-dim">
-            <button type="button" onClick={() => setStrokes([])} className="hover:text-ink">
-              clear
-            </button>
-          </div>
-        )}
-        <svg
-          ref={svgRef}
-          viewBox="0 0 400 240"
-          preserveAspectRatio="none"
-          className="w-full flex-1 cursor-crosshair touch-none rounded-xl border border-dashed border-line bg-surface-2"
-          onPointerDown={(e) => {
-            drawing.current = true;
-            (e.target as Element).setPointerCapture?.(e.pointerId);
-            setStrokes((prev) => [...prev, [point(e)]]);
-          }}
-          onPointerMove={(e) => {
-            if (!drawing.current) return;
-            const p = point(e);
-            setStrokes((prev) => {
-              const next = prev.slice();
-              next[next.length - 1] = [...next[next.length - 1], p];
-              return next;
-            });
-          }}
-          onPointerUp={() => (drawing.current = false)}
-          onPointerLeave={() => (drawing.current = false)}
-        >
-          {strokes.map((stroke, i) => (
-            <polyline
-              key={i}
-              points={stroke.map((p) => `${p.x},${p.y}`).join(' ')}
-              fill="none"
-              stroke="var(--color-accent, #A855F7)"
-              strokeWidth={3}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-        </svg>
-      </Section>
-
-      <div className="rounded-2xl border border-line bg-surface p-4">
         <textarea
           ref={textRef}
           value={prompt}
@@ -281,6 +330,8 @@ export function NewDiscussionPanel({
           rows={2}
           className="max-h-[30vh] w-full resize-none overflow-y-auto rounded-xl border border-line bg-surface-2 p-3 text-sm outline-none focus:border-accent"
         />
+        {/* One blank line of breathing room below the input, per design. */}
+        <div className="h-5" aria-hidden="true" />
         {!voice.supported && (
           <div className="mt-1 text-[11px] text-ink-dim">
             voice input unavailable in this browser; no fake transcripts here
@@ -291,6 +342,16 @@ export function NewDiscussionPanel({
         )}
         {voice.error && <div className="mt-1 text-[11px] text-red-500">{voice.error}</div>}
         <AttachmentChips attachments={intake.attachments} onRemove={intake.remove} />
+        {photoOffer && (
+          <PhotoOfferBanner
+            onAccept={() => {
+              setBgPhoto(photoOffer);
+              setCollapsed((prev) => ({ ...prev, scribble: false }));
+              setPhotoOffer(null);
+            }}
+            onDismiss={() => setPhotoOffer(null)}
+          />
+        )}
         {intake.error && <div className="mt-2 text-xs text-red-500">{intake.error}</div>}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <MicButton voice={voice} hint="Dictate the brief. The transcript lands in the box." />

@@ -784,13 +784,42 @@ assert.ok(mmDtBody.tree.nodeData.children.length >= 1, 'decision tree has at lea
 // The WS handler above keys only on 'board-r1-smoke'/'board-r2-smoke' and ignores the
 // rest, so the concierge broadcast rides past it harmlessly; we drive HTTP directly here.
 
-// Handoff: openStudio(brief) seeds the brief (open=false → no browser launched).
-await bridge.openStudio('app icons for a note-taking tool', false);
+// Handoff: openStudio(SeedBrief) seeds the brief + summary bubble + a BESPOKE
+// intake survey (the orchestrator's own questions) + pre-selected picks
+// (open=false → no browser launched).
+const handoffQuestions = [
+  { id: 'metaphor', question: 'Which metaphor?', options: ['a spark', 'a pencil'], recommended: 'a spark' },
+  { id: 'motion', question: 'Any motion feel?', options: ['static', 'subtle pulse'], multi: true },
+];
+await bridge.openStudio(
+  {
+    brief: 'app icons for a note-taking tool',
+    summary: 'Exploring playful app icons for your note-taking tool.',
+    questions: handoffQuestions,
+    picks: { metaphor: ['a spark'], motion: ['subtle pulse'] },
+  },
+  false,
+);
 let handoffState = await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
 assert.equal(
-  handoffState.seedBrief,
+  handoffState.seedBrief?.brief,
   'app icons for a note-taking tool',
-  'openStudio(brief) pre-fills seedBrief for the Claude-Code handoff',
+  'openStudio pre-fills the brief for the Claude-Code handoff',
+);
+assert.equal(
+  handoffState.seedBrief?.summary,
+  'Exploring playful app icons for your note-taking tool.',
+  'openStudio carries the run-brainstorm summary for the panel bubble',
+);
+assert.deepEqual(
+  handoffState.seedBrief?.questions,
+  handoffQuestions,
+  'openStudio carries the bespoke, brainstorm-anchored intake survey',
+);
+assert.deepEqual(
+  handoffState.seedBrief?.picks,
+  { metaphor: ['a spark'], motion: ['subtle pulse'] },
+  'openStudio carries pre-selected survey picks keyed by the handoff questions',
 );
 
 // Concierge round-trip: ask (non-blocking), read the pending id, answer, resolve.

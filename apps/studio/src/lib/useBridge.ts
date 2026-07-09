@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  ArtifactChatMessage,
   BoardResponse,
   ServerToStudio,
   StudioState,
 } from '@visual-brainstorm/protocol';
+
+/** Called for every artifact-chat envelope (any thread) with its owning discussionId. */
+export type ChatHandler = (message: ArtifactChatMessage, discussionId?: string) => void;
 
 const EMPTY: StudioState = {
   session: null,
@@ -30,6 +34,15 @@ export function useBridge() {
   const [state, setState] = useState<StudioState>(EMPTY);
   const [connected, setConnected] = useState(false);
   const retry = useRef(0);
+  // Subscribers for artifact-chat envelopes — App routes archived-thread replies
+  // (a different discussionId than the live thread) into the archived view.
+  const chatSubs = useRef(new Set<ChatHandler>());
+  const subscribeChat = useCallback((handler: ChatHandler) => {
+    chatSubs.current.add(handler);
+    return () => {
+      chatSubs.current.delete(handler);
+    };
+  }, []);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -51,6 +64,12 @@ export function useBridge() {
       };
       socket.onmessage = (event) => {
         const msg = JSON.parse(event.data) as ServerToStudio;
+        // Side-channel (outside the state reducer, which may run twice in
+        // StrictMode): every chat envelope reaches App so it can route replies to
+        // whichever thread is on screen (live state OR the archived snapshot).
+        if (msg.type === 'artifact-chat') {
+          for (const handler of chatSubs.current) handler(msg.message, msg.discussionId);
+        }
         setState((prev) => {
           switch (msg.type) {
             case 'hello':
@@ -89,6 +108,12 @@ export function useBridge() {
               };
             }
             case 'artifact-chat':
+              // Only the LIVE thread's dialogs belong in live state. A message
+              // addressed to another (archived) thread is routed to that view via
+              // subscribeChat, not appended here.
+              if (msg.discussionId && prev.session && msg.discussionId !== prev.session.id) {
+                return prev;
+              }
               return { ...prev, artifactChat: [...prev.artifactChat, msg.message] };
             case 'concierge':
               return { ...prev, concierge: msg.exchange };
@@ -146,5 +171,5 @@ export function useBridge() {
     if (!res.ok) throw new Error(`gallery pick failed: ${res.status} ${await res.text()}`);
   }, []);
 
-  return { state, connected, respond, answerConcierge, pickMethod };
+  return { state, connected, respond, answerConcierge, pickMethod, subscribeChat };
 }

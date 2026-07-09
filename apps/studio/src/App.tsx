@@ -23,6 +23,7 @@ import { Sidebar } from './components/Sidebar';
 import { ThemePicker } from './components/ThemePicker';
 import { WayfinderStrip } from './components/WayfinderStrip';
 import { DecisionTreeView } from './components/DecisionTreeView';
+import { GuidePulse } from './components/GuidePulse';
 
 interface Thread {
   session: SessionInfo;
@@ -166,7 +167,7 @@ function RoundHistoryView({
 }
 
 export default function App() {
-  const { state, connected, respond, answerConcierge, pickMethod } = useBridge();
+  const { state, connected, respond, answerConcierge, pickMethod, subscribeChat } = useBridge();
   const [discussions, setDiscussions] = useState<DiscussionSummary[]>([]);
   const [archived, setArchived] = useState<Thread | null>(null);
   const [themeName, setThemeName] = useState<string | null>(storedThemeName());
@@ -195,6 +196,12 @@ export default function App() {
   // Claude-message count at the moment a send succeeded; busy until it grows
   // (one counter for whichever subject the fullscreen viewer has open).
   const [chatSentAt, setChatSentAt] = useState<number | null>(null);
+  // Optimistic chat echo: the user's OWN message shows instantly, before the WS
+  // round-trip. The persisted copy (from state/archived) is the single truth —
+  // a pending entry is dropped as soon as its persisted twin arrives, so the
+  // bubble never depends on WS timing/routing to appear (operator report,
+  // 2026-07-09: "I submit a message but do not see my chat message bubble").
+  const [pendingChats, setPendingChats] = useState<ArtifactChatMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const modelLabels = useMemo(
     () => new Map(state.models.map((entry) => [entry.id, entry.label])),
@@ -282,15 +289,18 @@ export default function App() {
     [],
   );
 
-  // One sender for every chat subject (captured artifact or option: slug).
-  // Do NOT append locally — the message returns over WS from state, so
-  // persistence stays the single truth. Returns whether the send landed.
-  const postChat = useCallback(async (artifactSlug: string, text: string): Promise<boolean> => {
+  // One sender for every chat subject (captured artifact or option: slug), on
+  // ANY thread — `discussionId` addresses an archived thread (answer in place);
+  // omitted for the live thread. Do NOT append locally — the message returns
+  // over WS from state, so persistence stays the single truth. Returns whether
+  // the send landed.
+  const postChat = useCallback(
+    async (artifactSlug: string, text: string, discussionId?: string): Promise<boolean> => {
     try {
       const res = await fetch('/api/artifact-chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ artifactSlug, text }),
+        body: JSON.stringify({ artifactSlug, text, ...(discussionId ? { discussionId } : {}) }),
       });
       const body = await res.json();
       if (body.ok) return true;
@@ -300,7 +310,9 @@ export default function App() {
       setTimeout(() => setCommandStatus(null), 5000);
       return false;
     }
-  }, []);
+    },
+    [],
+  );
 
   const openPreview = useCallback((next: OptionView) => {
     setFullscreen({ kind: 'option', ...next });
@@ -314,11 +326,19 @@ export default function App() {
       : fullscreen.chatSlug
     : null;
   // Its messages — an archived thread replays reloaded dialogs; live reads state.
+  // Persisted messages first, then any still-unacknowledged optimistic echo of
+  // the user's own message (dropped once its persisted twin lands).
   const fsMessages = useMemo(() => {
     if (!fsChatSlug) return [];
     const source = archived ? archived.artifactChat ?? [] : state.artifactChat;
-    return source.filter((m) => m.artifactSlug === fsChatSlug);
-  }, [fsChatSlug, archived, state.artifactChat]);
+    const persisted = source.filter((m) => m.artifactSlug === fsChatSlug);
+    const unacked = pendingChats.filter(
+      (p) =>
+        p.artifactSlug === fsChatSlug &&
+        !persisted.some((m) => m.role === 'user' && m.text === p.text),
+    );
+    return [...persisted, ...unacked];
+  }, [fsChatSlug, archived, state.artifactChat, pendingChats]);
   const fsClaudeCount = useMemo(
     () => fsMessages.filter((m) => m.role === 'claude').length,
     [fsMessages],
@@ -351,9 +371,51 @@ export default function App() {
   const sendFsChat = useCallback(
     async (text: string) => {
       if (!fsChatSlug) return;
-      if (await postChat(fsChatSlug, text)) setChatSentAt(fsClaudeCount);
+      // Optimistic echo: show the user's bubble immediately (it persists on the
+      // server regardless of the WS round-trip). Roll back only if the POST fails.
+      const optimistic: ArtifactChatMessage = {
+        artifactSlug: fsChatSlug,
+        role: 'user',
+        text,
+        at: new Date().toISOString(),
+      };
+      setPendingChats((p) => [...p, optimistic]);
+      // Archived threads answer in place — address the dialog to the thread on
+      // screen; the live thread needs no id.
+      if (await postChat(fsChatSlug, text, archived?.session.id)) setChatSentAt(fsClaudeCount);
+      else setPendingChats((p) => p.filter((m) => m !== optimistic));
     },
-    [fsChatSlug, fsClaudeCount, postChat],
+    [fsChatSlug, fsClaudeCount, postChat, archived],
+  );
+
+  // Prune optimistic echoes once their persisted twin has arrived (from the live
+  // state or the archived snapshot) — keeps pendingChats from growing unbounded.
+  useEffect(() => {
+    setPendingChats((pending) => {
+      if (pending.length === 0) return pending;
+      const persisted = [...state.artifactChat, ...(archived?.artifactChat ?? [])];
+      const next = pending.filter(
+        (p) =>
+          !persisted.some(
+            (m) => m.role === 'user' && m.artifactSlug === p.artifactSlug && m.text === p.text,
+          ),
+      );
+      return next.length === pending.length ? pending : next;
+    });
+  }, [state.artifactChat, archived]);
+
+  // Replies to an archived thread arrive over WS but never touch live `state` —
+  // route them into the archived snapshot so its dialog updates live too.
+  useEffect(
+    () =>
+      subscribeChat((message, discussionId) => {
+        setArchived((cur) =>
+          cur && cur.session.id === discussionId
+            ? { ...cur, artifactChat: [...(cur.artifactChat ?? []), message] }
+            : cur,
+        );
+      }),
+    [subscribeChat],
   );
 
   // Pin/unpin a captured artifact to the filmstrip (persists to session.json).
@@ -474,6 +536,12 @@ export default function App() {
       {/* Theme-tinted aurora drifting behind everything so the liquid-chrome
           surfaces have moving light to catch. */}
       <div className="app-aurora" aria-hidden="true" />
+      {/* Wayfinding pulse — drives the user box→box through what to do next;
+          circles the nav only while a response is pending; paused behind modals. */}
+      <GuidePulse
+        busy={Boolean(state.thinking) || intakeAwaiting}
+        active={!fullscreen && !logs && !decisionTree}
+      />
       <button
         type="button"
         onClick={() => setNavOpen(true)}
@@ -554,7 +622,11 @@ export default function App() {
         </div>
       </div>
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col pb-6 pl-4 pt-16 lg:pl-8 lg:pt-6">
+      <div
+        className={`relative z-10 flex min-w-0 flex-1 flex-col pl-4 pt-16 lg:pl-8 lg:pt-6 ${
+          newOpen || landing ? 'pb-0' : 'pb-6'
+        }`}
+      >
         {!newOpen && (
           <div className="pr-4 lg:pr-8">
             {/* Archived threads render the same strip so a captured keep stays
@@ -581,8 +653,8 @@ export default function App() {
         )}
 
         <main
-          className={`flex-1 space-y-6 overflow-y-auto pb-8 pr-4 lg:pr-8 ${
-            newOpen || landing ? 'flex flex-col' : 'scroll-fade'
+          className={`flex-1 space-y-6 overflow-y-auto pr-4 lg:pr-8 ${
+            newOpen || landing ? 'flex flex-col pb-0' : 'scroll-fade pb-8'
           }`}
         >
           {(newOpen || landing) && (
@@ -593,7 +665,7 @@ export default function App() {
               runtime={state.runtime}
               targetRepo={state.targetRepo}
               cancellable={!landing}
-              initialPrompt={state.seedBrief ?? ''}
+              seedBrief={state.seedBrief}
               onCancel={() => setNewOpen(false)}
               onStart={(prompt, seed, extras) => {
                 invokeCommand('new-brainstorm', prompt || undefined, seed, extras);
@@ -724,13 +796,13 @@ export default function App() {
           )}
 
           {viewingLive && state.concierge && (
-            <div className="mt-3">
+            <div className="mt-3" data-guide="step">
               <ConciergeIntake exchange={state.concierge} onAnswer={answerConcierge} />
             </div>
           )}
 
           {viewingLive && state.gallery && (
-            <div className="mt-3">
+            <div className="mt-3" data-guide="step">
               <LivingGallery gallery={state.gallery} onPick={pickMethod} />
             </div>
           )}
@@ -830,13 +902,13 @@ export default function App() {
           chat={{
             messages: fsMessages,
             busy: fsBusy,
-            // Archived threads replay their persisted dialog read-only.
-            onSend: viewingLive ? sendFsChat : undefined,
+            // Always interactive — ask about any artifact on any thread whenever
+            // you want. Archived threads answer in place (a running brainstorm
+            // orchestrator picks up the question and replies).
+            onSend: sendFsChat,
             emptyHint:
               fullscreen.kind === 'option'
-                ? viewingLive
-                  ? 'Ask about this option or the choice it represents — the conversation persists with the thread.'
-                  : 'No dialog was recorded for this option.'
+                ? 'Ask about this option or the choice it represents — the conversation persists with the thread.'
                 : undefined,
           }}
           pin={

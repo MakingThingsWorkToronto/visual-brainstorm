@@ -9,9 +9,11 @@ import {
   MindTreeSchema,
   PHASES,
   ResponseActionSchema,
+  DEFAULT_INTAKE_QUESTIONS,
   SeedIntakeSchema,
   SessionInfoSchema,
   SurveyConfigSchema,
+  SurveyQuestionSchema,
   ThemeSchema,
   optionChatSlug,
   parseOptionChatSlug,
@@ -51,6 +53,21 @@ test('survey defaults enable the full feedback surface', () => {
   assert.equal(survey.allowPerOptionNotes, true);
   assert.equal(survey.allowRemix, true);
   assert.deepEqual(survey.axes, []);
+});
+
+test('intake survey question: minimal shape parses; optional flags stay undefined', () => {
+  const q = SurveyQuestionSchema.parse({ id: 'metaphor', question: 'Which metaphor?', options: ['a spark', 'a pencil'] });
+  assert.deepEqual(q.options, ['a spark', 'a pencil']);
+  assert.equal(q.multi, undefined);
+  assert.equal(q.recommended, undefined);
+  assert.throws(() => SurveyQuestionSchema.parse({ id: 'x', question: 'q' }), 'options are required');
+});
+
+test('DEFAULT_INTAKE_QUESTIONS is the blank-UI preset (valid, distinct ids)', () => {
+  for (const q of DEFAULT_INTAKE_QUESTIONS) assert.doesNotThrow(() => SurveyQuestionSchema.parse(q));
+  const ids = DEFAULT_INTAKE_QUESTIONS.map((q) => q.id);
+  assert.deepEqual(ids, ['making', 'vibe', 'range', 'audience', 'constraints']);
+  assert.equal(new Set(ids).size, ids.length, 'question ids are unique');
 });
 
 test('axis is a range with a midpoint default', () => {

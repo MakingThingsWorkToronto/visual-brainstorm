@@ -14,6 +14,7 @@ import {
   MindTreeSchema,
   PhaseSchema,
   SurveyConfigSchema,
+  SurveyQuestionSchema,
   parseOptionChatSlug,
   type Board,
   type BoardOption,
@@ -268,8 +269,12 @@ server.tool(
     'passes. HANDOFF: if the human ALREADY described the purpose in this Claude Code session, pass it as `brief` ' +
     '— it pre-fills the New Discussion brief so the studio hosts that content and the human refines instead of ' +
     'retyping (requires no rework). Use a bare open_studio (no brief) only when they truly said nothing about what ' +
-    'to make. Timeout returns {status:"waiting"} — the studio stays open; call open_studio again ' +
-    '(or check session_status.pendingUiCommands) to keep waiting.',
+    'to make. On a real run-brainstorm ALSO hand off: `summary` (a friendly one-liner shown in the panel bubble in ' +
+    'place of the generic prompt); `questions` — a bespoke intake survey YOU author, creative and anchored to THIS ' +
+    'brainstorm (do NOT reuse a generic preset — invent the questions the brief actually needs); and `picks` (your ' +
+    'recommended answers, pre-selected). Together these land the human one tap from "Send & iterate" instead of a ' +
+    'blank form. Timeout returns {status:"waiting"} — the studio stays open; call open_studio again (or check ' +
+    'session_status.pendingUiCommands) to keep waiting.',
   {
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
     brief: z
@@ -277,10 +282,37 @@ server.tool(
       .max(2000)
       .optional()
       .describe('The purpose/initial content from THIS Claude Code session — pre-fills the New Discussion brief'),
+    summary: z
+      .string()
+      .max(600)
+      .optional()
+      .describe(
+        'A short, friendly summary of the brainstorm being started (1–2 sentences). Shown in the New Discussion ' +
+          'panel bubble in place of the generic prompt, so the handoff reads as continuity. Pass on a real run-brainstorm.',
+      ),
+    questions: z
+      .array(SurveyQuestionSchema)
+      .max(8)
+      .optional()
+      .describe(
+        'A bespoke intake survey you author for THIS brainstorm — creative, specific questions anchored to the brief ' +
+          '(NOT the generic making/vibe/range preset). Each: { id, question, options[], multi?, recommended?, ' +
+          'allowOther? }. Replaces the panel\'s default questions; `picks` are keyed by these ids. Keep it to 3–6 ' +
+          'high-signal questions with 3–6 tappable options each; mark one `recommended` per question where you have a lean.',
+      ),
+    picks: z
+      .record(z.string(), z.array(z.string()))
+      .optional()
+      .describe(
+        'Your recommended answers, pre-selected so the human starts one tap from Send & iterate. Keys are question ' +
+          'ids (your handed-off `questions`, or the default preset ids when you did not hand off questions). Values ' +
+          'must be EXACT option strings from that question; any value not among its options falls back to the ' +
+          'question\'s free-text field.',
+      ),
   },
-  async ({ timeoutSeconds, brief }) => {
+  async ({ timeoutSeconds, brief, summary, questions, picks }) => {
     const { store, bridge } = ensureSession('New discussion');
-    await bridge.openStudio(brief);
+    await bridge.openStudio({ brief, summary, questions, picks });
     console.error(
       `[mcp] studio open on the New Discussion panel${brief ? ' (brief handed off)' : ''} — waiting for a brief`,
     );
@@ -440,21 +472,30 @@ server.tool(
     artifactSlug: z.string().describe('The artifact whose dialog this reply belongs to (the ORIGINAL slug, or the option:<boardId>:<optionId> slug from the request)'),
     text: z.string().min(1).max(4000),
     revisedSlug: z.string().optional().describe('Slug of the newly captured revision, when the artifact was changed'),
+    discussionId: z.string().optional().describe('The owning thread when the chat is on an ARCHIVED (non-live) thread — pass the discussionId from the request seedNote so the reply records into THAT thread and routes to its view. Omit for the live thread.'),
   },
-  async ({ artifactSlug, text: replyText, revisedSlug }) => {
+  async ({ artifactSlug, text: replyText, revisedSlug, discussionId }) => {
     if (!store || !bridge) {
-      return text({ status: 'no-session', hint: 'reply_artifact_chat needs the live thread that owns the artifact' });
+      return text({ status: 'no-session', hint: 'reply_artifact_chat needs a live bridge that can reach the owning thread' });
+    }
+    // Answer in place: the live store when discussionId is absent/matching, else
+    // the archived thread opened by the bridge (disk is the truth).
+    let target: SessionStore;
+    try {
+      target = bridge.resolveChatStore(discussionId);
+    } catch (err) {
+      return text({ status: 'unknown-discussion', discussionId, hint: `no such thread: ${String(err)}` });
     }
     const optionRef = parseOptionChatSlug(artifactSlug);
     const known = optionRef
-      ? store.rounds.some(
+      ? target.rounds.some(
           (r) =>
             r.board.id === optionRef.boardId &&
             r.board.options.some((o) => o.id === optionRef.optionId),
         )
-      : store.artifacts.some((a) => a.slug === artifactSlug);
+      : target.artifacts.some((a) => a.slug === artifactSlug);
     if (!known) {
-      return text({ status: 'unknown-artifact', artifactSlug, hint: 'use the ORIGINAL artifact/option slug from the chat request' });
+      return text({ status: 'unknown-artifact', artifactSlug, discussionId: target.info.id, hint: 'use the ORIGINAL artifact/option slug from the chat request' });
     }
     const message = {
       artifactSlug,
@@ -463,8 +504,8 @@ server.tool(
       at: new Date().toISOString(),
       ...(revisedSlug ? { revisedSlug } : {}),
     };
-    bridge.announceArtifactChat(message);
-    return text({ status: 'replied', message });
+    bridge.announceArtifactChat(message, target.info.id);
+    return text({ status: 'replied', message, discussionId: target.info.id });
   },
 );
 
