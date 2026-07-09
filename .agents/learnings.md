@@ -1,5 +1,36 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — studio liquid-chrome effects: global CSS over Tailwind, animated conic borders, aurora z-order, transient-UI screenshots
+
+- **A global surface treatment over Tailwind utilities must set ONLY `background-image`, never
+  `box-shadow`.** Tailwind's `shadow`/`shadow-md` set `box-shadow` via `--tw-shadow`; a plain
+  `.bg-surface { box-shadow: … }` rule (same single-class specificity, later in source) silently
+  clobbers those — e.g. the Send & iterate button loses its drop shadow. `background-image` layers
+  over `background-color` on the SAME element (different property, no conflict), so the chrome
+  gloss composes with every existing shadow. This is how you skin "all surfaces" with one rule
+  and zero per-component edits.
+- **Animating a conic-gradient's angle REQUIRES a registered `@property`.** You cannot animate
+  `conic-gradient(from Xdeg, …)` in a keyframe directly. Register `@property --chrome-angle {
+  syntax:"<angle>"; inherits:false; initial-value:0deg }`, drive it with `@keyframes { to {
+  --chrome-angle:360deg } }`, and reference `from var(--chrome-angle)`. One registered angle +
+  the `padding + mask (linear-gradient content-box, linear-gradient) + mask-composite:exclude`
+  ring technique gives you a "star spinning around the border" for any element (nav edge glow AND
+  the send-prompt reveal share it).
+- **A `position:fixed; z-index:0` background paints OVER static siblings.** Positioned/z-indexed
+  siblings need explicit `relative z-10`, but the real trap is a responsively-static element:
+  App.tsx's nav wrapper is `fixed inset-0 … lg:static`, and on `lg` the static nav was painted
+  under the fixed aurora. Fix: `lg:relative lg:z-10` (mobile stays `fixed z-30`). Aurora itself
+  must be `pointer-events:none` so it never eats clicks.
+- **Screenshot a transient in-flight UI state by PAUSING its request over CDP, not by racing it.**
+  The "sending…" prompt reveal only exists during the `/api/respond` round-trip (~ms on
+  localhost). `Fetch.enable({patterns:[{urlPattern:'*/api/respond*',requestStage:'Request'}]})` +
+  capturing `Fetch.requestPaused` holds the request open so the real app renders the real state
+  under a real (paused) request; screenshot, then `Fetch.continueRequest`. Honest proof, nothing
+  faked (rule 10). Reusable for any optimistic/pending UI.
+- **The effects are theme-driven by construction** — aurora, nav glow, chrome gloss, and the spin
+  border all read `--accent`/`--surface(-2)` via `color-mix`, so a new theme re-skins them for
+  free, and every animation is gated behind `@media (prefers-reduced-motion: reduce)`.
+
 ## 2026-07-08 — porting the donor wiki-mcp: ESM/SDK rewrite + dependency-free + granular read
 
 - **The donor `apps/wiki-mcp` (`C:\Code\tp`) is CommonJS + a hand-rolled JSON-RPC stdio loop +

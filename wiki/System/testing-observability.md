@@ -71,6 +71,14 @@ Every scaffolded plan carries a mandatory human-verification phase —
 `.claude/commands/create-dispatch-command.md` emits it; enforcement rules live in
 `.claude/agents/test-engineer.md`.
 
+**Proving a transient in-flight UI state** (e.g. a "sending…" reveal that exists only for the
+duration of a request): do not race the round-trip — on loopback it is ~ms. PAUSE the
+triggering request over CDP so the real app renders the real state under a real request, then
+release it: `Fetch.enable({patterns:[{urlPattern:'*/api/respond*', requestStage:'Request'}]})`,
+capture `Fetch.requestPaused` to grab the `requestId`, `Page.captureScreenshot`, then
+`Fetch.continueRequest`. This is honest proof (rule 10) — nothing is faked, the request truly
+flew — and it generalises to any optimistic/pending surface.
+
 ## Observability
 
 - **File logs**: `<discussionRoot>/.logs/mcp-<yyyy-mm-dd>.log` — every line
