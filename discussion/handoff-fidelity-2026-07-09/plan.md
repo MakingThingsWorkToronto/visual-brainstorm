@@ -120,12 +120,21 @@ Plus: no deterministic guard cross-checks BoardResponse fields ↔ digest ↔ sk
 - [x] Phase 4 — tests — DONE 2026-07-09: durability.test.mjs (5 crash-restart round-trips) +
   field-coverage.test.mjs (drift guard) + 9 feedback digest tests + intake-gate durability
   assertions + api-matrix/smoke assertions updated to the structured returns
-- [~] Phase 5 — wiki + agentic layer — delegated to subagents 2026-07-09 (wiki-librarian:
-  5 pages + log + reload; general-purpose: SKILL/run-brainstorm/svg-artisan/orchestrator/reopen)
-- [x] Phase 6 — verify: `npm run build` GREEN (all 4 workspaces); `npm run test:unit` 213/213;
-  `npm run smoke` PASS (real bridge); `npm run smoke:ui` PASS. Browser human-sims not run in
-  this sandbox (environmental; assertions were updated where contracts changed —
-  scripts/smoke.mjs concierge/gallery returns).
+- [x] Phase 5 — wiki + agentic layer — DONE 2026-07-09 (resume session): page edits verified
+  IN PLACE (interaction-protocol §Durability contract, system-architecture persistence layout,
+  interface-coverage gaps CLOSED, phase-funnel response contract, user-guide affordances;
+  SKILL/run-brainstorm/svg-artisan/orchestrator carry the new fields). Resume closed two gaps
+  the delegated session dropped: (a) the 5 rule-2 `wiki/log.md` lines + `wiki_reload`
+  (wiki-librarian, 20 pages indexed); (b) `reopen.md` step 2 still instructed the manual
+  `git mv` its own header said the bridge performs — now verify-not-move with the manual move
+  only on the honest failure note (+ changelog line).
+- [x] Phase 6 — verify: re-run on the converged shared tree 2026-07-09 (resume session):
+  `npm run build` GREEN (exit 0, all workspaces); `npm run test:unit` 217/217;
+  `npm run smoke` PASS (real bridge — incl. structured concierge/gallery returns);
+  `npm run smoke:ui` PASS (all 6 phase surfaces). Browser human-sims not run in the earlier
+  sandbox (environmental; assertions were updated where contracts changed).
+
+**All six phases complete + verified — ready for `/plan-closeout`.**
 
 ## Implementation record (for resume — exact state as of 2026-07-09)
 
