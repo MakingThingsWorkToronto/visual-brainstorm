@@ -2,8 +2,9 @@
 
 **Started:** 2026-07-07 · **Owner:** Matt / brainstorm-orchestrator lineage
 **Slug:** `mindmap-explode-decision-tree-2026-07-07`
-**Status:** REOPENED 2026-07-08 → FIXED 2026-07-09. Two real defects that real-use testing
-surfaced are fixed & proven comprehensively on the real path (no fakes):
+**Status:** closed 2026-07-09 (REOPENED 2026-07-08 → FIXED 2026-07-09). Two real defects that
+real-use testing surfaced are fixed & proven comprehensively on the real path (no fakes);
+feature committed `26c41d2`, closeout verified build+smoke green:
 - **Explode was a no-op marker** → now IMMEDIATELY fans the node into 5 topic+note-anchored prompt
   children via the real engine (`addChild(el, generateNewObj())`); user witnesses ≥5, note-steered.
   The `explode` op still rides back so a live orchestrator ENRICHES each prompt.
