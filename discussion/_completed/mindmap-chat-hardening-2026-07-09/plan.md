@@ -63,6 +63,23 @@ GAPS FOUND:
 ## Verification
 - `npm run build`; `npm run test:unit`; `node scripts/human-sim-mindchat.mjs` (now 5 steps).
 
+## Human test script (manual, ~5 min)
+
+1. Start or resume a brainstorm that presents a mind-map board. The mind-map box shows a
+   **maximize** control once the round's snapshot exists — which is immediate (the bridge
+   auto-captures the snapshot on present; no orchestrator action needed).
+2. **Edit the tree first**: add a child node, rename one, note one. Then click maximize.
+3. EXPECT: the unified fullscreen viewer (snapshot image left, chat right) with the hint
+   *"Ask about your map or say how to improve it — Claude reads your CURRENT tree (latest
+   edits included, this image is the presented snapshot) and can grow you an improved map."*
+4. Ask a QUESTION about a branch you just edited (e.g. "what's thin under <new node>?").
+   EXPECT: the answer reflects your CURRENT edits, not the presented snapshot — the
+   orchestrator runs `/read-mindmap` against `draft.json`/`tree.md` ("Live tree" heading).
+5. Ask for an IMPROVEMENT ("grow the X branch"). EXPECT: a chat reply saying what will
+   change, then a NEW mind-map board arrives grown from your live tree (deleted branches
+   stay deleted, notes honored) — NOT a redrawn SVG revision of the snapshot image.
+6. Close fullscreen. EXPECT: the board is still live, your edits intact (non-destructive).
+
 ## Progress log
 - 2026-07-09 — review complete (verdict above); plan written.
 - 2026-07-09 — IMPLEMENTED: artifact-chat.md mind-map branch (+changelog); App.tsx
@@ -106,3 +123,16 @@ GAPS FOUND:
   HARDENED: step 3 now waits for the instance (`waitInPage` on `.mind`, 15s). Re-runs
   PASS 5/5 twice (pre- and post-hardening). Learnings entry added (lazy-engine wait +
   PIPESTATUS false-green). Plan closed, archived to `_completed/`.
+- 2026-07-09 (fresh-eyes re-review) — gaps found + filled: `tests/journeys.md` 3d row was
+  STALE ("4 steps", no edit-before-maximize/flush/hint proof) → refreshed to the full 5-step
+  truth; `.github/prompts/artifact-chat.prompt.md` (Copilot adapter) didn't reference
+  `read-mindmap.md`, which the mind-map branch runs FIRST → reference added (rule 11);
+  Human test script section added above (manual verification, ~5 min). Confirmed correct:
+  App.tsx hint condition (slug match vs live snapshot), provenance claim in the command
+  branch matches `recordBoard`'s `captureArtifact` call, wiki interaction-protocol section
+  matches code, user-guide promise present. Cross-lane hardening: peer's new
+  `tests/copilot-mcp.test.mjs` stdio-initialize timeout 5s→15s (flaked under 3 concurrent
+  sessions; observed 6.9s standalone) — integrated into their in-flight rewrite, rides
+  their commit. FINAL GATE: `npm test` exit 0 (all layers, all 5 human sims) +
+  `test:human:sweep` PASS (408 controls, 501 gestures, 0 findings). READY FOR HUMAN
+  TESTING — script above.
