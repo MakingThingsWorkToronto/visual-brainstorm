@@ -1,6 +1,6 @@
 # Lock the concierge→gallery→mind-map methodology into the REAL flow
 
-**Status:** open 2026-07-07.
+**Status:** closed 2026-07-09 — all three intake locks (#1 structural gate, #2 preparing veil, #3 survey/concierge reconciliation) landed + verified (build, unit incl. intake-gate + visual-honesty, smoke, human-sim 16 steps); testing the concurrent sessions' changed use cases caught + fixed the decision-tree false-green AND an endpoint hang bug. Learnings harvested, test-engineer.md improved, wiki reconciled. `/plan-closeout` complete.
 **Trigger (operator, live):** "I still see the og new discussion surface. I should see the methodology locked into the final artifact in the plan." + the session-long mandate: real-world testing, no mocks/preview, predict journeys then audit additively, assert canonical DATA (not 200s/render).
 
 ## Diagnosis (evidence-based)

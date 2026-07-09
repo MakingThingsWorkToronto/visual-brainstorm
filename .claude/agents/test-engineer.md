@@ -119,8 +119,24 @@ A test-honesty gap once let a whole methodology ship unproven — encode these s
    at each, and the runnable real-path command — and carries a nav-discoverability check: the
    surface must be reachable by REAL navigation, not just direct state injection. Mark each
    journey's canonical-data assertion DONE or OWED; an OWED row is a known coverage debt, not a pass.
+5. **Two concrete false-greens seen live (2026-07-08) — recognize the pattern:**
+   - **`!!container.querySelector('svg')` passes on the ERROR-FALLBACK and the LOADING state.** A
+     surface that renders a "…unavailable" fallback `<svg>` (or shows a "building…" spinner with no
+     svg yet) satisfies "an svg exists" identically to success. Assert the svg's `textContent`
+     contains a canonical label, never just its presence.
+   - **An intermittent "stuck loading" surface is often a SERVER HANG, not slowness.** Trace it to
+     the endpoint: a handler that parses/resolves inputs OUTSIDE its try/catch (`decodeURIComponent`,
+     path resolution) throws with NO response written, hanging the client `fetch` forever. The whole
+     handler body must be inside the try that always writes a 200/404. Confirm from the failure
+     SCREENSHOT (the stuck veil is the tell), and distinguish a real hang from CPU-starvation flake
+     (quiet-machine re-run passes) — widen the browser step's timeout for load, never weaken the
+     assertion.
 
 ## Changelog
+- 2026-07-09 — added point 5: two live false-greens — `querySelector('svg')` passes on the
+  error-fallback/loading svg (assert textContent content); an intermittent "stuck loading" surface
+  is often a server hang (handler parsing OUTSIDE its try/catch), distinguished from CPU-starvation
+  flake by a quiet re-run + the failure screenshot (from lock-in-methodology-2026-07-07)
 - 2026-07-07 — visual-honesty & real-journey section: canonical-DATA-in-frame proof (cite
   scripts/lib/visual-honesty.mjs), no mocks/preview, never fake the orchestrator (the
   bridge.presentGallery anti-pattern), predicted-then-additive journeys (tests/journeys.md)

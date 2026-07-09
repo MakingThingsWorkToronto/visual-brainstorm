@@ -41,6 +41,24 @@ in `.claude/commands/run-brainstorm.md` step 0, `.claude/agents/brainstorm-orche
    Non-mindmap picks still flow through run-brainstorm's pre-phrase (step 1) and the funnel — the
    gallery only chose the STARTING mechanic.
 
+## The intake is STRUCTURALLY enforced, not just instructed (2026-07-08)
+
+The methodology is not a prompt convention the orchestrator may skip — it is locked in two ways:
+
+- **Server-side gate (harness-agnostic).** The `present_board` MCP tool REFUSES the first board of
+  a fresh thread until a Living Gallery pick has been made (`bridge.intakeComplete`, set in the
+  gallery resolver, reset on `attachStore`) — an honest error tells the orchestrator to run
+  concierge→gallery first. A board before a gallery pick is a procedure violation, not a shortcut.
+  Because it lives in the MCP server, every harness (Claude Code, `.github` Copilot) inherits it.
+  (Harnesses that drive `bridge.presentAndWait` directly — the human-sim — bypass the tool guard by
+  design, so they don't false-fail; the gate is proven by `tests/intake-gate.test.mjs`.)
+- **Studio veil.** After a brief submit the studio holds a "preparing your questions…" surface
+  (`intakeAwaiting`), never the bare New Discussion panel again, until the concierge/gallery/board
+  arrives — the human is never stranded looking like the methodology was skipped.
+
+`run-brainstorm.md` frames the four moves as a followed STATE MACHINE where `open_studio`/
+`ask_concierge`/`present_gallery`/`present_board` are internal DISPATCH STEPS, never à-la-carte tools.
+
 ## Mind map: a peer methodology (not the default or centerpiece)
 
 - Sits BESIDE funnel/wreck/cluster as an equally recommended choice — never the default.
