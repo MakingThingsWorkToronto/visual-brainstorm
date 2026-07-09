@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-07-07",
+  "updated": "2026-07-09",
   "authority": {
     "commandsRoot": ".claude/commands",
     "skillsRoot": ".claude/skills",
@@ -79,6 +79,14 @@
       "model": "sonnet",
       "purpose": "Turn a plan into a loopable dispatcher command",
       "workflow": "dispatch-planning"
+    },
+    {
+      "kind": "command",
+      "name": "compress-learnings",
+      "path": ".claude/commands/compress-learnings.md",
+      "model": "sonnet",
+      "purpose": "Weekly: compact the agentic learnings log (recent verbatim, older distilled, originals archived)",
+      "workflow": "learnings-compaction"
     },
     {
       "kind": "skill",

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-07-07",
+  "updated": "2026-07-09",
   "registry": "../.claude/agentic-surface-registry.json",
   "rule": "This file is the GitHub Copilot adapter index. The provider-neutral authoritative registry lives at .claude/agentic-surface-registry.json, and workflow logic remains in the referenced .claude files.",
   "commands": [
@@ -47,6 +47,11 @@
     {
       "name": "create-dispatch-command",
       "copilotPrompt": ".github/prompts/create-dispatch-command.prompt.md",
+      "copilotAgent": "visual-brainstorm-operator"
+    },
+    {
+      "name": "compress-learnings",
+      "copilotPrompt": ".github/prompts/compress-learnings.prompt.md",
       "copilotAgent": "visual-brainstorm-operator"
     }
   ],

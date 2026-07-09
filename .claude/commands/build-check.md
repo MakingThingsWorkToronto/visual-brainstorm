@@ -6,7 +6,10 @@ model: haiku
 
 ## Procedure
 
-1. `npm run build` — protocol → studio → mcp, in that order (workspaces handle it). Zero errors.
+1. `npm run build` — protocol → studio → mcp → wiki-mcp, in that order (workspaces handle
+   it). Zero errors. **If a NEW workspace was added under `apps/*` or `packages/*` this
+   session, run `npm install` FIRST** — `-w <app>` build steps and any `tests/*.mjs`
+   importing its `dist/` fail until install registers/links the workspace.
 2. `npm test` — all layers (wiki/System/testing-observability.md): unit
    (`tests/*.test.mjs`, all pass), integration (`SMOKE PASS`), UI render (`UI SMOKE PASS`,
    all six surfaces), and the REAL end-to-end drives (`HUMAN SIM PASS` — real bridge
@@ -24,9 +27,20 @@ model: haiku
    the file EXISTS after a real end-to-end flow. Any persistence/pipe feature needs a test
    that drives the real path and then reads back the artifact off disk (file present,
    contents correct). Absence-of-data is invisible to value assertions.
-5. Report results verbatim — failures are reported as failures with output, never smoothed over.
+5. **A new/changed stdio MCP server is proven over the PROTOCOL, not just its pure
+   functions.** Unit-testing the loader/search/read helpers proves the logic; it does NOT
+   prove the server speaks MCP. Drive the real stdio path with a scratchpad JSON-RPC probe
+   (`initialize` → `notifications/initialized` → `tools/list` → a `tools/call`), asserting the
+   tool names and a real response shape (e.g. search returns bounded snippets with no page
+   body; a granular read returns only the requested subsection). This is the MCP analogue of
+   step 3's "prove the real path."
+6. Report results verbatim — failures are reported as failures with output, never smoothed over.
 
 ## Changelog
+- 2026-07-09 — step 1: build order now protocol → studio → mcp → wiki-mcp; a NEW workspace
+  needs `npm install` before build/tests can see its dist. Added step 5: prove a new stdio
+  MCP server over the protocol with a JSON-RPC probe, not just its pure functions (from
+  wiki-mcp-and-learnings-compaction)
 - 2026-07-07 — step 3 rewritten: preview/fixture harness DELETED (operator: "if it only works
   in preview the app is a brick"); UI proof is now the real pathways only (`npm run test:human`
   + `:sweep`, or a live Claude session), never a fixture player (from delete-preview-harness)
