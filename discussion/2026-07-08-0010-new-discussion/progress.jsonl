@@ -20,3 +20,9 @@
 {"at":"2026-07-08T05:18:50.393Z","source":"hook:Stop","note":"Claude finished a turn","tokens":{"input":905,"output":4912}}
 {"at":"2026-07-08T05:18:52.257Z","source":"hook:SubagentStop","note":"a subagent finished"}
 {"at":"2026-07-08T05:22:06.895Z","source":"hook:SubagentStop","note":"a subagent finished"}
+{"at":"2026-07-08T05:34:21.471Z","source":"hook:PostToolUse","note":"used mcp__visual-brainstorm__open_studio"}
+{"at":"2026-07-08T05:35:27.801Z","source":"hook:Stop","note":"Claude finished a turn","tokens":{"input":425,"output":26295}}
+{"at":"2026-07-08T05:38:34.055Z","source":"hook:SubagentStop","note":"a subagent finished"}
+{"at":"2026-07-08T06:03:43.383Z","source":"hook:PostToolUse","note":"used mcp__visual-brainstorm__open_studio"}
+{"at":"2026-07-08T06:06:31.632Z","source":"hook:Stop","note":"Claude finished a turn","tokens":{"input":914,"output":66688}}
+{"at":"2026-07-08T06:09:35.207Z","source":"hook:SubagentStop","note":"a subagent finished"}
