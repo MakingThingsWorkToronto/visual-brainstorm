@@ -1,7 +1,10 @@
 # Plan — Sweep-commit the shared working tree (multi-plan convergence)
 
 **Slug:** sweep-convergence-2026-07-09
-**Status:** in progress
+**Status:** closed — swept in commit `0dc483a` (2026-07-09): live tree verified green
+(build, test:unit 217/217, smoke PASS), staged `git add -A` (106 files, no deletions,
+index==worktree so the earlier snapshot-verify race is moot with all peer sessions ended),
+committed with per-plan attribution, pushed FF to origin/main.
 **Owner:** operator-authorized sweep ("commit and push it is ok if you sweep", 2026-07-09).
 
 ## Context

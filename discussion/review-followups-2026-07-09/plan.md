@@ -1,5 +1,13 @@
 # Plan — Verified review findings backlog (2026-07-09)
 
+## Session handoff — RESOLVED 2026-07-09
+
+The blocked closeout commit below landed via the operator-authorized sweep
+(`0dc483a`, sweep-convergence-2026-07-09, now archived): the tree was verified
+green (build, unit 217/217, smoke PASS) and committed whole with per-plan
+attribution. Nothing in this section remains actionable; the backlog below is
+the live work.
+
 ## Session handoff (2026-07-09, session ended at context limit)
 
 The photo-scribble-annotation + scribble-legibility closeout is DONE except the commit:
