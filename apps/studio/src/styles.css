@@ -8,6 +8,17 @@
   --color-ink: var(--ink);
   --color-ink-dim: var(--ink-dim);
   --color-accent: var(--accent);
+
+  /* Every box/card/button/input corner is a uniform 5px. rounded-full is left
+     alone so pills, status dots, and avatars stay circular. */
+  --radius-xs: 5px;
+  --radius-sm: 5px;
+  --radius-md: 5px;
+  --radius-lg: 5px;
+  --radius-xl: 5px;
+  --radius-2xl: 5px;
+  --radius-3xl: 5px;
+  --radius-4xl: 5px;
 }
 
 /* Defaults = built-in "neon-purple" theme; the theme system overrides these
@@ -119,12 +130,13 @@ body {
   filter: blur(48px);
   will-change: transform;
   background:
-    radial-gradient(38% 42% at 24% 30%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
-    radial-gradient(30% 38% at 78% 22%, color-mix(in srgb, var(--accent) 18%, var(--surface-2)), transparent 72%),
-    radial-gradient(44% 48% at 62% 80%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 74%);
+    radial-gradient(38% 42% at 24% 30%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%),
+    radial-gradient(30% 38% at 78% 22%, color-mix(in srgb, var(--accent) 9%, var(--surface-2)), transparent 72%),
+    radial-gradient(44% 48% at 62% 80%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 74%);
 }
-.app-aurora::before { animation: aurora-drift-a 31s ease-in-out infinite; }
-.app-aurora::after  { animation: aurora-drift-b 43s ease-in-out infinite; opacity: 0.65; }
+/* ~3× faster than the original 31s/43s so the drift is apparent, not ambient. */
+.app-aurora::before { animation: aurora-drift-a 10s ease-in-out infinite; opacity: 0.7; }
+.app-aurora::after  { animation: aurora-drift-b 13s ease-in-out infinite; opacity: 0.4; }
 @keyframes aurora-drift-a {
   0%   { transform: translate3d(-5%, -2%, 0) rotate(0deg) scale(1.05); }
   33%  { transform: translate3d(6%, 5%, 0) rotate(5deg) scale(1.18); }
@@ -144,8 +156,8 @@ body {
 .bg-surface,
 .bg-surface-2 {
   background-image:
-    linear-gradient(180deg, color-mix(in srgb, white 12%, transparent) 0%, transparent 46%),
-    linear-gradient(120deg, transparent 55%, color-mix(in srgb, var(--accent) 7%, transparent) 100%);
+    linear-gradient(180deg, color-mix(in srgb, white 6%, transparent) 0%, transparent 18%),
+    linear-gradient(120deg, transparent 72%, color-mix(in srgb, var(--accent) 4%, transparent) 100%);
 }
 
 /* Left-nav edge glow — a bright point traverses the nav's border like a star
