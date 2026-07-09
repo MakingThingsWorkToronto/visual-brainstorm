@@ -1,5 +1,16 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — human sims must wait for the LAZY-LOADED engine instance, not its container
+
+- **The trap:** `MindElixir` ships as a lazy Vite chunk, so `[data-testid="mindmap-engine"]`
+  (and the maximize button) render BEFORE `(container).mind` exists. A sim step that samples
+  `.mind` once — after only waiting for the container — flakes under machine load (three
+  concurrent sessions): "no engine instance on the container", red suite, green on re-run.
+- **How to apply:** any journey step that drives a lazily-mounted engine waits for the
+  INSTANCE (`waitInPage('...', "!!el?.mind")`), never just the container/testids around it.
+  Also: `npm test 2>&1 | tail` reports TAIL's exit code — check `PIPESTATUS[0]` (or don't
+  pipe) before believing a green.
+
 ## 2026-07-09 — a NEW artifact KIND must be routed in every command that handles artifacts generically
 
 - **The trap:** the mindmap snapshot became a new KIND of artifact (provenance `boardId` +

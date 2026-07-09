@@ -136,6 +136,13 @@ if (browsers.length === 0) {
     await step('a REAL engine edit lands on the canvas (mind-elixir addChild, no fabrication)', async () => {
       // The canvas exposes its live instance on the engine container (interop
       // convention) — drive the GENUINE engine→onEdit path, never a fake response.
+      // MindElixir is a lazy chunk: the container (and maximize button) render
+      // before the instance lands, so wait for .mind rather than sampling once.
+      await waitInPage(
+        'the live engine instance on the container',
+        `!!document.querySelector('[data-testid="mindmap-engine"]')?.mind`,
+        15_000,
+      );
       const added = await evaluate(
         `(async () => {
           const mind = document.querySelector('[data-testid="mindmap-engine"]')?.mind;

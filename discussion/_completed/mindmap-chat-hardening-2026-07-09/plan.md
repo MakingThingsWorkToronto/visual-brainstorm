@@ -1,7 +1,7 @@
 # Plan — Mind-map review: harden the chat-iteration loop end to end
 
 **Slug:** mindmap-chat-hardening-2026-07-09
-**Status:** in progress
+**Status:** closed
 
 ## Operator ask (2026-07-09)
 
@@ -98,3 +98,11 @@ GAPS FOUND:
     `git commit --only` the residue (this plan folder + any of the files above whose
     diffs did not ride the peer commit — check `git diff --cached --name-status` FIRST,
     per plan-closeout step 10), push. No code work remains.
+- 2026-07-09 (resume) — peer wave LANDED (0dc483a sweep-convergence rider-committed this
+  plan's implementation + docs; HEAD e638600 at resume). Full `npm run build` green.
+  `npm test` chain green through boardchat; mindchat step 3 flaked ONCE under three
+  concurrent sessions ("no engine instance on the container") — root cause: MindElixir is
+  a lazy chunk, the container renders before `.mind` lands, and the step sampled once.
+  HARDENED: step 3 now waits for the instance (`waitInPage` on `.mind`, 15s). Re-runs
+  PASS 5/5 twice (pre- and post-hardening). Learnings entry added (lazy-engine wait +
+  PIPESTATUS false-green). Plan closed, archived to `_completed/`.
