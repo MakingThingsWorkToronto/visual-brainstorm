@@ -45,9 +45,14 @@ done/skipped-with-reason.
   - **Harness parity is conditional but mandatory when touched.** If this plan changed an
     authoritative workflow entry point, `.claude` command/skill/agent contract,
     `packages/protocol` shape, or user-facing harness behavior, reconcile the supported
-    harness adapters in the same cycle (today `.github/` for GitHub Copilot; future
-    registered harness layers when they are real) so comparable results remain achievable
-    across harnesses. If a surface is intentionally unadapted in a supported harness, record
+    harness adapters in the same cycle (`.github/` for GitHub Copilot, `.codex/` +
+    `.agents/skills/` for Codex, `.cursor/` for Cursor) so comparable results remain
+    achievable across harnesses. Adapter wrappers are THIN POINTERS to the authoritative
+    `.claude` files — a wrapper carrying a copied body is drift even when every reference
+    in it resolves (it passes broken-reference checks while silently forking the living
+    document; bit us with three Codex TOMLs). The deterministic guards
+    (`npm run check:copilot-parity`, `npm run check:codex-parity`) must be green. If a
+    surface is intentionally unadapted in a supported harness, record
     that in the harness exclusion mechanism so parity checks stay signalful. If nothing
     adapter-visible changed, explicitly skip this with reason.
 5. **Update the wiki** — any fact or guardrail established by this plan moves to the
@@ -134,6 +139,9 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 4: adapter wrappers are thin pointers — a copied body is drift even when
+  all references resolve; named the real adapter layers (.github/.codex+.agents/skills/.cursor)
+  and required the parity guards green (from codex-layer-review-2026-07-09)
 - 2026-07-09 — step 10: empty-commit exit is a race signal (peer catch-all commit consumed
   the staged index) — re-attribute against HEAD, push their stranded commit; never
   double-dispatch a closeout to two chats (from token-economy fresh-eyes closeout)

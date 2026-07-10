@@ -239,7 +239,7 @@ export function hookPaths(payload) {
   return [...paths];
 }
 
-function workspaceRelativePath(filePath, root = ROOT) {
+export function workspaceRelativePath(filePath, root = ROOT) {
   let candidate = String(filePath).trim();
   if (!candidate) return null;
   if (/^file:/i.test(candidate)) {

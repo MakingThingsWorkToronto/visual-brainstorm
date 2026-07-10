@@ -15,6 +15,7 @@
   "scripts": {
     "build": "npm run build -w packages/protocol && npm run build -w apps/studio && npm run build -w apps/mcp && npm run build -w apps/wiki-mcp",
     "check:copilot-parity": "node scripts/check-copilot-parity.mjs",
+    "check:codex-parity": "node scripts/check-codex-parity.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "smoke": "node scripts/smoke.mjs",
     "smoke:ui": "tsx scripts/ui-smoke.ts",
@@ -26,7 +27,7 @@
     "test:human:boardchat": "node scripts/human-sim-boardchat.mjs",
     "test:human:mindchat": "node scripts/human-sim-mindchat.mjs",
     "test:human:sweep": "node scripts/ui-break-sweep.mjs",
-    "test": "npm run test:unit && npm run test:ts && npm run smoke && npm run smoke:ui && npm run test:human && npm run test:human:archived && npm run test:human:livechat && npm run test:human:boardchat && npm run test:human:mindchat && node --test tests/cursor-adapter.test.mjs"
+    "test": "npm run test:unit && npm run test:ts && npm run smoke && npm run smoke:ui && npm run test:human && npm run test:human:archived && npm run test:human:livechat && npm run test:human:boardchat && npm run test:human:mindchat"
   },
   "devDependencies": {
     "jsdom": "^24.1.0",

@@ -50,6 +50,7 @@ test('Codex hooks do not depend on Claude-specific environment variables', () =>
   assert.doesNotMatch(hooks, /CLAUDE_PROJECT_DIR/);
   assert.match(hooks, /node scripts\/pipe-progress\.mjs/);
   assert.match(hooks, /node scripts\/check-agentic-surface\.mjs --hook/);
+  assert.match(hooks, /node scripts\/check-codex-parity\.mjs --hook/);
 });
 
 test('Codex agents wrap the authoritative Claude agents without dead .Codex paths', () => {
@@ -67,7 +68,16 @@ test('Codex agents wrap the authoritative Claude agents without dead .Codex path
     const text = readText(path.join(CODEX_AGENTS_DIR, `${agent}.toml`));
     assert.doesNotMatch(text, /\.Codex\//, `${agent} must not reference nonexistent .Codex paths`);
     assert.match(text, new RegExp(`name = "${agent}"`), `${agent} declares its stable name`);
+    assert.ok(
+      text.includes(`.claude/agents/${agent}.md`),
+      `${agent} points back to its authoritative .claude/agents file (thin pointer wrapper, not a copied body)`,
+    );
   }
+});
+
+test('Codex parity guard reports a clean adapter', async () => {
+  const { checkCodexParity } = await import('../scripts/check-codex-parity.mjs');
+  assert.deepEqual(checkCodexParity(ROOT).errors, []);
 });
 
 test('Codex skills mirror the authoritative Claude skills exactly', () => {

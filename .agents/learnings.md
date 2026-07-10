@@ -1,5 +1,31 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — a harness adapter with a COPIED BODY passes every broken-reference check while being the core violation
+
+- **The trap:** the Codex agent TOMLs passed the adapter test (roster match, no dead
+  `.Codex/` paths, no `CLAUDE_*` env vars) yet three of five were verbatim copies of the
+  `.claude/agents/*.md` bodies — including a living changelog that would silently drift the
+  next time a closeout improved the authoritative file. Drift checks aimed at broken
+  references can't see duplicated workflow logic; the copy is "valid" on every syntactic
+  axis.
+- **How to apply:** adapter reviews must assert the POINTER, not just the absence of bad
+  references: every wrapper must contain a reference to its authoritative source file
+  (guard-enforced now — `check-codex-parity.mjs` requires `.claude/agents/<name>.md` in
+  each TOML), and a wrapper longer than a bootstrap list is a smell. Same discipline as
+  the `.github/agents/*.agent.md` wrappers ("Read [authoritative files]… use as
+  authoritative").
+
+## 2026-07-09 — a newly wired PostToolUse guard goes live IMMEDIATELY in the session that wires it
+
+- **The trap:** seconds after adding `check-codex-parity --hook` to `.claude/settings.json`,
+  the very next Edit in the same session fired the guard — which correctly flagged the wiki
+  page that hadn't been updated yet. Mid-build, a doc-asserting guard reports "errors" that
+  are really just build-order.
+- **How to apply:** when landing a guard that asserts docs/content, land its required
+  content in the same cycle and expect (don't panic at) hook errors between the wiring edit
+  and the content edit — they're PostToolUse advisories, not blockers, and each one is the
+  guard proving it works. Wire the hook late in the sequence if the noise bothers you.
+
 ## 2026-07-09 — a peer's catch-all commit can CONSUME your staged index between your `git add` and `git commit`
 
 - **The trap:** in the shared tree, a limit-hit peer ran a catch-all `git commit` ("all

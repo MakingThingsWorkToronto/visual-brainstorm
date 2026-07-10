@@ -38,3 +38,14 @@ this file instead of copying a competing policy. The Copilot parity guard runs a
 these source files or Copilot-owned configuration and rejects a broken adapter. A GitHub-hosted
 runner can start the stdio servers but cannot expose its `127.0.0.1` studio to the human; report
 that limitation and route interactive brainstorms through local VS Code Copilot Chat.
+
+## 8. Codex Parity
+Codex reads this file plus the trusted-project config under `.codex/`: `.codex/config.toml`
+registers the same two stdio MCP servers as `.mcp.json`, and `.codex/hooks.json` mirrors the
+Claude hooks with Codex-safe commands (no `CLAUDE_*` environment variables).
+`.codex/agents/*.toml` are thin pointer wrappers over the five authoritative `.claude/agents`
+personas — they carry no workflow logic and point back to `.claude/commands` for procedures;
+`.agents/skills/` mirrors `.claude/skills/` byte-for-byte so Codex discovers the same craft.
+`.claude/` stays the workflow source of truth: Codex gets no separate command copies. The Codex
+parity guard (`npm run check:codex-parity`, hooked after file edits on both harnesses) and
+`tests/codex-adapter.test.mjs` reject a drifted adapter. Docs: `wiki/System/harness-codex.md`.
