@@ -1,0 +1,75 @@
+name: Agent Issue Format
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  agent-issue-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Validate agent issue format
+        id: validate
+        continue-on-error: true
+        run: node scripts/check-agent-format.mjs issue "$GITHUB_EVENT_PATH"
+      - name: Flag invalid format
+        if: steps.validate.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const label = 'agent:invalid-format';
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: label });
+            } catch {
+              await github.rest.issues.createLabel({
+                owner, repo, name: label, color: 'B60205',
+                description: 'Body does not match the agent task format',
+              });
+            }
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [label] });
+            const marker = '<!-- agent-format-check -->';
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            if (!comments.some((c) => c.body?.includes(marker))) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: [
+                  marker,
+                  'This issue does not match the agent task format (see the failed **Agent Issue Format** check for the exact violations).',
+                  '',
+                  'Fix: edit the issue body to the template in `.github/ISSUE_TEMPLATE/agent-task.yml` — keep the prompt prefix byte-identical and fill only the payload below the `---` marker. The check re-runs on edit.',
+                ].join('\n'),
+              });
+            }
+      - name: Clear invalid flag
+        if: steps.validate.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            try {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'agent:invalid-format' });
+            } catch {}
+            const marker = '<!-- agent-format-check -->';
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            for (const c of comments) {
+              if (c.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({ owner, repo, comment_id: c.id });
+              }
+            }
+      - name: Fail on invalid format
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
