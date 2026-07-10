@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,77 +10,15 @@ import {
   shouldCheckHook,
 } from '../scripts/check-copilot-parity.mjs';
 import { parseHookPayload, planHookActions } from '../scripts/copilot-hook.mjs';
+import { initializeThenRequest } from './lib/mcp-stdio.mjs';
 
 const ROOT = process.cwd();
 
-function initializeThenRequest(command, args, cwd, request, env = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-    // 15s, not 5s: a cold node spawn + MCP handshake takes >5s under concurrent
-    // sessions' load (observed 6.9s standalone) — 5s flaked in full-suite runs.
-    const timer = setTimeout(() => finish(new Error(`MCP initialize timed out for ${args.join(' ')}`)), 15_000);
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-
-    const finish = (error, result) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.kill();
-      if (error) reject(error);
-      else resolve(result);
-    };
-
-    child.once('error', (error) => finish(error));
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk;
-    });
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk;
-      const lines = stdout.split('\n');
-      stdout = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const message = JSON.parse(line);
-          if (message.id === 1 && message.result) {
-            child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
-            child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: request.method, params: request.params }) + '\n');
-            continue;
-          }
-          if (message.id === 1 && message.error) return finish(new Error(JSON.stringify(message.error)));
-          if (message.id === 2 && message.result) return finish(null, message.result);
-          if (message.id === 2 && message.error) return finish(new Error(JSON.stringify(message.error)));
-        } catch {
-          finish(new Error(`Invalid MCP stdout from ${args.join(' ')}: ${line}\n${stderr}`));
-        }
-      }
-    });
-    child.stdin.write(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: { name: 'copilot-mcp-contract-test', version: '1.0.0' },
-        },
-      }) + '\n',
-    );
-  });
-}
-
 function initializeAndListTools(command, args, cwd, env) {
-  return initializeThenRequest(command, args, cwd, { method: 'tools/list', params: {} }, env).then((result) => result.tools);
+  return initializeThenRequest(command, args, cwd, { method: 'tools/list', params: {} }, {
+    env,
+    clientName: 'copilot-mcp-contract-test',
+  }).then((result) => result.tools);
 }
 
 test('GitHub Copilot MCP manifests, agents, hooks, and authority mirror are in parity', () => {
@@ -135,7 +73,7 @@ test('GitHub-hosted product MCP refuses every runner-local interactive studio to
       server.args,
       ROOT,
       { method: 'tools/call', params: call },
-      server.env,
+      { env: server.env, clientName: 'copilot-mcp-contract-test' },
     );
     const response = JSON.parse(result.content[0].text);
     assert.equal(response.status, 'unsupported-host', `${call.name} is refused before bridge startup`);
@@ -147,7 +85,13 @@ test('Copilot mirror guard only evaluates authority or adapter changes', () => {
   assert.equal(shouldCheckHook({ tool_input: { filePath: 'apps/mcp/src/index.ts' } }), false);
   assert.equal(shouldCheckHook({ tool_input: { filePath: 'CLAUDE.md' } }), true);
   assert.equal(shouldCheckHook({ tool_input: { filePath: 'claude.md' } }), true);
-  assert.equal(shouldCheckHook({ tool_input: { filePath: 'C:\\Code\\svgbrainstorm\\AGENTS.md' } }), true);
+  // Absolute paths derive from the ACTUAL checkout root — a literal
+  // C:\Code\svgbrainstorm coupling failed on any other machine, including the
+  // ubuntu runner this same repo's copilot-setup-steps workflow uses. On POSIX
+  // this also covers the drive-letter guard fix (a rooted /… in-workspace path
+  // must still be relevant).
+  assert.equal(shouldCheckHook({ tool_input: { filePath: path.join(ROOT, 'AGENTS.md') } }), true);
+  assert.equal(shouldCheckHook({ tool_input: { filePath: path.resolve(ROOT, '..', 'vibr-outside', 'AGENTS.md') } }), false);
   assert.equal(shouldCheckHook({ tool_input: { filePath: 'C:\\outside\\AGENTS.md' } }), false);
   assert.equal(shouldCheckHook({ tool_input: { filePath: 'apps/wiki-mcp/CLAUDE.md' } }), false);
   assert.equal(shouldCheckHook({ tool_input: { filePaths: ['.vscode/mcp.json'] } }), true);

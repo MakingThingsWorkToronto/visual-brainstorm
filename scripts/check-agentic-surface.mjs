@@ -124,7 +124,7 @@ function listSkillDirs(dir) {
     .filter((d) => statSync(join(dir, d)).isDirectory() && existsSync(join(dir, d, 'SKILL.md')))
     .map((d) => ({ name: d, path: `.claude/skills/${d}/SKILL.md` }));
 }
-function globMatch(pattern, name) {
+export function globMatch(pattern, name) {
   const re = new RegExp('^' + pattern.split('*').map(escapeRe).join('.*') + '$');
   return re.test(name);
 }

@@ -8,10 +8,15 @@ workflow system. Project Cursor configuration lives in `.cursor/`; workflow logi
 window so `.cursor/mcp.json` loads. The always-on rule `.cursor/rules/visual-brainstorm.mdc`
 carries bootstrap + routing. Type `/` in Agent chat to reach slash commands.
 
-| MCP server | Command | Working directory |
-|---|---|---|
-| `visual-brainstorm` | `node apps/mcp/dist/index.js` | `${workspaceFolder}` |
-| `visual-brainstorm-wiki` | `node apps/wiki-mcp/dist/index.js` | `${workspaceFolder}` |
+| MCP server | Entry point |
+|---|---|
+| `visual-brainstorm` | `${workspaceFolder}/apps/mcp/dist/index.js` (with `env: { VIBR_HOME: "${workspaceFolder}/discussion" }`) |
+| `visual-brainstorm-wiki` | `${workspaceFolder}/apps/wiki-mcp/dist/index.js` |
+
+Cursor's `mcp.json` does not support a `cwd` key, so entry paths are workspace-absolute in `args` and the product
+server's discussion root is pinned via the `VIBR_HOME` environment variable (read by the server at spawn time). Note:
+`visual-brainstorm.config.json` (styles/theme/models/targetRepo) is resolved from the server's spawn cwd, which Cursor
+does not guarantee — if custom config seems ignored, that is why (the discussion root itself is safe via VIBR_HOME).
 
 ## Slash commands → procedures (13 of 17 adapted)
 
@@ -56,15 +61,18 @@ defined in `.claude/agents/*.md`:
 
 | Event | Command |
 |---|---|
-| `postToolUse` on Task / visual-brainstorm MCP | `node scripts/pipe-progress.mjs` |
-| `postToolUse` on file edits | `node scripts/check-agentic-surface.mjs --hook` |
+| `postToolUse` on `Task\|MCP:present_board\|MCP:present_gallery\|MCP:capture_artifact\|MCP:ask_concierge\|MCP:compose_poster\|MCP:load_discussion` | `node scripts/pipe-progress.mjs` |
+| `afterFileEdit` (every file edit) | `node scripts/check-agentic-surface.mjs --hook` |
 | `subagentStop` / `stop` | `node scripts/pipe-progress.mjs` |
 
 ## Coverage honesty
 
 The repo proves Cursor adapter consistency with `tests/cursor-adapter.test.mjs`: MCP config
 starts from the project root, hooks are not Claude-specific, commands map to the authoritative
-registry, and both stdio servers initialize with the expected tool inventories.
+registry, both stdio servers initialize with the expected tool inventories, tests assert
+Cursor-native matcher syntax (no spaced MCP matcher, `afterFileEdit` present), the manifest's
+workspace-absolute args + no `cwd` key + `VIBR_HOME` pin, and the command-exclusion filter reads
+the registry's `exclusions.cursor` block via the authoritative `globMatch`.
 
 Cursor does not get separate copies of `.claude/commands`; agents read and execute those
 plain-file procedures. That is intentional: `.claude/` remains the behavioral SSOT.

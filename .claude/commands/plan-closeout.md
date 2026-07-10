@@ -51,7 +51,11 @@ done/skipped-with-reason.
     `.claude` files — a wrapper carrying a copied body is drift even when every reference
     in it resolves (it passes broken-reference checks while silently forking the living
     document; bit us with three Codex TOMLs). The deterministic guards
-    (`npm run check:copilot-parity`, `npm run check:codex-parity`) must be green. If a
+    (`npm run check:copilot-parity`, `npm run check:codex-parity`) must be green. A
+    third-party harness's config keys/enums are verified against ITS official docs, never
+    assumed Claude-shaped (bit us: Cursor has no mcp.json `cwd` key and its hook matcher
+    is `MCP:<tool_name>`, not `MCP: <server>`), and a per-harness registry exclusions
+    block is only real once that harness's own check reads it. If a
     surface is intentionally unadapted in a supported harness, record
     that in the harness exclusion mechanism so parity checks stay signalful. If nothing
     adapter-visible changed, explicitly skip this with reason.
@@ -139,6 +143,9 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 4: harness configs are doc-verified against the harness's own schema
+  (Cursor: no cwd key, MCP:<tool> matchers) and registry exclusions blocks need a reading
+  consumer in the same edit (from copilot-mcp-parity-2026-07-09 crash-resume review)
 - 2026-07-09 — step 4: adapter wrappers are thin pointers — a copied body is drift even when
   all references resolve; named the real adapter layers (.github/.codex+.agents/skills/.cursor)
   and required the parity guards green (from codex-layer-review-2026-07-09)

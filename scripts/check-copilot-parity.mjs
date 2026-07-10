@@ -103,6 +103,8 @@ function checkAgentMcp(root, errors) {
     }
     if (frontmatter[1].includes('\t')) errors.push(`${agentName} frontmatter must not contain tab indentation.`);
     if (!agent.includes('mcp-servers:')) errors.push(`${agentName} must declare GitHub Copilot MCP servers.`);
+    // Single-line inline-array form ONLY (`tools: [a, b]`): a block-style YAML
+    // list parses as [] and false-fails parity — keep agent frontmatter inline.
     const topLevelTools = (frontmatter[1].match(/^tools:\s*\[([^\]]*)\]$/m)?.[1] ?? '')
       .split(',')
       .map((value) => value.trim())
@@ -180,7 +182,6 @@ function checkWorkflow(root, errors) {
     'npm run check:copilot-parity',
     'node --test tests/copilot-mcp.test.mjs',
     'node --test tests/copilot-adapter.test.mjs',
-    'tests/copilot-adapter.test.mjs',
   ]) {
     if (!workflow.includes(required)) errors.push(`Copilot setup workflow must include ${required}.`);
   }
@@ -249,7 +250,11 @@ export function workspaceRelativePath(filePath, root = ROOT) {
       return null;
     }
   }
-  if (path.win32.isAbsolute(candidate) && process.platform !== 'win32') return null;
+  // Filter WINDOWS-shaped absolutes (drive letter / UNC) on POSIX hosts only.
+  // NOT path.win32.isAbsolute: that treats rooted /home/… paths as win32-absolute
+  // too, which silently skipped EVERY absolute path on the Linux/macOS hosts the
+  // hosted-Copilot guard targets.
+  if (/^([A-Za-z]:[\\/]|\\\\)/.test(candidate) && process.platform !== 'win32') return null;
   const absolute = path.isAbsolute(candidate) || path.win32.isAbsolute(candidate)
     ? path.resolve(candidate)
     : path.resolve(root, candidate);

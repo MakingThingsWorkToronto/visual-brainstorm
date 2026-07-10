@@ -1,5 +1,71 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — `path.win32.isAbsolute` calls rooted POSIX paths absolute; guards built on it null EVERYTHING on Linux
+
+- **The trap:** `path.win32.isAbsolute('/home/runner/x')` is `true` (a rooted path is
+  win32-absolute), so a "skip Windows-shaped paths on POSIX" guard written with it skipped
+  every absolute path on the Linux/macOS hosts it was protecting — the hosted-Copilot
+  parity hook silently never ran there. The sibling test hid it by asserting a literal
+  `C:\Code\svgbrainstorm\…` path, which only passes on this one machine and would have
+  failed the repo's own ubuntu CI workflow.
+- **How to apply:** to detect Windows-shaped paths use a drive-letter/UNC regex
+  (`/^([A-Za-z]:[\\/]|\\\\)/`), never `path.win32.isAbsolute`. Tests never hardcode a
+  machine's checkout root — derive absolute fixtures from `ROOT` so they hold on any OS
+  and any clone path (`tests/copilot-mcp.test.mjs` mirror-guard test is the pattern).
+
+## 2026-07-09 — a third-party harness config is written against ITS documented schema, not assumed Claude-shaped
+
+- **The trap:** `.cursor/mcp.json` used a `cwd` key (a VS Code convention Cursor does not
+  support — spawn cwd is unspecified, so workspace-relative entries and cwd-resolved config
+  break), and `.cursor/hooks.json` used a `"MCP: <server>"` matcher (Cursor's syntax is
+  `MCP:<tool_name>`, no space, per-tool) and a `StrReplace` tool type that doesn't exist
+  (file edits belong on `afterFileEdit`). All of it passed the adapter test, which only
+  grepped for strings — a hooks file that never fires is a brick with green tests.
+- **How to apply:** when building a harness adapter, verify every config key and enum
+  against the harness's OFFICIAL docs (cursor.com/docs/hooks + /context/mcp) and encode the
+  verified facts as test assertions (no unsupported keys, native matcher syntax, correct
+  event names). Pin cwd-dependent behavior explicitly: `${workspaceFolder}`-interpolated
+  absolute args + `VIBR_HOME` env for the discussion root.
+
+## 2026-07-09 — crash-resume review of "implementation complete" found 6 confirmed defects; per-harness registry blocks must be read by that harness's checks
+
+- **The trap:** the copilot/cursor parity commits self-reported focused validation green,
+  yet a verify pass confirmed: the POSIX guard hole, a CI-breaking machine-coupled test,
+  wrong Cursor matcher syntax + unsupported cwd key, an `exclusions.cursor` registry block
+  that NO check read (the cursor test filtered by `exclusions.copilot` — dead config from
+  birth), a demo printing `✓ … 0 hits` because it read `.hits` from a `{results, count}`
+  response, and a third hand-rolled MCP stdio client whose missing error/exit handlers hid
+  a dead child for 30s.
+- **How to apply:** plan-closeout step 2's crash-resume review is mandatory, not
+  ceremonial. When adding a per-harness block to the surface registry, wire the consumer in
+  the same edit (a config nothing reads is drift bait). Demo/probe scripts must read the
+  REAL response shape and exit nonzero on empty results. MCP stdio probes live in
+  `tests/lib/mcp-stdio.mjs` (one copy; 30s ceiling — 15s flaked under multi-session load).
+
+## 2026-07-09 — deduping a delta stream: a per-delta unique id can't kill overlap re-posts; claim CUMULATIVE POSITION instead
+
+- **The trap:** the token pipe double-counted via two mechanisms — two hooks racing one
+  read-modify-write cursor, and a slow accept (>1.5s abort) re-covered by the NEXT event.
+  The obvious fixes each miss one: a lock file serializes the race but can't dedupe a
+  re-post (the re-post is a NEW, larger delta, so a per-delta unique idempotency key never
+  matches); commit-before-post kills re-posts but silently LOSES deltas on failed posts.
+- **How to apply:** have each delta claim the cumulative position it ran up to (here:
+  `tokenCursor` = cursor id + generation + cumulative transcript totals) and keep a
+  per-cursor high-water mark receiver-side that clamps to the un-accounted remainder —
+  races, re-posts, and even cursor-file loss all collapse to "count the window once".
+  Rebasing sources (transcript compaction) need a GENERATION bump so the mark resets
+  instead of eating real usage. The sender stays lock-free and dumb (hook safety).
+
+## 2026-07-09 — SessionStore.open() bypasses field initializers: a new private field is `undefined` on every reloaded store
+
+- **The trap:** `open()` builds the store with `Object.create(SessionStore.prototype)` +
+  `Object.assign` — class field initializers NEVER run on that path. A new field
+  initialized at the declaration (`private cursorHighWater = new Map()`) is fine on `new`
+  threads but `undefined` on every reopened one; the first post-reload method call throws
+  (or worse, optional-chains into silent no-ops).
+- **How to apply:** any new SessionStore field must ALSO be added to `open()`'s
+  `Object.assign` block, and reload-path behavior needs its own test (the ledger-survives-
+  reload test caught nothing only because the field was added to both places up front).
 ## 2026-07-09 — a harness adapter with a COPIED BODY passes every broken-reference check while being the core violation
 
 - **The trap:** the Codex agent TOMLs passed the adapter test (roster match, no dead

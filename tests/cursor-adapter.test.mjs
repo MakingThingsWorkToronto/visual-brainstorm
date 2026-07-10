@@ -1,10 +1,11 @@
-import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { COPILOT_SERVER_SPECS } from '../scripts/check-copilot-parity.mjs';
+import { globMatch } from '../scripts/check-agentic-surface.mjs';
+import { initializeThenRequest } from './lib/mcp-stdio.mjs';
 
 const ROOT = process.cwd();
 const CURSOR_DIR = path.join(ROOT, '.cursor');
@@ -19,84 +20,40 @@ function readJson(filePath) {
   return JSON.parse(readText(filePath));
 }
 
-function initializeThenRequest(command, args, cwd, request) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      env: process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-    const timer = setTimeout(() => finish(new Error(`MCP initialize timed out for ${args.join(' ')}`)), 15_000);
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-
-    const finish = (error, result) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.kill();
-      if (error) reject(error);
-      else resolve(result);
-    };
-
-    child.once('error', (error) => finish(error));
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk;
-      const lines = stdout.split('\n');
-      stdout = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const message = JSON.parse(line);
-          if (message.id === 1 && message.result) {
-            child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
-            child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: request.method, params: request.params }) + '\n');
-            continue;
-          }
-          if (message.id === 1 && message.error) return finish(new Error(JSON.stringify(message.error)));
-          if (message.id === 2 && message.result) return finish(null, message.result);
-          if (message.id === 2 && message.error) return finish(new Error(JSON.stringify(message.error)));
-        } catch {
-          finish(new Error(`Invalid MCP stdout from ${args.join(' ')}: ${line}\n${stderr}`));
-        }
-      }
-    });
-    child.stdin.write(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: { name: 'cursor-adapter-test', version: '1.0.0' },
-        },
-      }) + '\n',
-    );
-  });
-}
-
-test('Cursor MCP manifest starts repo servers from the project root', () => {
+test('Cursor MCP manifest resolves both servers workspace-absolutely (no unsupported cwd key)', () => {
   const manifest = readJson(path.join(CURSOR_DIR, 'mcp.json'));
   for (const [name, spec] of Object.entries(COPILOT_SERVER_SPECS)) {
     const server = manifest.mcpServers?.[name];
     assert.ok(server, `.cursor/mcp.json declares ${name}`);
+    assert.equal(server.type, 'stdio', `${name} is stdio`);
     assert.equal(server.command, 'node', `${name} uses node`);
-    assert.deepEqual(server.args, [spec.entry], `${name} uses ${spec.entry}`);
-    assert.equal(server.cwd, '${workspaceFolder}', `${name} runs from workspace root`);
+    // Cursor's mcp.json supports command/args/env (+ ${workspaceFolder}
+    // interpolation in values) but NOT a cwd key — entry paths must be
+    // interpolated absolute, not workspace-relative-with-cwd.
+    assert.deepEqual(server.args, [`\${workspaceFolder}/${spec.entry}`], `${name} entry is workspace-absolute`);
+    assert.equal(server.cwd, undefined, `${name} does not rely on the unsupported cwd key`);
   }
+  // Spawn cwd is unspecified in Cursor, and the product server resolves its
+  // discussion root from cwd — VIBR_HOME pins it to the workspace.
+  assert.equal(
+    manifest.mcpServers['visual-brainstorm'].env?.VIBR_HOME,
+    '${workspaceFolder}/discussion',
+    'product server pins its discussion root independent of spawn cwd',
+  );
 });
 
-test('Cursor hooks do not depend on Claude-specific environment variables', () => {
+test('Cursor hooks use Cursor-native events and matcher syntax', () => {
   const hooks = readText(path.join(CURSOR_DIR, 'hooks.json'));
   assert.doesNotMatch(hooks, /CLAUDE_PROJECT_DIR/);
   assert.match(hooks, /node scripts\/pipe-progress\.mjs/);
   assert.match(hooks, /node scripts\/check-agentic-surface\.mjs --hook/);
+  // Cursor matcher syntax is MCP:<tool_name> — a spaced "MCP: <server>"
+  // matcher never fires; the edit guard belongs on afterFileEdit (StrReplace
+  // is not a Cursor tool type).
+  assert.doesNotMatch(hooks, /MCP: /, 'no spaced MCP matcher (never matches in Cursor)');
+  assert.doesNotMatch(hooks, /StrReplace/, 'StrReplace is not a Cursor tool type');
+  const parsed = JSON.parse(hooks);
+  assert.ok(Array.isArray(parsed.hooks.afterFileEdit) && parsed.hooks.afterFileEdit.length > 0, 'edit guard runs on afterFileEdit');
 });
 
 test('Cursor commands map to the authoritative registry', () => {
@@ -105,10 +62,7 @@ test('Cursor commands map to the authoritative registry', () => {
   const expectedCommands = claudeRegistry.surfaces
     .filter((s) => s.kind === 'command')
     .map((s) => s.name)
-    .filter((name) => !(claudeRegistry.exclusions?.copilot?.commands ?? []).some((p) => {
-      if (p.includes('*')) return new RegExp(`^${p.replace(/\*/g, '.*')}$`).test(name);
-      return p === name;
-    }))
+    .filter((name) => !(claudeRegistry.exclusions?.cursor?.commands ?? []).some((p) => globMatch(p, name)))
     .sort();
   const cursorCommands = cursorRegistry.commands.map((c) => c.name).sort();
   assert.deepEqual(cursorCommands, expectedCommands);
@@ -127,7 +81,9 @@ test('Cursor agents mirror the authoritative agent roster', () => {
 
 test('Cursor MCP servers initialize with expected tool inventories', async () => {
   for (const [name, spec] of Object.entries(COPILOT_SERVER_SPECS)) {
-    const result = await initializeThenRequest('node', [spec.entry], ROOT, { method: 'tools/list', params: {} });
+    const result = await initializeThenRequest('node', [spec.entry], ROOT, { method: 'tools/list', params: {} }, {
+      clientName: 'cursor-adapter-test',
+    });
     const toolNames = result.tools.map((t) => t.name).sort();
     const expected = [...spec.tools].sort();
     assert.deepEqual(toolNames, expected, `${name} tool inventory`);

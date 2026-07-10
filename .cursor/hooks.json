@@ -3,11 +3,12 @@
   "hooks": {
     "postToolUse": [
       {
-        "matcher": "Task|MCP: visual-brainstorm",
+        "matcher": "Task|MCP:present_board|MCP:present_gallery|MCP:capture_artifact|MCP:ask_concierge|MCP:compose_poster|MCP:load_discussion",
         "command": "node scripts/pipe-progress.mjs"
-      },
+      }
+    ],
+    "afterFileEdit": [
       {
-        "matcher": "Write|StrReplace",
         "command": "node scripts/check-agentic-surface.mjs --hook"
       }
     ],

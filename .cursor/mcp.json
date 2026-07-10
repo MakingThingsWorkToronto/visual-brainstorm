@@ -1,14 +1,15 @@
 {
   "mcpServers": {
     "visual-brainstorm": {
+      "type": "stdio",
       "command": "node",
-      "args": ["apps/mcp/dist/index.js"],
-      "cwd": "${workspaceFolder}"
+      "args": ["${workspaceFolder}/apps/mcp/dist/index.js"],
+      "env": { "VIBR_HOME": "${workspaceFolder}/discussion" }
     },
     "visual-brainstorm-wiki": {
+      "type": "stdio",
       "command": "node",
-      "args": ["apps/wiki-mcp/dist/index.js"],
-      "cwd": "${workspaceFolder}"
+      "args": ["${workspaceFolder}/apps/wiki-mcp/dist/index.js"]
     }
   }
 }
