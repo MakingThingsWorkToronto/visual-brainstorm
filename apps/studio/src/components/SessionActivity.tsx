@@ -8,6 +8,17 @@ function eventTime(at: string): string {
   return Number.isNaN(date.getTime()) ? '--:--:--' : date.toTimeString().slice(0, 8);
 }
 
+/**
+ * Structured stage chip text — "generating 3 of 6" beats a mechanical label.
+ * Absent stage → no chip (legacy events render exactly as before).
+ */
+function stageChip(event: ProgressEvent): string | null {
+  if (!event.stage) return null;
+  return event.sequence
+    ? `${event.stage} ${event.sequence.current} of ${event.sequence.total}`
+    : event.stage;
+}
+
 /** Human labels for the token sinks, in presentation order. */
 const SINK_LABELS: Record<TokenSink, string> = {
   generation: 'Board generation',
@@ -58,7 +69,14 @@ export function SessionActivity({
           Session activity
         </span>
         {!open && latest && (
-          <span className="min-w-0 flex-1 truncate text-ink-dim">{latest.note}</span>
+          <span className="min-w-0 flex-1 truncate text-ink-dim">
+            {stageChip(latest) && (
+              <span className="mr-1.5 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                {stageChip(latest)}
+              </span>
+            )}
+            {latest.note}
+          </span>
         )}
         <span className="ml-auto shrink-0 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] text-ink-dim">
           {events.length}
@@ -101,6 +119,14 @@ export function SessionActivity({
               <span className="shrink-0 rounded-full border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-dim">
                 {event.source}
               </span>
+              {stageChip(event) && (
+                <span
+                  title={event.artifactSlug ?? event.optionId ?? undefined}
+                  className="shrink-0 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent"
+                >
+                  {stageChip(event)}
+                </span>
+              )}
               <span className="min-w-0 flex-1 break-words">{event.note}</span>
               {event.tokens && (
                 <span className="shrink-0 text-[10px] text-ink-dim">

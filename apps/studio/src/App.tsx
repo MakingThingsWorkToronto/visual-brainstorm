@@ -493,6 +493,36 @@ export default function App() {
     }
   }, []);
 
+  // Keep/kill verdict on a captured artifact. A kill closes the viewer — the
+  // shelf shows the live replacement placeholder while Claude regenerates; the
+  // verdict itself returns over WS ('artifact' upsert), disk-truth as always.
+  const sendArtifactVerdict = useCallback(
+    async (artifactSlug: string, verdict: 'keep' | 'kill', note?: string) => {
+      try {
+        const res = await fetch('/api/artifact-verdict', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ artifactSlug, verdict, ...(note ? { note } : {}) }),
+        });
+        const body = await res.json();
+        if (!body.ok) throw new Error(body.error);
+        if (verdict === 'kill') {
+          setFullscreen(null);
+          setCommandStatus(
+            body.delivered === 'via-board-response'
+              ? 'killed — Claude is drawing the replacement'
+              : 'killed — replacement queued for Claude’s next check-in',
+          );
+          setTimeout(() => setCommandStatus(null), 5000);
+        }
+      } catch (err) {
+        setCommandStatus(`verdict failed: ${err instanceof Error ? err.message : err}`);
+        setTimeout(() => setCommandStatus(null), 5000);
+      }
+    },
+    [],
+  );
+
   // Persist artifact notes to the thread folder; the updated artifact returns
   // over WS ('artifact' upsert), so state stays disk-truth.
   const saveArtifactNotes = useCallback(async (artifactSlug: string, notes: string) => {
@@ -693,6 +723,7 @@ export default function App() {
             <WayfinderStrip
               rounds={viewingLive ? state.rounds : archived.rounds}
               artifacts={viewingLive ? state.artifacts : archived.artifacts}
+              pendingReplacements={viewingLive ? state.pendingReplacements : []}
               pinned={pinned}
               activeBoard={viewingLive ? state.activeBoard : null}
               proposal={viewingLive ? proposal : null}
@@ -1001,6 +1032,14 @@ export default function App() {
           pin={
             fullscreen.kind === 'artifact' && viewingLive && fsArtifact
               ? { pinned: pinnedSlugs.includes(fsArtifact.slug), onToggle: () => togglePin(fsArtifact.slug) }
+              : undefined
+          }
+          verdict={
+            fullscreen.kind === 'artifact' && viewingLive && fsArtifact
+              ? {
+                  value: fsArtifact.verdict,
+                  onVerdict: (verdict, note) => sendArtifactVerdict(fsArtifact.slug, verdict, note),
+                }
               : undefined
           }
           onClose={() => setFullscreen(null)}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ArtifactChatMessage, PaletteColor } from '@visual-brainstorm/protocol';
+import type { ArtifactChatMessage, ArtifactVerdict, PaletteColor } from '@visual-brainstorm/protocol';
 import { BodyPortal, SvgPane } from './primitives';
 import { PhotoScribble, renderCompositePng, type ScribbleContent } from './PhotoScribble';
 
@@ -191,6 +191,7 @@ export function ArtifactFullscreen({
   chat,
   annotate,
   pin,
+  verdict,
   onClose,
 }: {
   title: string;
@@ -205,6 +206,12 @@ export function ArtifactFullscreen({
   annotate?: FullscreenAnnotate;
   /** Present → a Pin/Unpin toggle in the header (live captured artifacts). */
   pin?: { pinned: boolean; onToggle: () => void };
+  /**
+   * Present → Keep/Kill verdict controls in the header (live captured
+   * artifacts). Kill asks for a note first — it guides the replacement that
+   * regenerates into this slot.
+   */
+  verdict?: { value?: ArtifactVerdict; onVerdict: (verdict: ArtifactVerdict, note?: string) => void };
   onClose: () => void;
 }) {
   const [scale, setScale] = useState(1);
@@ -221,6 +228,10 @@ export function ArtifactFullscreen({
   const [annotating, setAnnotating] = useState(Boolean(annotate?.value));
   const [annotateBg, setAnnotateBg] = useState<string | null>(annotate?.value?.photo ?? null);
   const [annotateError, setAnnotateError] = useState<string | null>(null);
+  // Kill flow: the button opens a note prompt first — the note is the
+  // regeneration brief ("what should the replacement do differently").
+  const [killPrompt, setKillPrompt] = useState(false);
+  const [killNote, setKillNote] = useState('');
 
   const clamp = (s: number) => Math.min(24, Math.max(0.2, s));
   const reset = () => {
@@ -296,6 +307,50 @@ export function ArtifactFullscreen({
   return (
     <BodyPortal>
       <div className="fixed inset-0 z-50 flex bg-black">
+        {killPrompt && verdict && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70">
+            <form
+              data-testid="fullscreen-kill-form"
+              className="w-full max-w-md rounded-2xl border border-line bg-surface p-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                verdict.onVerdict('kill', killNote.trim() || undefined);
+                setKillPrompt(false);
+              }}
+            >
+              <div className="text-sm font-bold">Kill "{title}"?</div>
+              <p className="mt-1 text-xs text-ink-dim">
+                It disappears from the shelf and a replacement generates in its place. Your note
+                below steers the replacement — say what was wrong or what to try instead.
+              </p>
+              <textarea
+                data-testid="fullscreen-kill-note"
+                value={killNote}
+                onChange={(e) => setKillNote(e.target.value)}
+                placeholder="Why kill it — and what should the replacement do differently?"
+                rows={3}
+                autoFocus
+                className="mt-2 w-full resize-none rounded-xl border border-line bg-surface-2 p-2.5 text-sm outline-none placeholder:text-ink-dim focus:border-accent"
+              />
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setKillPrompt(false)}
+                  className="rounded-lg border border-line px-2.5 py-1 text-xs hover:border-accent"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  data-testid="fullscreen-kill-confirm"
+                  className="rounded-lg bg-red-500/80 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-500"
+                >
+                  ✕ Kill &amp; regenerate
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-2 p-3 text-white">
             <span className="truncate text-sm font-medium">{title}</span>
@@ -326,6 +381,38 @@ export function ArtifactFullscreen({
               >
                 {pin.pinned ? '📌 Pinned' : '📌 Pin'}
               </button>
+            )}
+            {verdict && (
+              <>
+                <button
+                  type="button"
+                  data-testid="fullscreen-keep"
+                  onClick={() => verdict.onVerdict('keep')}
+                  aria-pressed={verdict.value === 'keep'}
+                  title="Keep this artifact — the verdict (and your notes) feeds the next round"
+                  className={`ml-1 rounded-lg px-2 py-0.5 text-xs ${
+                    verdict.value === 'keep'
+                      ? 'bg-emerald-500/40 text-white'
+                      : 'bg-white/10 text-white/80 hover:bg-white/20'
+                  }`}
+                >
+                  {verdict.value === 'keep' ? '✓ Kept' : '✓ Keep'}
+                </button>
+                <button
+                  type="button"
+                  data-testid="fullscreen-kill"
+                  onClick={() => setKillPrompt(true)}
+                  aria-pressed={verdict.value === 'kill'}
+                  title="Kill this artifact — a replacement generates in its place, guided by your note"
+                  className={`rounded-lg px-2 py-0.5 text-xs ${
+                    verdict.value === 'kill'
+                      ? 'bg-red-500/40 text-white'
+                      : 'bg-white/10 text-white/80 hover:bg-white/20'
+                  }`}
+                >
+                  {verdict.value === 'kill' ? '✕ Killed' : '✕ Kill'}
+                </button>
+              </>
             )}
             {annotate && (
               <button
