@@ -1,8 +1,7 @@
 /**
  * Human-simulation harness — the LIVE-thread ARTIFACT-CHAT journey (comprehensive-
  * human-testing mandate, CLAUDE.md rule 10). Sibling to scripts/human-sim.mjs and
- * scripts/human-sim-archived.mjs (same CDP plumbing, same crash discipline, same SKIP
- * convention).
+ * scripts/human-sim-archived.mjs (shared scaffold: scripts/lib/sim-runner.mjs).
  *
  * Proves the operator's 2026-07-09 report — "I submit a message but do NOT see my chat
  * message bubble" — on the REAL path, on the DEFAULT LIVE VIEW (`archived === null`),
@@ -20,113 +19,30 @@
  * responses/iterate.json) — never a hand-built object literal (rule 5/canonical-data
  * convention). Nothing is faked: the studio renders from the real bridge `hello` state and
  * the chat round-trips through the real POST /api/artifact-chat → WS `artifact-chat` envelope.
- *
- * SKIP convention (matches the siblings): no chromium-family browser → loud SKIP, exit 0.
- * Exit discipline: never process.exit() (Windows/libuv learning 2026-07-07).
  */
 import assert from 'node:assert';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
-import { BoardResponseSchema, BoardSchema, ThemeSchema } from '../packages/protocol/dist/index.js';
-import {
-  Cdp,
-  findBrowsers,
-  findPageTarget,
-  killBrowserTree,
-  killProfileStragglers,
-  launchAnyBrowser,
-  makePageHelpers,
-} from './lib/cdp.mjs';
+import { BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
+import { runHumanSim } from './lib/sim-runner.mjs';
 
-const { found: browsers, candidates } = findBrowsers();
-if (browsers.length === 0) {
-  console.log(
-    `HUMAN SIM LIVECHAT SKIP: no chromium-family browser found (looked for: ${candidates.join(', ')})`,
-  );
-} else {
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-human-sim-livechat-'));
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-human-sim-livechat-profile-'));
-  const logLines = [];
-  const exceptions = [];
-  const consoleErrors = [];
-  let bridge = null;
-  let browser = null;
-  let browserName = 'browser';
-  let cdp = null;
-  let currentStep = 'bootstrap';
-  let passed = false;
-
-  // --- seed the LIVE thread (the bridge's bound store) with rounds + a keep ---
-  const liveStore = new SessionStore('Glow mark — a live logo brainstorm', scratch);
-  const board = { ...loadCanonical('boards/diverge.json', BoardSchema), sessionId: liveStore.info.id };
-  liveStore.recordBoard(board);
-  liveStore.recordResponse(loadCanonical('responses/iterate.json', BoardResponseSchema));
-  const artifact = liveStore.captureArtifact('Beta keeper', board.options[0].svg, 'canonical capture', {
-    boardId: board.id,
-    optionIds: ['a'],
-  });
-  assert.ok(fs.existsSync(path.join(liveStore.info.dir, 'artifacts', `${artifact.slug}.svg`)), 'artifact svg seeded on disk');
-
-  try {
-    bridge = new Bridge(liveStore, {
-      discussionRoot: scratch,
-      themes: [loadCanonical('themes/theme.json', ThemeSchema)],
-      theme: 'aurora',
-      models: ['claude-fable-5'],
-      defaultModel: 'claude-fable-5',
-      log: (line) => logLines.push(line),
-      recentLogs: () => logLines.slice(-500),
+await runHumanSim('LIVECHAT', {
+  prepare: ({ scratch }) => {
+    // --- seed the LIVE thread (the bridge's bound store) with rounds + a keep ---
+    const store = new SessionStore('Glow mark — a live logo brainstorm', scratch);
+    const board = { ...loadCanonical('boards/diverge.json', BoardSchema), sessionId: store.info.id };
+    store.recordBoard(board);
+    store.recordResponse(loadCanonical('responses/iterate.json', BoardResponseSchema));
+    const artifact = store.captureArtifact('Beta keeper', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
     });
-    await bridge.start(0);
-    const base = `http://127.0.0.1:${bridge.port}`;
-    console.log(`human-sim-livechat: bridge up at ${base} (live thread ${liveStore.info.id})`);
-
-    const launched = await launchAnyBrowser(browsers, profileDir);
-    browser = launched.proc;
-    browserName = launched.name;
-    console.log(`human-sim-livechat: ${browserName} headless, CDP on ${launched.devtoolsPort}`);
-
-    const pageWsUrl = await findPageTarget(launched.devtoolsPort);
-    assert.ok(pageWsUrl, 'DevTools /json/list exposed a page target');
-    cdp = await Cdp.connect(pageWsUrl);
-    await cdp.send('Runtime.enable');
-    await cdp.send('Page.enable');
-    cdp.on('Runtime.exceptionThrown', (p) => {
-      exceptions.push(p.exceptionDetails.exception?.description ?? p.exceptionDetails.text);
-    });
-    cdp.on('Runtime.consoleAPICalled', (p) => {
-      if (p.type === 'error') {
-        consoleErrors.push(p.args.map((a) => a.value ?? a.description ?? a.type).join(' '));
-      }
-    });
-
-    const { evaluate, waitInPage, click, typeInto } = makePageHelpers(cdp);
-
-    const checkpoint = async (label) => {
-      const rootChildren = await evaluate(
-        `document.getElementById('root') ? document.getElementById('root').childElementCount : -1`,
-      );
-      if (rootChildren <= 0) throw new Error(`crash after "${label}": #root childElementCount=${rootChildren}`);
-      if (exceptions.length > 0) throw new Error(`crash after "${label}": uncaught page exception(s):\n${exceptions.join('\n')}`);
-      if (consoleErrors.length > 0) throw new Error(`crash after "${label}": console.error in the studio:\n${consoleErrors.join('\n')}`);
-      const logs = await (await fetch(`${base}/api/logs`)).json();
-      const clientErrors = logs.lines.filter((l) => l.includes('STUDIO CLIENT ERROR'));
-      if (clientErrors.length > 0) throw new Error(`crash after "${label}":\n${clientErrors.join('\n')}`);
-    };
-
-    let stepCount = 0;
-    const step = async (name, fn) => {
-      currentStep = name;
-      await fn();
-      await checkpoint(name);
-      stepCount++;
-      console.log(`  ✓ ${name}`);
-    };
-
+    assert.ok(fs.existsSync(path.join(store.info.dir, 'artifacts', `${artifact.slug}.svg`)), 'artifact svg seeded on disk');
+    return { store, board, artifact };
+  },
+  run: async ({ base, store, artifact, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
     // =========================================================================
     await step('studio loads over the real bridge on the LIVE view (root mounted)', async () => {
       await cdp.send('Page.navigate', { url: `${base}/` });
@@ -187,7 +103,7 @@ if (browsers.length === 0) {
         (chatState.artifactChat ?? []).some((m) => m.role === 'user' && m.text === liveChatQ),
         '/api/state carries the user message on the live thread',
       );
-      const reloaded = SessionStore.open(liveStore.info.dir);
+      const reloaded = SessionStore.open(store.info.dir);
       assert.ok(
         reloaded.artifactChat.some((m) => m.role === 'user' && m.text === liveChatQ),
         'the user message persisted to the live thread chat.jsonl',
@@ -231,48 +147,11 @@ if (browsers.length === 0) {
       );
     });
 
-    passed = true;
-    console.log(
-      `HUMAN SIM LIVECHAT PASS — ${stepCount} steps: real ${browserName} over raw CDP opened a seeded ` +
-        'LIVE thread on the default view, clicked its keep into the unified ArtifactFullscreen viewer, TYPED a ' +
-        'chat message and confirmed the user bubble renders in the dialog AND persists to chat.jsonl, ' +
-        'zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout',
+    return (
+      `${stepCount()} steps: real ${browserName} over raw CDP opened a seeded ` +
+      'LIVE thread on the default view, clicked its keep into the unified ArtifactFullscreen viewer, TYPED a ' +
+      'chat message and confirmed the user bubble renders in the dialog AND persists to chat.jsonl, ' +
+      'zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout'
     );
-  } catch (err) {
-    process.exitCode = 1;
-    console.error(`\nHUMAN SIM LIVECHAT FAIL at step: ${currentStep}`);
-    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
-    if (exceptions.length > 0) console.error(`\npage exceptions:\n${exceptions.join('\n')}`);
-    if (consoleErrors.length > 0) console.error(`\npage console errors:\n${consoleErrors.join('\n')}`);
-    console.error(`\nlast bridge log lines:\n${logLines.slice(-30).join('\n') || '(none)'}`);
-    if (cdp) {
-      try {
-        await cdp.send('Page.bringToFront');
-        const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-        const shot = path.join(scratch, 'failure.png');
-        fs.writeFileSync(shot, Buffer.from(data, 'base64'));
-        console.error(`screenshot: ${shot}`);
-      } catch (shotErr) {
-        console.error(`(screenshot unavailable: ${String(shotErr)})`);
-      }
-    }
-    console.error(`evidence kept in: ${scratch}`);
-  } finally {
-    cdp?.close();
-    killBrowserTree(browser);
-    killProfileStragglers(profileDir);
-    await bridge?.stop();
-    try {
-      fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5 });
-    } catch {
-      /* harmless temp dir */
-    }
-    if (passed) {
-      try {
-        fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5 });
-      } catch {
-        /* harmless temp dir */
-      }
-    }
-  }
-}
+  },
+});

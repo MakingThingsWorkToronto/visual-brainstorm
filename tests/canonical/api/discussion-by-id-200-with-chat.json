@@ -22,6 +22,7 @@
     "input": 0,
     "output": 0
   },
+  "tokensBySink": {},
   "artifactChat": [
     {
       "artifactSlug": "glow-mark",

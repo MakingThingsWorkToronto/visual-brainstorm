@@ -1,5 +1,37 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — a "non-destructive" pause needs a first-class RESUME, or the resume path quietly undoes it (and the docs will claim otherwise)
+
+- **The trap:** the artifact-chat detour took the pending `present_board` resolver while the
+  board "stayed live", and the wiki + code comments said resume = "re-enter present_board on
+  the SAME board (recordBoard idempotent by id)". But `present_board` structurally CANNOT
+  reuse an id (it mints `board-r{round}-{Date.now()}` and `nextRound()` appends) — so the
+  documented resume never existed: the real resume minted a duplicate round, remounted
+  BoardSurvey (destroying the very dials the detour preserved), and a user submit landing
+  MID-detour had no waiter and stranded until timeout. Everything read plausibly; the
+  mechanism was fictional. Two independent review findings (unreachable guard + strand) were
+  symptoms of this one fiction.
+- **How to apply:** when a design says "X is non-destructive / stays live", implement the
+  RESUME as a first-class operation (here: `present_board {rearmBoardId}` →
+  `bridge.rearmAndWait`, which consumes a parked mid-pause answer before re-arming) and
+  write a test that answers DURING the pause. And when a comment claims "idempotent so
+  callers may repeat" — verify a caller CAN actually repeat with the same identity; an
+  unreachable guard plus a confident comment is drift wearing a seatbelt.
+
+## 2026-07-09 — debounced draft persistence must never carry payload bytes (dials, not files)
+
+- **The trap:** the board-draft path reused the full `BoardResponse` shape, so one attached
+  photo was re-shipped as base64 on EVERY debounced keystroke — pretty-printed into
+  draft.json, held in memory, sent in every hello snapshot, echoed to every WS client
+  (including the sender), and embedded whole into `session_status` (~1.7M tokens of base64
+  in model context). Each hop individually looked like "just pass the draft along."
+- **How to apply:** decide what a draft IS (generation meta — dials/selections/notes/tree;
+  the REAL submit carries bytes) and enforce it at BOTH ends: the client's single
+  `buildDraft()` spelling strips `attachment.dataUri`, and `recordBoardDraft` blanks
+  defensively and returns the stored draft so the broadcast can't leak the raw upload.
+  Also: don't `JSON.stringify` a large object per render to detect change — key the effect
+  on the underlying state values (useState identity IS the change signal).
+
 ## 2026-07-09 — human sims must wait for the LAZY-LOADED engine instance, not its container
 
 - **The trap:** `MindElixir` ships as a lazy Vite chunk, so `[data-testid="mindmap-engine"]`

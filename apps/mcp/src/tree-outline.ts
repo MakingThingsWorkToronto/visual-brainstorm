@@ -25,10 +25,8 @@ function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function collectNotes(node: MindNode): { topic: string; id: string; note: string }[] {
-  const here =
-    node.note && node.note.trim() ? [{ topic: oneLine(node.topic), id: node.id, note: oneLine(node.note) }] : [];
-  return [...here, ...(node.children ?? []).flatMap(collectNotes)];
+function countNoted(node: MindNode): number {
+  return (node.note && node.note.trim() ? 1 : 0) + (node.children ?? []).reduce((n, kid) => n + countNoted(kid), 0);
 }
 
 /** Depth-first lines: `  - topic  ` + `_(id · note: …)_`. Root at depth 0. */
@@ -44,16 +42,20 @@ function lines(node: MindNode, depth: number, out: string[]): void {
 }
 
 /**
- * The full outline block: a header summary line, the indented tree, and a notes
- * roll-up (the explicit steering the user attached). `heading` labels the block
- * (e.g. "Presented tree" / "Edited tree (round 2)").
+ * The full outline block: a header summary line + the indented tree. Each
+ * steering note appears ONCE, inline at its node (`note: …`) — position is
+ * meaning; a trailing roll-up would repeat every note verbatim and double the
+ * steering text in model context every round (review-followups-2026-07-09
+ * item 10). The header carries a noted-node count so steering stays
+ * discoverable at a glance. `heading` labels the block (e.g. "Presented tree"
+ * / "Edited tree (round 2)").
  */
 export function treeToOutline(tree: MindTree, heading = 'Mind map'): string {
   const root = tree.nodeData;
   const nodes = countNodes(root);
   const depth = maxDepth(root);
   const branches = (root.children ?? []).length;
-  const noted = collectNotes(root);
+  const noted = countNoted(root);
 
   const body: string[] = [];
   lines(root, 0, body);
@@ -62,13 +64,12 @@ export function treeToOutline(tree: MindTree, heading = 'Mind map'): string {
     `### ${heading}`,
     `Root **${oneLine(root.topic)}** · ${nodes} node${nodes === 1 ? '' : 's'} · ${branches} top branch${
       branches === 1 ? '' : 'es'
-    } · depth ${depth}.`,
+    } · depth ${depth}.` +
+      (noted > 0
+        ? ` ${noted} noted node${noted === 1 ? '' : 's'} — inline \`note:\` markers are the user's steering; read them as intent.`
+        : ''),
     '',
     ...body,
   ];
-  if (noted.length > 0) {
-    parts.push('', '**Node notes (the user\'s steering — read as intent):**');
-    for (const { topic, note } of noted) parts.push(`- **${topic}** → ${note}`);
-  }
   return parts.join('\n');
 }

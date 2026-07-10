@@ -39,7 +39,13 @@ The photo-scribble-annotation + scribble-legibility closeout is DONE except the 
   remaining peer riders in the commit body, subject
   `chore(closeout-photo-scribble-and-scribble-legibility): review-hardened + closed`.
 
-Status: OPEN — backlog. Each item below was CONFIRMED by an adversarial code review
+Status: CLOSED 2026-07-09 — all 11 backlog items implemented + verified (build, unit
+233/233, smoke, ui-smoke, all 5 human-sims PASS on the refactored runner); learnings
+harvested (2 entries), artifact-chat.md improved (first-class rearm resume), wiki
+reconciled (interaction-protocol detour/drafts/mind-map contracts + harness pages),
+archived to _completed/. Design decisions recorded in the Progress log below.
+
+Original backlog status: OPEN — backlog. Each item below was CONFIRMED by an adversarial code review
 (8 finder angles + per-candidate verification) of the 2026-07-09 working tree, but
 belongs to an already-closed plan or needs a design decision, so it was not fixed
 inline during the photo-scribble / scribble-legibility closeout. Fixed in that
@@ -101,3 +107,34 @@ tree-outline topic newlines + countNodes reuse, mindmap draft-restore seed.
     context every round; decide one form.
 11. **`BoardSurvey` draft-flush spelling drift** (~450 vs ~950): one site spreads
     `buildResponse(...)`, the other doesn't — unify.
+
+## Progress log
+
+- 2026-07-09 (resume session) — sweep landed (`0dc483a`), handoff resolved. Backlog worked:
+  - **#1+#2 (one design):** the detour resume is now a FIRST-CLASS REARM — this also fixed
+    real code↔wiki drift: the wiki/comments claimed "re-enter present_board on the SAME board
+    (recordBoard idempotent by id)" but present_board always mints a new id+round, so the old
+    resume duplicated the round AND remounted BoardSurvey (dials lost). Now:
+    `present_board {rearmBoardId}` → `bridge.rearmAndWait` consumes a mid-detour submit
+    immediately (the strand fix), else re-arms the still-live board (no new round, no remount —
+    App keys BoardSurvey by board.id). recordBoard's unreachable guard removed; the park digest
+    line hands the orchestrator the exact rearm call; artifact-chat.md step 5 rewritten.
+    Tests: tests/bridge-rearm.test.mjs (3). Wiki interaction-protocol reconcile → closeout step.
+  - **#3–5 (design decided: drafts restore dials, NOT file bytes):** attachment dataUris
+    blanked at BOTH ends of the draft path — BoardSurvey.buildDraft (the ONE flush spelling,
+    also resolving #11) and recordBoardDraft (defense in depth; now returns the stored draft,
+    bridge broadcasts THAT). With bytes structurally absent, the session_status embed is small
+    → kept as-is (no consumer-breaking "compact summary" shape). BoardSurvey no longer
+    stringifies the draft per render (#4: effect keyed on the underlying state values);
+    useBridge drops the active board's own draft echo (#5: drafts feed mount-time initializers
+    only; reload/re-present restores from hello). Tests: board-draft.test.mjs blanking suite.
+  - **#6+#7:** scripts/lib/sim-runner.mjs owns the five sims' scaffold (incl. the launch retry
+    only the flagship had); tests/lib/bridge-harness.mjs owns startBridge/postJson;
+    mindmap-outline + human-sim-mindchat routed through loadCanonical.
+  - **#8:** pipe-progress.mjs validates --category against protocol TOKEN_SINKS via guarded
+    dynamic import (hook can never fail; local mirror only when dist unbuilt).
+  - **#9:** Artifact provenance.kind ('mindmap-snapshot') — recordBoard marks the snapshot,
+    App.tsx locates by kind (old heuristic kept ONLY as legacy fallback for pre-kind threads).
+    Protocol+store+studio+tests in the same cycle (rule 5).
+  - **#10 (decided):** inline `note:` is THE form (position is meaning); roll-up dropped;
+    header now counts noted nodes and says to read them as intent.

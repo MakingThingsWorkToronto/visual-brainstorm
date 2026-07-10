@@ -42,6 +42,10 @@ Conventions:
   `vanished (transient control)`, disabled controls `inert by design` — neither is a
   finding. Proven run: 7 surfaces, 404 controls, 486 gestures, 0 findings. Ends
   `BREAK SWEEP PASS`.
+- **Shared harness infrastructure**: the five human-sim scripts share `scripts/lib/sim-runner.mjs`
+  (scaffold: browser discovery/SKIP, bridge boot, CDP wiring, checkpoint/step, failure screenshot,
+  teardown, launch retry — hardening lands once); the unit layer shares `tests/lib/bridge-harness.mjs`
+  (startBridge/postJson/getState/getHealth/tmp — one bridge-boot spelling).
 
 ## Comprehensive human testing (operator mandate 2026-07-07)
 
@@ -116,13 +120,14 @@ flew — and it generalises to any optimistic/pending surface.
   sink, not orchestration; or any harness via CLI `--category`)
   DECLARES the current sink; the NEXT token-bearing turn-end event (the blind Stop-hook
   delta) inherits it, then the label is CONSUMED so it attributes exactly that one turn —
-  later uncategorized turns fold into `orchestration`. Honesty (rule 6): the token counts
-  are the REAL measured deltas; only the sink attribution is a documented heuristic ("what
-  the turn was doing"). Subagent (sidechain) usage recorded in the session transcript DOES
-  ride the deltas — the delegation boundary above bins it; only usage that never reaches
-  the transcript at all is invisible, disclosed not faked. The store owns
-  attribution (`SessionStore.recordProgress` stamps, `tokensBySink()` reduces), the bridge
-  ships `StudioState.tokensBySink`, and `SessionActivity` renders the labeled bars.
+  later uncategorized turns fold into `orchestration`. `pipe-progress.mjs` --category validation
+  reads protocol `TOKEN_SINKS` via guarded dynamic import (rule 5; local mirror only when dist
+  is unbuilt — the hook can never fail). Honesty (rule 6): the token counts are the REAL measured
+  deltas; only the sink attribution is a documented heuristic ("what the turn was doing"). Subagent
+  (sidechain) usage recorded in the session transcript DOES ride the deltas — the delegation boundary
+  above bins it; only usage that never reaches the transcript at all is invisible, disclosed not faked.
+  The store owns attribution (`SessionStore.recordProgress` stamps, `tokensBySink()` reduces), the
+  bridge ships `StudioState.tokensBySink`, and `SessionActivity` renders the labeled bars.
   The live-session A/B (the token-economy plan's outstanding future verification) has a
   written baseline + runnable procedure:
   `discussion/_completed/token-economy-2026-07-07/baseline.md`; its predicted human journey

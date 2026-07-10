@@ -492,6 +492,15 @@ export const ArtifactSchema = z.object({
     optionIds: z.array(z.string()).default([]),
     /** Artifact-chat revision lineage: the slug of the artifact this one revised. */
     revises: z.string().optional(),
+    /**
+     * Explicit capture role. `mindmap-snapshot` = the tree snapshot
+     * SessionStore.recordBoard auto-captures on presenting a mindmap board —
+     * the studio's Maximize→chat target. Explicit so a future board-scoped
+     * no-option capture can't hijack that role (the old locator heuristic was
+     * "boardId + zero optionIds"; consumers keep it only as the legacy
+     * fallback for threads cached before this field existed).
+     */
+    kind: z.enum(['mindmap-snapshot']).optional(),
   }),
   capturedAt: z.string(),
 });

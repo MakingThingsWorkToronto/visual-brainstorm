@@ -39,6 +39,7 @@ let store: SessionStore | null = null;
 let bridge: Bridge | null = null;
 /** Config default; a thread override in session.json wins (see effectiveTargetRepo). */
 let defaultTargetRepo: string | null = config.targetRepo ?? null;
+const hostedCopilot = process.env.VIBR_COPILOT_HOSTED === '1';
 
 function effectiveTargetRepo(): string | null {
   return store?.info.targetRepo ?? defaultTargetRepo;
@@ -81,6 +82,17 @@ function ensureSession(title: string, discussionId?: string): { store: SessionSt
 
 function text(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+}
+
+function hostedInteractiveUnavailable(tool: string) {
+  if (!hostedCopilot) return null;
+  return text({
+    status: 'unsupported-host',
+    error:
+      `${tool} needs a human-accessible local browser, but GitHub-hosted Copilot runs this MCP server ` +
+      'inside an ephemeral Actions runner.',
+    hint: 'Use local VS Code Copilot Chat with .vscode/mcp.json for the interactive studio journey.',
+  });
 }
 
 const server = new McpServer({ name: 'visual-brainstorm', version: '0.1.0' });
@@ -178,6 +190,8 @@ server.tool(
     openBrowser: z.boolean().default(true),
   },
   async (args) => {
+    const unavailable = hostedInteractiveUnavailable('present_board');
+    if (unavailable) return unavailable;
     // "Options OR tree", enforced at the tool boundary so cached threads (whose
     // base BoardSchema stays loose) always reload — schema-evolution rule.
     // A rearm re-waits on an already-presented board: nothing new to validate.
@@ -370,6 +384,8 @@ server.tool(
       ),
   },
   async ({ timeoutSeconds, brief, summary, questions, picks }) => {
+    const unavailable = hostedInteractiveUnavailable('open_studio');
+    if (unavailable) return unavailable;
     const { store, bridge } = ensureSession('New discussion');
     await bridge.openStudio({ brief, summary, questions, picks });
     console.error(
@@ -415,6 +431,8 @@ server.tool(
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
   },
   async ({ question, suggestions, timeoutSeconds }) => {
+    const unavailable = hostedInteractiveUnavailable('ask_concierge');
+    if (unavailable) return unavailable;
     if (!bridge) {
       return text({ status: 'no-studio', hint: 'open_studio or present_board first to attach the studio bridge' });
     }
@@ -458,6 +476,8 @@ server.tool(
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
   },
   async ({ prompt, cards, timeoutSeconds }) => {
+    const unavailable = hostedInteractiveUnavailable('present_gallery');
+    if (unavailable) return unavailable;
     if (!bridge) {
       return text({ status: 'no-studio', hint: 'open_studio or present_board first to attach the studio bridge' });
     }

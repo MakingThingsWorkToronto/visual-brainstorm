@@ -10,42 +10,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { loadCanonical } from './canonical/load.mjs';
-import { SessionStore } from '../apps/mcp/dist/session-store.js';
-import { Bridge } from '../apps/mcp/dist/bridge-server.js';
-import { BoardResponseSchema, BoardSchema, ThemeSchema } from '../packages/protocol/dist/index.js';
+import { getHealth, postJson, startBridge } from './lib/bridge-harness.mjs';
+import { BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'));
-
-async function startBridge() {
-  const root = tmp();
-  const store = new SessionStore('Rearm test', root);
-  const logLines = [];
-  const bridge = new Bridge(store, {
-    discussionRoot: root,
-    themes: [loadCanonical('themes/theme.json', ThemeSchema)],
-    theme: 'aurora',
-    models: ['claude-fable-5'],
-    defaultModel: 'claude-fable-5',
-    log: (line) => logLines.push(line),
-  });
-  await bridge.start(0); // ephemeral port
-  return { bridge, store, logLines };
-}
-
-const postRespond = async (bridge, response) => {
-  const res = await fetch(`http://127.0.0.1:${bridge.port}/api/respond`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(response),
-  });
-  return { status: res.status, body: await res.json() };
-};
-
-const getHealth = async (bridge) =>
-  (await fetch(`http://127.0.0.1:${bridge.port}/api/health`)).json();
+const postRespond = (bridge, response) => postJson(bridge, '/api/respond', response);
 
 /** presentAndWait registers its resolver async — wait until the bridge blocks. */
 async function untilAwaiting(bridge) {
@@ -57,7 +27,7 @@ async function untilAwaiting(bridge) {
 }
 
 test('detour then rearm: the board stays live, no duplicate round, the answer resolves the rearmed wait', async () => {
-  const { bridge, store } = await startBridge();
+  const { bridge, store } = await startBridge('Rearm test');
   try {
     const board = loadCanonical('boards/diverge.json', BoardSchema);
     const answer = loadCanonical('responses/iterate.json', BoardResponseSchema);
@@ -92,7 +62,7 @@ test('detour then rearm: the board stays live, no duplicate round, the answer re
 });
 
 test('submit landing MID-detour: rearm returns the parked answer immediately (the strand fix)', async () => {
-  const { bridge, store } = await startBridge();
+  const { bridge, store } = await startBridge('Rearm test');
   try {
     const board = loadCanonical('boards/diverge.json', BoardSchema);
     const answer = loadCanonical('responses/iterate.json', BoardResponseSchema);
@@ -122,7 +92,7 @@ test('submit landing MID-detour: rearm returns the parked answer immediately (th
 });
 
 test('rearm of an unknown board id resolves null (honest pending, never a fabricated answer)', async () => {
-  const { bridge } = await startBridge();
+  const { bridge } = await startBridge('Rearm test');
   try {
     assert.equal(await bridge.rearmAndWait('board-never-presented', 500), null);
   } finally {

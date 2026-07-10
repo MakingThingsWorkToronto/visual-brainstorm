@@ -11,41 +11,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { loadCanonical } from './canonical/load.mjs';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
-import { Bridge } from '../apps/mcp/dist/bridge-server.js';
-import { BoardResponseSchema, BoardSchema, ThemeSchema, optionChatSlug } from '../packages/protocol/dist/index.js';
-
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'));
-
-async function startBridge() {
-  const root = tmp();
-  const store = new SessionStore('Draft test', root);
-  const logLines = [];
-  const bridge = new Bridge(store, {
-    discussionRoot: root,
-    themes: [loadCanonical('themes/theme.json', ThemeSchema)],
-    theme: 'aurora',
-    models: ['claude-fable-5'],
-    defaultModel: 'claude-fable-5',
-    log: (line) => logLines.push(line),
-  });
-  await bridge.start(0);
-  return { bridge, store, root, logLines };
-}
-
-const postJson = async (bridge, p, body) => {
-  const res = await fetch(`http://127.0.0.1:${bridge.port}${p}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: typeof body === 'string' ? body : JSON.stringify(body),
-  });
-  return { status: res.status, body: await res.json() };
-};
-const getState = async (bridge) => (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
-const getHealth = async (bridge) => (await fetch(`http://127.0.0.1:${bridge.port}/api/health`)).json();
+import { getHealth, getState, postJson, startBridge, tmp } from './lib/bridge-harness.mjs';
+import { BoardResponseSchema, BoardSchema, optionChatSlug } from '../packages/protocol/dist/index.js';
 
 // A draft is a BoardResponse-shaped snapshot; build one with the given dials.
 function draftFor(boardId, axisValues) {
@@ -82,7 +52,7 @@ test('SessionStore.recordBoardDraft persists round-NN/draft.json and reloads (se
 // proves no duplicate round end to end.)
 
 test('drafts restore dials, not file bytes: attachment payloads are blanked on the draft path only', async () => {
-  const { bridge, store } = await startBridge();
+  const { bridge, store } = await startBridge('Draft test');
   const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
   try {
     const board = loadCanonical('boards/diverge.json', BoardSchema);
@@ -132,7 +102,7 @@ test('recordBoardDraft returns the stored draft (null when no round matches)', (
 });
 
 test('POST /api/board-draft → 200 records + broadcasts + lands in /api/state', async () => {
-  const { bridge, store } = await startBridge();
+  const { bridge, store } = await startBridge('Draft test');
   const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
   try {
     const board = loadCanonical('boards/diverge.json', BoardSchema);
@@ -166,7 +136,7 @@ test('POST /api/board-draft → 200 records + broadcasts + lands in /api/state',
 });
 
 test('POST /api/board-draft → 404 unknown board, 400 malformed', async () => {
-  const { bridge, store } = await startBridge();
+  const { bridge, store } = await startBridge('Draft test');
   try {
     const board = loadCanonical('boards/diverge.json', BoardSchema);
     store.recordBoard(board);
@@ -182,7 +152,7 @@ test('POST /api/board-draft → 404 unknown board, 400 malformed', async () => {
 });
 
 test('chatting on a LIVE board option is NON-DESTRUCTIVE: board stays, no park recorded, draft survives', async () => {
-  const { bridge, store } = await startBridge();
+  const { bridge, store } = await startBridge('Draft test');
   try {
     const board = loadCanonical('boards/diverge.json', BoardSchema);
     // The board is live and the orchestrator is BLOCKED in present_board.

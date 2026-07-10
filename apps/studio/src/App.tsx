@@ -421,16 +421,22 @@ export default function App() {
     );
   }, [fullscreen, archived, state.artifacts]);
 
-  // The mind-map SNAPSHOT artifact for the live board (captured on present with
-  // boardId provenance + no optionIds) — the target of the maximize→fullscreen
-  // chat. Newest match wins (a re-presented tree captures a fresh snapshot).
+  // The mind-map SNAPSHOT artifact for the live board — the target of the
+  // maximize→fullscreen chat, marked explicitly by provenance.kind. Threads
+  // cached before the kind existed fall back to the old heuristic (boardId +
+  // no optionIds) — legacy-only; new captures always carry the kind. Newest
+  // match wins (a re-presented tree captures a fresh snapshot).
   const mindmapArtifact = useMemo(() => {
     const boardId = state.activeBoard?.id;
     if (!boardId) return null;
+    const forBoard = (a: Artifact) => a.provenance.boardId === boardId;
+    const newestFirst = [...state.artifacts].reverse();
     return (
-      [...state.artifacts]
-        .reverse()
-        .find((a) => a.provenance.boardId === boardId && a.provenance.optionIds.length === 0) ?? null
+      newestFirst.find((a) => forBoard(a) && a.provenance.kind === 'mindmap-snapshot') ??
+      newestFirst.find(
+        (a) => forBoard(a) && a.provenance.kind === undefined && a.provenance.optionIds.length === 0,
+      ) ??
+      null
     );
   }, [state.activeBoard, state.artifacts]);
 

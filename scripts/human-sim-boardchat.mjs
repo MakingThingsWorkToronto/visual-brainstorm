@@ -1,7 +1,6 @@
 /**
  * Human-simulation harness — the LIVE ACTIVE-BOARD chat journey (rule 10). Sibling
- * to human-sim.mjs / -archived / -livechat (same raw-CDP plumbing, same SKIP + exit
- * discipline).
+ * to human-sim.mjs / -archived / -livechat (shared scaffold: scripts/lib/sim-runner.mjs).
  *
  * Proves the operator's ask: the composer is available on the CURRENT option set,
  * the user can ask about a live artifact WITHOUT losing their dials, and the
@@ -17,102 +16,24 @@
  * chat resolves it), the studio renders it over the real WS, and the chat + draft
  * round-trip through the real POST /api/artifact-chat + POST /api/board-draft. No
  * mocks; the only thing not driven is the model that authors the REPLY.
- *
- * SKIP: no chromium-family browser → loud SKIP, exit 0. Never process.exit().
  */
 import assert from 'node:assert';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
-import { BoardSchema, ThemeSchema } from '../packages/protocol/dist/index.js';
-import {
-  Cdp,
-  findBrowsers,
-  findPageTarget,
-  killBrowserTree,
-  killProfileStragglers,
-  launchAnyBrowser,
-  makePageHelpers,
-} from './lib/cdp.mjs';
+import { BoardSchema } from '../packages/protocol/dist/index.js';
+import { runHumanSim } from './lib/sim-runner.mjs';
 
-const { found: browsers, candidates } = findBrowsers();
-if (browsers.length === 0) {
-  console.log(`HUMAN SIM BOARDCHAT SKIP: no chromium-family browser found (looked for: ${candidates.join(', ')})`);
-} else {
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-human-sim-boardchat-'));
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-human-sim-boardchat-profile-'));
-  const logLines = [];
-  const exceptions = [];
-  const consoleErrors = [];
-  let bridge = null;
-  let browser = null;
-  let browserName = 'browser';
-  let cdp = null;
-  let currentStep = 'bootstrap';
-  let passed = false;
-
-  const liveStore = new SessionStore('Glow mark — a live board brainstorm', scratch);
-  const board = { ...loadCanonical('boards/diverge.json', BoardSchema), sessionId: liveStore.info.id };
-  const dialAxis = board.survey.axes[0]; // e.g. "tone"
-  const optionId = board.options[0].id; // "a"
-
-  try {
-    bridge = new Bridge(liveStore, {
-      discussionRoot: scratch,
-      themes: [loadCanonical('themes/theme.json', ThemeSchema)],
-      theme: 'aurora',
-      models: ['claude-fable-5'],
-      defaultModel: 'claude-fable-5',
-      log: (line) => logLines.push(line),
-      recentLogs: () => logLines.slice(-500),
-    });
-    await bridge.start(0);
-    const base = `http://127.0.0.1:${bridge.port}`;
+await runHumanSim('BOARDCHAT', {
+  prepare: ({ scratch }) => {
+    const store = new SessionStore('Glow mark — a live board brainstorm', scratch);
+    const board = { ...loadCanonical('boards/diverge.json', BoardSchema), sessionId: store.info.id };
+    const dialAxis = board.survey.axes[0]; // e.g. "tone"
+    return { store, board, dialAxis };
+  },
+  run: async ({ bridge, base, board, dialAxis, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
     // Present the board and BLOCK (fire-and-forget) — the chat detour resolves it.
     bridge.presentAndWait(board, 120_000, /* openBrowser */ false).catch(() => {});
-    console.log(`human-sim-boardchat: bridge up at ${base}, board ${board.id} live (dial=${dialAxis.id})`);
-
-    const launched = await launchAnyBrowser(browsers, profileDir);
-    browser = launched.proc;
-    browserName = launched.name;
-    console.log(`human-sim-boardchat: ${browserName} headless, CDP on ${launched.devtoolsPort}`);
-
-    const pageWsUrl = await findPageTarget(launched.devtoolsPort);
-    assert.ok(pageWsUrl, 'DevTools /json/list exposed a page target');
-    cdp = await Cdp.connect(pageWsUrl);
-    await cdp.send('Runtime.enable');
-    await cdp.send('Page.enable');
-    cdp.on('Runtime.exceptionThrown', (p) => {
-      exceptions.push(p.exceptionDetails.exception?.description ?? p.exceptionDetails.text);
-    });
-    cdp.on('Runtime.consoleAPICalled', (p) => {
-      if (p.type === 'error') consoleErrors.push(p.args.map((a) => a.value ?? a.description ?? a.type).join(' '));
-    });
-
-    const { evaluate, waitInPage, click, typeInto } = makePageHelpers(cdp);
-
-    const checkpoint = async (label) => {
-      const rootChildren = await evaluate(
-        `document.getElementById('root') ? document.getElementById('root').childElementCount : -1`,
-      );
-      if (rootChildren <= 0) throw new Error(`crash after "${label}": #root childElementCount=${rootChildren}`);
-      if (exceptions.length > 0) throw new Error(`crash after "${label}": ${exceptions.join('\n')}`);
-      if (consoleErrors.length > 0) throw new Error(`crash after "${label}": console.error: ${consoleErrors.join('\n')}`);
-      const logs = await (await fetch(`${base}/api/logs`)).json();
-      const clientErrors = logs.lines.filter((l) => l.includes('STUDIO CLIENT ERROR'));
-      if (clientErrors.length > 0) throw new Error(`crash after "${label}":\n${clientErrors.join('\n')}`);
-    };
-    let stepCount = 0;
-    const step = async (name, fn) => {
-      currentStep = name;
-      await fn();
-      await checkpoint(name);
-      stepCount++;
-      console.log(`  ✓ ${name}`);
-    };
+    console.log(`human-sim-boardchat: board ${board.id} live (dial=${dialAxis.id})`);
 
     // Set a React-controlled range input to `value` and fire the input event.
     const setRange = async (index, value) => {
@@ -209,48 +130,11 @@ if (browsers.length === 0) {
       assert.equal(health.activeBoard?.id, board.id, 'the board stayed live through the chat');
     });
 
-    passed = true;
-    console.log(
-      `HUMAN SIM BOARDCHAT PASS — ${stepCount} steps: real ${browserName} over raw CDP drove a LIVE active board, ` +
-        'moved a dial (persisted to /api/state drafts), opened an option into the unified fullscreen viewer with a chat ' +
-        'composer, asked a question (user bubble + option-slug persistence), and confirmed the board stayed live with ' +
-        'the dial UNCHANGED — dials persist through chat; zero exceptions, zero STUDIO CLIENT ERROR lines',
+    return (
+      `${stepCount()} steps: real ${browserName} over raw CDP drove a LIVE active board, ` +
+      'moved a dial (persisted to /api/state drafts), opened an option into the unified fullscreen viewer with a chat ' +
+      'composer, asked a question (user bubble + option-slug persistence), and confirmed the board stayed live with ' +
+      'the dial UNCHANGED — dials persist through chat; zero exceptions, zero STUDIO CLIENT ERROR lines'
     );
-  } catch (err) {
-    process.exitCode = 1;
-    console.error(`\nHUMAN SIM BOARDCHAT FAIL at step: ${currentStep}`);
-    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
-    if (exceptions.length > 0) console.error(`\npage exceptions:\n${exceptions.join('\n')}`);
-    if (consoleErrors.length > 0) console.error(`\npage console errors:\n${consoleErrors.join('\n')}`);
-    console.error(`\nlast bridge log lines:\n${logLines.slice(-30).join('\n') || '(none)'}`);
-    if (cdp) {
-      try {
-        await cdp.send('Page.bringToFront');
-        const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-        const shot = path.join(scratch, 'failure.png');
-        fs.writeFileSync(shot, Buffer.from(data, 'base64'));
-        console.error(`screenshot: ${shot}`);
-      } catch (shotErr) {
-        console.error(`(screenshot unavailable: ${String(shotErr)})`);
-      }
-    }
-    console.error(`evidence kept in: ${scratch}`);
-  } finally {
-    cdp?.close();
-    killBrowserTree(browser);
-    killProfileStragglers(profileDir);
-    await bridge?.stop();
-    try {
-      fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5 });
-    } catch {
-      /* harmless temp dir */
-    }
-    if (passed) {
-      try {
-        fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5 });
-      } catch {
-        /* harmless temp dir */
-      }
-    }
-  }
-}
+  },
+});

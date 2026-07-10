@@ -465,8 +465,10 @@ export class Bridge {
                     // brainstorm without a composer pick still names the
                     // best-SVG default itself. Non-generation commands
                     // (plan-closeout, discover-skills) carry no routing line.
+                    // The composer ALWAYS sends its selected model (an untouched
+                    // picker sends the default), so never claim "the user chose".
                     model
-                      ? `Model routing: the user chose ${model} — delegate round generation to it.`
+                      ? `Model routing: delegate round generation to ${model} (the composer's selection — explicit, never by omission).`
                       : command === 'new-brainstorm'
                         ? `Model routing: no composer pick — delegate round generation to the best-SVG default ${this.options.defaultModel} (explicit; never route by omission).`
                         : undefined,

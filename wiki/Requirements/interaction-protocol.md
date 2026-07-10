@@ -136,19 +136,27 @@ overwritten (rule 7).
 
 **Non-destructive detour + board drafts (dials persist through chat).** Chatting on the LIVE
 board must not cost the user their in-progress answer. Two mechanisms guarantee it:
-1. **Non-destructive park** — when a chat arrives while `present_board` blocks, the bridge
+1. **Resume is first-class rearm** — when a chat arrives while `present_board` blocks, the bridge
    resolves the wait with an `action:'park', commands:['artifact-chat']` response BUT does not
    clear `activeBoard` or record a park response. The board stays live (the studio's
-   `BoardSurvey` never unmounts, dials intact); the orchestrator answers, then re-enters
-   `present_board` on the SAME board (`recordBoard` is idempotent by id) to re-arm the resolver.
-   Only artifact-chat is non-destructive — a real park / plan-closeout still goes through
-   `acceptResponse`.
+   `BoardSurvey` never unmounts, dials intact). The orchestrator answers, then calls
+   `present_board {rearmBoardId: "<boardId>"}` (no options/tree/axes) to re-arm the resolver on
+   the still-live board. The bridge's `rearmAndWait` first consults parked/recorded responses —
+   a submit that landed MID-detour returns immediately instead of stranding until timeout
+   (confirmed bug fixed). No new round is minted, no re-record happens; same board id so the
+   studio's `BoardSurvey` reconciles in place (dials intact). Only artifact-chat is
+   non-destructive — a real park / plan-closeout still goes through `acceptResponse`.
+   `recordBoard` has no duplicate-id guard anymore (nothing ever re-records the same id).
 2. **Board draft persistence** — the studio debounce-POSTs the in-progress answer (dials/
    selections/notes/elaboration/model — a `BoardResponse` snapshot) to `POST /api/board-draft`;
    `SessionStore.recordBoardDraft` writes `round-NN/draft.json` (last-write-wins, one per board,
    SEPARATE from the submitted `response.json`) and it rides `StudioState.drafts` + a `draft` WS
-   envelope. This is "the generation meta" — it restores dials on a re-presented board and
-   reloads with the thread (`session_status`/`load_discussion` surface it for recall).
+   envelope. Drafts restore dials, NOT file bytes — attachment `dataUri` payloads are blanked on
+   the draft path at both ends (BoardSurvey's single `buildDraft()` spelling client-side;
+   `recordBoardDraft` defensively server-side, which returns the stored draft and the bridge
+   broadcasts THAT). The name survives for recall; only the REAL submit carries bytes
+   (persistAttachment). This is "the generation meta" — it restores dials on a re-presented board
+   and reloads with the thread (`session_status`/`load_discussion` surface it for recall).
 
 Chat history persists in `artifacts/chat.jsonl` and reloads with the thread —
 `GET /api/discussions/<id>` returns `artifactChat`. The chat is a detour — after replying, the
@@ -159,7 +167,7 @@ thread-addressed and remain interactive (answer-in-place; see the loop above).
 
 ## Mind-map persistence (model-legible contract)
 
-On `present_board` of a mindmap board, `SessionStore.recordBoard` writes `round-NN/tree.json` (presented tree), `round-NN/tree.md` (traversable markdown outline: header counts, indented hierarchy, per-node `id` + `note`, `— thin` flags on top-level branches never grown), and AUTO-CAPTURES a snapshot artifact (provenance `boardId` + `optionIds: []`) — the maximize→fullscreen-chat target; no orchestrator action needed (rule 7).
+On `present_board` of a mindmap board, `SessionStore.recordBoard` writes `round-NN/tree.json` (presented tree), `round-NN/tree.md` (traversable markdown outline: header line carries a noted-node count ("N noted nodes — inline `note:` markers are the user's steering; read them as intent"), indented hierarchy, per-node `id` + inline `note: …` markers at each node where present — each note appears ONCE, the trailing "Node notes" roll-up is GONE), and AUTO-CAPTURES a snapshot artifact with explicit `provenance.kind: 'mindmap-snapshot'` — the maximize→fullscreen-chat target; no orchestrator action needed (rule 7). Legacy fallback: old threads cache the snapshot heuristic (boardId + zero optionIds).
 
 On submit, `recordResponse` writes `response.json`, appends every op to `round-NN/tree-ops.jsonl` (append-only decision log), writes `edited-tree.json`, and refreshes `tree.md` ("Edited tree … (submitted)" heading).
 

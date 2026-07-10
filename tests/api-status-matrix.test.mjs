@@ -7,11 +7,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { CANONICAL_DIR, loadCanonical } from './canonical/load.mjs';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
-import { Bridge } from '../apps/mcp/dist/bridge-server.js';
+import { postJson, startBridge as bootBridge, tmp } from './lib/bridge-harness.mjs';
 import {
   BoardResponseSchema,
   BoardSchema,
@@ -139,39 +138,13 @@ function assertMatches(actual, expected, ctx = '$') {
 }
 
 // ---------------------------------------------------------------------------
-// Real-bridge bootstrap (pattern: client-log.test.mjs / target-repo.test.mjs)
+// Real-bridge bootstrap (shared: tests/lib/bridge-harness.mjs) — the matrix binds
+// its title + keeps its (extra, distDir) call shape over the shared boot.
 // ---------------------------------------------------------------------------
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-test-'));
-const AURORA = loadCanonical('themes/theme.json', ThemeSchema);
 const readCanonicalRaw = (rel) =>
   JSON.parse(fs.readFileSync(path.join(CANONICAL_DIR, rel), 'utf8'));
 
-async function startBridge(extra = {}, distDir) {
-  const root = tmp();
-  const store = new SessionStore('API matrix', root);
-  const logLines = [];
-  const bridge = new Bridge(store, {
-    discussionRoot: root,
-    themes: [AURORA],
-    theme: 'aurora',
-    models: ['claude-fable-5'],
-    defaultModel: 'claude-fable-5',
-    log: (line) => logLines.push(line),
-    ...extra,
-  });
-  // studioDist() reads VIBR_STUDIO_DIST inside start() — scope the override to it.
-  const prevDist = process.env.VIBR_STUDIO_DIST;
-  if (distDir !== undefined) process.env.VIBR_STUDIO_DIST = distDir;
-  try {
-    await bridge.start(0); // ephemeral port
-  } finally {
-    if (distDir !== undefined) {
-      if (prevDist === undefined) delete process.env.VIBR_STUDIO_DIST;
-      else process.env.VIBR_STUDIO_DIST = prevDist;
-    }
-  }
-  return { bridge, store, root, logLines };
-}
+const startBridge = (extra = {}, distDir) => bootBridge('API matrix', { ...extra, distDir });
 
 const getJson = async (bridge, p) => {
   const res = await fetch(`http://127.0.0.1:${bridge.port}${p}`);
@@ -180,14 +153,6 @@ const getJson = async (bridge, p) => {
 const getText = async (bridge, p) => {
   const res = await fetch(`http://127.0.0.1:${bridge.port}${p}`);
   return { status: res.status, contentType: res.headers.get('content-type'), body: await res.text() };
-};
-const postJson = async (bridge, p, body) => {
-  const res = await fetch(`http://127.0.0.1:${bridge.port}${p}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: typeof body === 'string' ? body : JSON.stringify(body),
-  });
-  return { status: res.status, body: await res.json() };
 };
 
 async function waitFor(predicate, what, timeoutMs = 5000) {
@@ -296,8 +261,12 @@ test('POST /api/command → a composer model pick routes to it; non-generation c
     const commands = bridge.peekCommands();
     assert.equal(commands.length, 2);
     assert.ok(
-      commands[0].seedNote.includes('the user chose claude-opus-4-8'),
-      `seedNote names the user's pick, got: ${commands[0].seedNote}`,
+      commands[0].seedNote.includes('delegate round generation to claude-opus-4-8'),
+      `seedNote routes to the composer's selection, got: ${commands[0].seedNote}`,
+    );
+    assert.ok(
+      !commands[0].seedNote.includes('the user chose'),
+      'the composer always sends a model (untouched picker sends the default) — never claim "the user chose"',
     );
     assert.ok(!commands[0].seedNote.includes('best-SVG default'), 'the default never doubles a real pick');
     assert.equal(commands[1].seedNote, undefined, 'discover-skills is not a generation command — no routing line');

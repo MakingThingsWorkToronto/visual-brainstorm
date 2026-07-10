@@ -7,16 +7,14 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { loadCanonical } from './canonical/load.mjs';
 import { treeToOutline } from '../apps/mcp/dist/tree-outline.js';
 import { buildFeedbackDigest } from '../apps/mcp/dist/feedback.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-mm-'));
-const loadBoard = () =>
-  BoardSchema.parse(JSON.parse(fs.readFileSync(path.join(here, 'canonical', 'boards', 'mindmap-tree.json'), 'utf8')));
+const loadBoard = () => loadCanonical('boards/mindmap-tree.json', BoardSchema);
 const roundDir = (store, board) => path.join(store.info.dir, `round-${String(board.round).padStart(2, '0')}`);
 
 const NOTED_TREE = {
@@ -42,8 +40,10 @@ test('treeToOutline: header summary + indented traversable lines + ids + notes +
   // ONLY a top-level branch with no children is a gap; a DEEP leaf is content.
   assert.ok(out.includes('- Motion  _(`motion`)_  — thin'), 'empty top branch flagged thin');
   assert.ok(!out.includes('circle-M  _(`m1`)_  — thin'), 'a deep leaf is NOT flagged as a gap');
-  // The notes roll-up spells out steering as intent.
-  assert.ok(out.includes("**Mark** → keep it geometric"), 'notes roll-up present');
+  // Notes appear ONCE, inline at their node (review-followups item 10): the header
+  // counts them so steering stays discoverable; no trailing roll-up repeats them.
+  assert.ok(out.includes('1 noted node'), 'header carries the noted-node count');
+  assert.ok(!out.includes('**Mark** →'), 'no trailing notes roll-up (the note stays inline only)');
 });
 
 test('recordBoard(mindmap) writes round-NN/tree.md + folds the outline into brainstorm.md', () => {

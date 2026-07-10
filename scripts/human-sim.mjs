@@ -24,124 +24,26 @@
  *     aria-pressed, artifact hrefs) plus the studio's existing data-testids
  *     (e.g. scribble-canvas, mindmap-canvas) where a surface has no unique text.
  *
- * Crash detection after EVERY step:
- *   - unmounted root: document.getElementById('root').childElementCount === 0
- *   - Runtime.exceptionThrown / console.error in the page
- *   - `STUDIO CLIENT ERROR` lines in GET /api/logs (the bridge's log ring)
- *
- * Exit discipline (Windows/libuv learning 2026-07-07): NEVER process.exit() — a
- * hard exit races WebSocketServer teardown and clobbers the exit code. We set
- * process.exitCode and let the loop drain (smoke.mjs's pattern), after closing
- * the CDP socket, killing the browser, and stopping the bridge.
- *
- * SKIP convention (decided, documented): if NO chromium-family browser exists on
- * this machine, print `HUMAN SIM SKIP: no chromium-family browser found` and exit
- * 0 — a loud skip, never reported as a pass. Every other shortfall exits 1 with
- * the failing step, the last bridge log lines, and a screenshot
- * (Page.bringToFront first — backgrounded tabs return stale composited frames).
+ * Scaffold (browser discovery/SKIP, bridge boot, launch retry, CDP wiring,
+ * per-step crash checkpoints, failure screenshot/evidence, exit discipline,
+ * teardown) lives in scripts/lib/sim-runner.mjs — shared by all five sims.
  */
 import assert from 'node:assert';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { Bridge } from '../apps/mcp/dist/bridge-server.js';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
-import { BoardSchema, LivingGallerySchema, ThemeSchema } from '../packages/protocol/dist/index.js';
+import { BoardSchema, LivingGallerySchema } from '../packages/protocol/dist/index.js';
 // Visual-honesty (CLAUDE.md rule 10): a rendered surface / testid is not proof —
 // assert the SPECIFIC canonical data is visibly in frame; reject false-greens.
 import { assertShowsCanonical, assertSurfaceShowsCanonical } from './lib/visual-honesty.mjs';
-// Shared CDP plumbing (extracted verbatim to scripts/lib/cdp.mjs for the
-// ui-break-sweep driver — one proven implementation, two harnesses).
-import {
-  Cdp,
-  findBrowsers,
-  findPageTarget,
-  killBrowserTree,
-  killProfileStragglers,
-  launchAnyBrowser,
-  makePageHelpers,
-  sleep,
-} from './lib/cdp.mjs';
+import { sleep } from './lib/cdp.mjs';
+import { runHumanSim } from './lib/sim-runner.mjs';
 
-// ---------------------------------------------------------------------------
-// The run.
-// ---------------------------------------------------------------------------
-const { found: browsers, candidates } = findBrowsers();
-if (browsers.length === 0) {
-  console.log(
-    `HUMAN SIM SKIP: no chromium-family browser found (looked for: ${candidates.join(', ')})`,
-  );
-  // Loud skip, honest exit 0 — the browser is genuinely absent, nothing was faked.
-} else {
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-human-sim-'));
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibr-human-sim-profile-'));
-  const logLines = [];
-  const exceptions = [];
-  const consoleErrors = [];
-  let bridge = null;
-  let browser = null;
-  let browserName = 'browser';
-  let cdp = null;
-  let currentStep = 'bootstrap';
-  let passed = false;
-
-  const store = new SessionStore('Human sim session', scratch);
-  const aurora = loadCanonical('themes/theme.json', ThemeSchema);
-
-  try {
-    // --- real bridge, real built studio dist (default resolution), temp thread ---
-    bridge = new Bridge(store, {
-      discussionRoot: scratch,
-      themes: [aurora],
-      theme: 'aurora',
-      models: ['claude-fable-5', 'claude-haiku-4-5'],
-      defaultModel: 'claude-fable-5',
-      log: (line) => logLines.push(line),
-      recentLogs: () => logLines.slice(-500),
-    });
-    await bridge.start(0); // ephemeral port
-    const base = `http://127.0.0.1:${bridge.port}`;
-    console.log(`human-sim: bridge up at ${base} (thread ${store.info.id})`);
-
-    // One retry: on a machine loaded with concurrent sessions, a cold launch can
-    // miss the 20s DevTools window once without anything being wrong.
-    let launched;
-    try {
-      launched = await launchAnyBrowser(browsers, profileDir);
-    } catch (firstErr) {
-      console.log(`human-sim: first launch pass failed (${firstErr.message.split('\n')[0]}…) — retrying once`);
-      killProfileStragglers(profileDir);
-      await sleep(3_000);
-      const retryProfile = path.join(profileDir, 'retry');
-      fs.mkdirSync(retryProfile, { recursive: true });
-      launched = await launchAnyBrowser(browsers, retryProfile);
-    }
-    browser = launched.proc;
-    browserName = launched.name;
-    if (launched.failures.length > 0) {
-      console.log(`human-sim: fell back past ${launched.failures.length} browser(s) that never served CDP`);
-    }
-    console.log(`human-sim: ${browserName} headless, CDP on ${launched.devtoolsPort}`);
-
-    // --- find the page target and connect raw CDP ---
-    const pageWsUrl = await findPageTarget(launched.devtoolsPort);
-    assert.ok(pageWsUrl, 'DevTools /json/list exposed a page target');
-    cdp = await Cdp.connect(pageWsUrl);
-    await cdp.send('Runtime.enable');
-    await cdp.send('Page.enable');
-    cdp.on('Runtime.exceptionThrown', (p) => {
-      exceptions.push(p.exceptionDetails.exception?.description ?? p.exceptionDetails.text);
-    });
-    cdp.on('Runtime.consoleAPICalled', (p) => {
-      if (p.type === 'error') {
-        consoleErrors.push(p.args.map((a) => a.value ?? a.description ?? a.type).join(' '));
-      }
-    });
-
-    // --- in-page helpers (shared, scripts/lib/cdp.mjs) -----------------------
-    const { evaluate, waitInPage, click, typeInto } = makePageHelpers(cdp);
-
+await runHumanSim('', {
+  models: ['claude-fable-5', 'claude-haiku-4-5'],
+  prepare: ({ scratch }) => ({ store: new SessionStore('Human sim session', scratch) }),
+  run: async ({ bridge, base, store, scratch, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
     // --- scribble-pad primitives: a real pointer DRAG (pen/arrow) and a key
     //     press (commit a text note), plus a real file-picker set. These drive
     //     the studio's genuine pointer/keyboard/file paths — nothing faked. ----
@@ -204,36 +106,6 @@ if (browsers.length === 0) {
         'base64',
       ),
     );
-
-    // --- the crash check that runs after EVERY step ---------------------------
-    const checkpoint = async (label) => {
-      const rootChildren = await evaluate(
-        `document.getElementById('root') ? document.getElementById('root').childElementCount : -1`,
-      );
-      if (rootChildren <= 0) {
-        throw new Error(`crash after "${label}": #root childElementCount=${rootChildren} (unmounted root)`);
-      }
-      if (exceptions.length > 0) {
-        throw new Error(`crash after "${label}": uncaught page exception(s):\n${exceptions.join('\n')}`);
-      }
-      if (consoleErrors.length > 0) {
-        throw new Error(`crash after "${label}": console.error in the studio:\n${consoleErrors.join('\n')}`);
-      }
-      const logs = await (await fetch(`${base}/api/logs`)).json();
-      const clientErrors = logs.lines.filter((l) => l.includes('STUDIO CLIENT ERROR'));
-      if (clientErrors.length > 0) {
-        throw new Error(`crash after "${label}":\n${clientErrors.join('\n')}`);
-      }
-    };
-
-    let stepCount = 0;
-    const step = async (name, fn) => {
-      currentStep = name;
-      await fn();
-      await checkpoint(name);
-      stepCount++;
-      console.log(`  ✓ ${name}`);
-    };
 
     // =========================================================================
     // The human goal.
@@ -951,56 +823,13 @@ if (browsers.length === 0) {
       );
     });
 
-    passed = true;
-    console.log(
-      `HUMAN SIM PASS — ${stepCount} steps: real ${browserName} over raw CDP drove the built studio ` +
-        'against a real bridge (new discussion → annotate a photo seed [pen + highlighter + box + note ' +
-        '+ arrow in a palette color, undo, fullscreen] → a traversable .seeds/ folder with a real ' +
-        'composite PNG + scribble.json → concierge Q&A → gallery pick → live mindmap edit → editedTree → board response → ' +
-        'artifact visible → unified fullscreen viewer → pinned to the filmstrip), zero exceptions, ' +
-        'zero STUDIO CLIENT ERROR lines, root mounted throughout',
+    return (
+      `${stepCount()} steps: real ${browserName} over raw CDP drove the built studio ` +
+      'against a real bridge (new discussion → annotate a photo seed [pen + highlighter + box + note ' +
+      '+ arrow in a palette color, undo, fullscreen] → a traversable .seeds/ folder with a real ' +
+      'composite PNG + scribble.json → concierge Q&A → gallery pick → live mindmap edit → editedTree → board response → ' +
+      'artifact visible → unified fullscreen viewer → pinned to the filmstrip), zero exceptions, ' +
+      'zero STUDIO CLIENT ERROR lines, root mounted throughout'
     );
-  } catch (err) {
-    process.exitCode = 1;
-    console.error(`\nHUMAN SIM FAIL at step: ${currentStep}`);
-    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
-    if (exceptions.length > 0) console.error(`\npage exceptions:\n${exceptions.join('\n')}`);
-    if (consoleErrors.length > 0) console.error(`\npage console errors:\n${consoleErrors.join('\n')}`);
-    console.error(`\nlast bridge log lines:\n${logLines.slice(-30).join('\n') || '(none)'}`);
-    if (cdp) {
-      try {
-        // Backgrounded tabs return stale composited frames — bring to front first.
-        await cdp.send('Page.bringToFront');
-        const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-        const shot = path.join(scratch, 'failure.png');
-        fs.writeFileSync(shot, Buffer.from(data, 'base64'));
-        console.error(`screenshot: ${shot}`);
-      } catch (shotErr) {
-        console.error(`(screenshot unavailable: ${String(shotErr)})`);
-      }
-    }
-    console.error(`evidence kept in: ${scratch}`);
-  } finally {
-    cdp?.close();
-    // Whole tree, not just the root: Windows orphans renderer children, and a
-    // leaked headless tree starves the NEXT harness run's launch (observed
-    // 2026-07-07: ~100 leaked chrome/msedge processes across harness runs).
-    killBrowserTree(browser);
-    killProfileStragglers(profileDir);
-    await bridge?.stop();
-    // Temp profile always goes; the thread scratch dir survives failures as evidence.
-    try {
-      fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5 });
-    } catch {
-      /* a straggling browser child may briefly hold a lock — harmless temp dir */
-    }
-    if (passed) {
-      try {
-        fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5 });
-      } catch {
-        /* harmless temp dir */
-      }
-    }
-    // No process.exit() — the loop drains naturally, the exit code stays honest.
-  }
-}
+  },
+});
