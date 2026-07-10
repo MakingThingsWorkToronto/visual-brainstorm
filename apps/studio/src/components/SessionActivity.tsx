@@ -75,13 +75,17 @@ export function SessionActivity({
           <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-dim">
             Where the tokens went
           </div>
-          {sinkRows.map(({ sink, value }) => (
+          {sinkRows.map(({ sink, value }, row) => (
             <div key={sink} className="flex items-center gap-2">
               <span className="w-28 shrink-0 truncate text-[10px] text-ink-dim">{SINK_LABELS[sink]}</span>
               <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-2">
                 <span
-                  className="block h-full rounded-full bg-accent"
-                  style={{ width: `${sinkTotal > 0 ? Math.round((value / sinkTotal) * 100) : 0}%` }}
+                  className="sink-bar-fill block h-full rounded-full bg-accent"
+                  style={{
+                    width: `${sinkTotal > 0 ? Math.round((value / sinkTotal) * 100) : 0}%`,
+                    // Stagger the traveling pulse so the chart reads alive, not strobed.
+                    animationDelay: `${row * 260}ms`,
+                  }}
                 />
               </span>
               <span className="shrink-0 font-mono text-[10px] text-ink-dim">{compactCount(value)}</span>

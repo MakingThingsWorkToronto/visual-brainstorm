@@ -265,12 +265,46 @@ body {
   filter: drop-shadow(0 0 3px color-mix(in srgb, #10b981 70%, transparent));
 }
 
+/* sink-pulse — a bright pulse traveling each "Where the tokens went" chart
+   line (SessionActivity). Same background-position technique as .shimmer,
+   layered ON the theme accent fill (color-mix against --accent) so it re-skins
+   with the picked theme; per-row stagger is an inline animation-delay. HONESTY:
+   the fill's WIDTH is the datum (share of total) and only ever transitions
+   between real values — the pulse is pure light, never data. The 3px min-width
+   keeps a tiny-but-nonzero sink visible as a sliver (rows render only for
+   value > 0); the exact count sits beside the bar. */
+.sink-bar-fill {
+  min-width: 3px;
+  background-image: linear-gradient(
+    100deg,
+    transparent 40%,
+    color-mix(in srgb, white 60%, var(--accent)) 48%,
+    #fff 50%,
+    color-mix(in srgb, white 60%, var(--accent)) 52%,
+    transparent 60%
+  );
+  background-size: 220% 100%;
+  background-position: 200% 0;
+  background-repeat: no-repeat;
+  animation: sink-pulse 2.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes sink-pulse {
+  to { background-position: -120% 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-aurora::before,
   .app-aurora::after,
   .nav-edge-glow::after,
-  .chrome-spin-border::before {
+  .chrome-spin-border::before,
+  .sink-bar-fill {
     animation: none;
+  }
+  /* Pulse light off; the bars themselves (the data) stay. */
+  .sink-bar-fill {
+    background-image: none;
+    transition: none;
   }
   /* The wayfinding pulse is pure motion — hide it entirely when reduced. */
   .guide-pulse {

@@ -35,9 +35,13 @@ when the concept itself missed the brief.
 
 Your brief carries the round's DELTA only: direction, palette by name, axis deltas, kills,
 parents, per-option one-liners — never a re-teaching of how to draw (the artisan's skill
-carries the craft). On a digest-flagged TWEAK, hand the artisan the `round-NN/option-<id>.svg`
-source paths + only the deltas: mutate, don't redraw.
+carries the craft). On a digest-flagged TWEAK, hand the artisan the digest's label→file
+source mapping (`"Label" → round-NN/option-<id>.svg`) + only the deltas: mutate, don't
+redraw — and keep the digest's **MUTATE** keyword verbatim in the brief: the token pipe
+bins the delegation as `tweak` (vs `generation`) by that exact marker, so dropping it
+misfiles the round's cost.
 
 ## Changelog
 - 2026-07-09 — created: judge-side split of svg-authoring so the orchestrator stops carrying
   the full craft doc it delegates away (token-economy phase 4)
+- 2026-07-09 — briefing reminder: label→file mapping + keep the MUTATE marker verbatim (the token pipe bins tweak-vs-generation by it) (fresh-eyes round 2 of token-economy-2026-07-07)

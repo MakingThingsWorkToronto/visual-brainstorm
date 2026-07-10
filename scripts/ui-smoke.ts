@@ -726,9 +726,16 @@ for (const [label, count] of [['Board generation', '9k'], ['Orchestration', '3k'
   assert.ok(activitySinks.includes(count), `[session-activity] sink count "${count}" missing`);
 }
 assert.ok(!activitySinks.includes('Poster'), '[session-activity] zero-token sink must be omitted');
+// The traveling pulse rides the fill (theme-driven CSS class + staggered delay);
+// the WIDTH stays the honest datum: generation is 9000/12300 → 73% of the total,
+// never 100%-of-max (share-of-total normalization, no visual overstatement).
+assert.ok(activitySinks.includes('sink-bar-fill'), '[session-activity] chart-line pulse class missing from the fill');
+assert.ok(activitySinks.includes('animation-delay:260ms'), '[session-activity] per-row pulse stagger missing');
+assert.ok(activitySinks.includes('width:73%'), '[session-activity] bar width must be share-of-total (9000/12300 → 73%)');
+assert.ok(!activitySinks.includes('width:100%'), '[session-activity] no bar may claim 100% when the total is split');
 // No breakdown at all without the tokensBySink prop.
 assert.ok(!activityTokens.includes('Where the tokens went'), '[session-activity] no sink panel without tokensBySink');
-console.log('UI session activity per-sink accounting ✓ (labeled bars, zero sinks omitted)');
+console.log('UI session activity per-sink accounting ✓ (labeled bars + honest share-of-total widths + traveling pulse, zero sinks omitted)');
 
 // --- Sidebar rows: compact token count when summary.tokens > 0, hidden at 0 ---
 // Fixtures go through the schema like every production path (defaults stay in sync).

@@ -24,13 +24,16 @@ forbidden territory.
 
 ## Mutation rounds (tweak, not redirect)
 
-When the brief carries a "TWEAK … MUTATE, don't redraw" instruction with source SVG paths
-(`round-NN/option-<id>.svg`): **Read each source file and mutate it in place** — apply ONLY
-the briefed deltas (dial re-tuning, a note's nudge, a flaw's fix) and preserve every part
-of the geometry the deltas don't touch, byte-for-byte where possible. Never re-author a
-mutation round from scratch: the user liked what they saw and asked for a nudge — continuity
-IS the quality, and the delta is all the work. Set each returned option's `parents` to the
-source option id. The full checklist still applies to what you changed.
+When the brief carries a "TWEAK … MUTATE, don't redraw" instruction with concrete source
+SVG paths (the digest maps each option label to its `round-NN/option-<id>.svg` file):
+**Read each source file and mutate it in place** — apply ONLY the briefed deltas (dial
+re-tuning, a note's nudge, a flaw's fix) and preserve every part of the geometry the deltas
+don't touch, byte-for-byte where possible. Never re-author a mutation round from scratch:
+the user liked what they saw and asked for a nudge — continuity IS the quality, and the
+delta is all the work. TWO permitted fresh options inside a mutation round (the digest
+names them when they apply): a clarifying variant an UNSURE line ordered, and the one
+variant "embracing" a flaw — everything else mutates. Set each returned option's `parents`
+to the source option id. The full checklist still applies to what you changed.
 
 ## Rationale + annotated marks (handoff fidelity)
 

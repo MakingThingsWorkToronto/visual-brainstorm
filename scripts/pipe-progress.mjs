@@ -7,6 +7,10 @@
  * Two modes:
  *   CLI:  node scripts/pipe-progress.mjs --note "drawing round 2" [--source svg-artisan]
  *         [--in 1234 --out 567] [--port 5199]
+ *         Structured status (protocol ProgressEvent fields — correlate the note
+ *         to a specific streaming artifact): [--stage generating|revising|replacing]
+ *         [--artifact <slug>] [--option <optionId>] [--board <boardId>]
+ *         [--step N --of M]  (e.g. --stage generating --step 3 --of 6)
  *   Hook: wired in .claude/settings.json — reads the Claude Code hook JSON from
  *         stdin (PreToolUse/PostToolUse/SubagentStop/Stop) and forwards a
  *         mechanical label.
@@ -69,9 +73,10 @@ const TOOL_LABELS = {
 /**
  * Token-sink DECLARED by a tool boundary — the bridge attributes the FOLLOWING
  * turn-end token delta to it (see session-store attribution). A boundary carries
- * no tokens itself; it only names what the just-finished turn was doing. `tweak`
- * can't be told from `generation` mechanically, so a tweak round is labeled by
- * the orchestrator via CLI `--category tweak`; a bare present_board is generation.
+ * no tokens itself; it only names what the just-finished turn was doing.
+ * `tweak` vs `generation` is told mechanically at the DELEGATION boundary
+ * (PreToolUse svg-artisan, MUTATE marker — see fromHook); CLI `--category`
+ * remains the explicit override for any harness without hooks.
  */
 const TOOL_SINKS = {
   mcp__visual_brainstorm__present_board: 'generation',
@@ -82,23 +87,29 @@ const TOOL_SINKS = {
 };
 
 /**
- * Valid `--category` values come from the protocol package (rule 5:
- * `TOKEN_SINKS` in packages/protocol is the single source of truth — an unknown
- * category is silently stripped here and would misfold into `orchestration`).
+ * Valid `--category` / `--stage` values come from the protocol package (rule 5:
+ * `TOKEN_SINKS` / `PROGRESS_STAGES` in packages/protocol are the single source
+ * of truth — an unknown value is silently stripped here; a stripped category
+ * would misfold into `orchestration`, a stripped stage just loses correlation).
  * The import is guarded because this pipe is a hook that must NEVER fail: with
  * protocol unbuilt (fresh clone, mid-build), fall back to a local mirror.
  */
-async function loadSinks() {
+async function loadVocab() {
   try {
     const protocol = await import('../packages/protocol/dist/index.js');
-    if (Array.isArray(protocol.TOKEN_SINKS)) return new Set(protocol.TOKEN_SINKS);
+    if (Array.isArray(protocol.TOKEN_SINKS) && Array.isArray(protocol.PROGRESS_STAGES)) {
+      return { sinks: new Set(protocol.TOKEN_SINKS), stages: new Set(protocol.PROGRESS_STAGES) };
+    }
   } catch {
     /* protocol dist unbuilt — hook safety over freshness */
   }
-  // Fallback mirror of protocol TOKEN_SINKS — used only when dist is unreadable.
-  return new Set(['generation', 'tweak', 'intake', 'orchestration', 'poster']);
+  // Fallback mirrors of protocol TOKEN_SINKS / PROGRESS_STAGES — dist unreadable only.
+  return {
+    sinks: new Set(['generation', 'tweak', 'intake', 'orchestration', 'poster']),
+    stages: new Set(['generating', 'revising', 'replacing']),
+  };
 }
-const SINKS = await loadSinks();
+const { sinks: SINKS, stages: STAGES } = await loadVocab();
 
 async function readStdin() {
   if (process.stdin.isTTY) return '';
@@ -188,6 +199,9 @@ function fromHook(payload) {
       source: 'hook:PreToolUse',
       tokens: undefined,
       category: sink,
+      // The sink names the token bucket; the stage names the work itself
+      // (same mechanical boundary, structured for the studio's status line).
+      stage: sink === 'tweak' ? 'revising' : 'generating',
       commitTokens: () => {},
     };
   }
@@ -212,6 +226,7 @@ try {
   let source = arg('--source');
   let tokens;
   let category = arg('--category');
+  let stage = arg('--stage');
   let commitTokens = () => {};
   if (!note) {
     const raw = await readStdin();
@@ -221,6 +236,7 @@ try {
       source ??= hook.source;
       tokens = hook.tokens;
       category ??= hook.category;
+      stage ??= hook.stage;
       commitTokens = hook.commitTokens;
     }
   }
@@ -228,6 +244,18 @@ try {
   const tokensOut = Number(arg('--out') ?? 0);
   if (tokensIn || tokensOut) tokens = { input: tokensIn, output: tokensOut };
   if (category && !SINKS.has(category)) category = undefined; // ignore an unknown label
+  if (stage && !STAGES.has(stage)) stage = undefined; // ignore an unknown stage
+  // Structured correlation fields — which artifact/option/board the note concerns,
+  // and its N-of-M position in a known batch. Mechanical passthrough, no defaults.
+  const artifactSlug = arg('--artifact');
+  const optionId = arg('--option');
+  const boardId = arg('--board');
+  const step = Number(arg('--step') ?? 0);
+  const of = Number(arg('--of') ?? 0);
+  const sequence =
+    Number.isInteger(step) && Number.isInteger(of) && step >= 1 && of >= 1
+      ? { current: step, total: of }
+      : undefined;
   if (note) {
     const body = {
       at: new Date().toISOString(),
@@ -235,6 +263,11 @@ try {
       note,
       ...(tokens ? { tokens } : {}),
       ...(category ? { category } : {}),
+      ...(stage ? { stage } : {}),
+      ...(artifactSlug ? { artifactSlug } : {}),
+      ...(optionId ? { optionId } : {}),
+      ...(boardId ? { boardId } : {}),
+      ...(sequence ? { sequence } : {}),
     };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1500);
