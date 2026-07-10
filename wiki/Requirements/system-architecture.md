@@ -26,11 +26,16 @@ apps/wiki-mcp        @visual-brainstorm/wiki-mcp — read-only stdio MCP server 
                      cloud setup — thin adapters over `.claude/`,
                      `.claude/agentic-surface-registry.json`, and the MCP tool surface. They
                      improve command discovery but do not own workflow logic. `.vscode/mcp.json`
-                     is the local VS Code `servers` manifest; `.github/mcp.json` is a versioned
+                     and root `.mcp.json` deliberately omit `VIBR_COPILOT_HOSTED`, preserving
+                     the local interactive bridge. `.github/mcp.json` is a versioned
                      GitHub-compatible `mcpServers` payload, supplied through agent-scoped
                      declarations or repository MCP settings rather than auto-discovered by
-                     GitHub.com. Hosted agents run stdio in an ephemeral runner whose loopback
-                     bridge cannot expose the human-facing browser studio.
+                     GitHub.com. Its product-server entry and product server agent declarations
+                     set literal `VIBR_COPILOT_HOSTED=1`. In that hosted mode,
+                     `apps/mcp/src/index.ts` returns `{ status: "unsupported-host" }` for
+                     open_studio, ask_concierge, present_gallery, and present_board before a
+                     bridge starts; an ephemeral runner cannot expose a human-facing browser
+                     studio.
 .codex/              workspace-local Codex project config, hooks, and custom-agent `.toml`
                      files. Thin adapter over `.claude/`; no duplicated workflow logic.
 .agents/skills/      Codex-discoverable skill mirror of `.claude/skills/` so Codex loads the

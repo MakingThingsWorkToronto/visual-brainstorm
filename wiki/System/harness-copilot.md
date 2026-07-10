@@ -23,6 +23,10 @@ source; `.github/copilot-instructions.md` carries the bootstrap + runtime rules.
 `visual-brainstorm` (`node apps/mcp/dist/index.js`) and `visual-brainstorm-wiki`
 (`node apps/wiki-mcp/dist/index.js`).
 
+Both `.vscode/mcp.json` and the root `.mcp.json` deliberately omit
+`VIBR_COPILOT_HOSTED`; the local route must keep the bridge and human-accessible interactive
+studio enabled.
+
 After dependencies are installed and `npm run build` has produced `dist`, trust the workspace,
 then use **MCP: List Servers** to start and trust both servers. This is the fully interactive
 supported path: the bridge's local `127.0.0.1` studio is reachable by the human on the same
@@ -36,12 +40,24 @@ GitHub-hosted Copilot receives equivalent configuration from the relevant
 `.github/agents/*.agent.md` `mcp-servers` declarations, or an administrator can paste the
 payload into repository **Settings > Copilot > MCP servers**.
 
-`.github/workflows/copilot-setup-steps.yml` runs `npm ci` and `npm run build`, allowing cloud
-agents to launch the dist-based stdio commands. Those servers run inside an ephemeral Actions
-runner, where the product bridge listens on runner-local `127.0.0.1`. The runner cannot expose
-the Visual Brainstorm browser studio to a human or collect a human board response. Do not report
-`open_studio`, `ask_concierge`, `present_gallery`, or `present_board` as a completed interactive
-brainstorm there. The read-only wiki server and other noninteractive MCP operations remain useful.
+The product `visual-brainstorm` entry in that payload, and every GitHub agent-scoped
+`mcp-servers` declaration that exposes the product server, set literal
+`VIBR_COPILOT_HOSTED=1`. `apps/mcp/src/index.ts` treats that as a runtime safety boundary: it
+returns `{ status: "unsupported-host" }` for `open_studio`, `ask_concierge`,
+`present_gallery`, and `present_board` before creating a session or starting the bridge. This is
+enforced runtime behavior, not prompt prose alone.
+
+`.github/workflows/copilot-setup-steps.yml` runs `npm ci`, then `npm run build`, followed by
+`npm run check:copilot-parity`, `node --test tests/copilot-mcp.test.mjs`, and
+`node --test tests/copilot-adapter.test.mjs`. Its push and pull-request path filters explicitly
+include `.github/agentic-surface-registry.json`, `.github/prompts/**`, and
+`tests/copilot-adapter.test.mjs`, alongside the other parity-owned workflow, manifest, hook,
+agent, instruction, registry, test, and script paths. The MCP checks prove startup and parity;
+the adapter test proves the authoritative registry -> Copilot adapter registry -> prompt/agent
+wrapper chain. Cloud servers still run inside an ephemeral Actions runner, where the product
+bridge would be runner-local `127.0.0.1`; the runtime refusal prevents a hidden runner bridge
+from being treated as an interactive journey. The read-only wiki server and other noninteractive
+MCP operations remain useful.
 
 ## Authority mirror and native hooks
 
@@ -106,6 +122,15 @@ Copilot has no separate orchestrator/generalist split.
 The repo proves the authoritative registry → Copilot adapter registry → prompt/agent chain stays aligned; whether the `/`
 entries actually surface in the Copilot menu is a VS Code host behavior, spot-checked after host
 upgrades ([testing-observability.md](testing-observability.md), [user-guide.md](../user-guide.md)).
-`tests/copilot-mcp.test.mjs` additionally checks the parity guard and performs real stdio MCP
-`initialize` handshakes for both local commands. That automated proof supplements, rather than
-replaces, VS Code host spot checks and GitHub cloud configuration/policy checks.
+`tests/copilot-mcp.test.mjs` additionally checks the parity guard and, for every configured
+server in both manifests, performs real stdio `initialize` -> `notifications/initialized` ->
+`tools/list` discovery against its declared command and environment. With
+`VIBR_COPILOT_HOSTED=1`, it actively calls every browser-dependent product tool — `open_studio`,
+`ask_concierge`, `present_gallery`, and `present_board` — and requires each to return
+`{ status: "unsupported-host" }` before bridge startup. It also exercises the native hook wrapper
+with `{}`, `null`, malformed JSON, and a normal edit payload.
+
+The following remain host-managed manual checks, and are not claimed as automated proof:
+- VS Code workspace trust, server start/discovery, and MCP tool and `/` menu behavior.
+- GitHub organization policy plus repository MCP-settings and custom-agent acceptance.
+- GitHub runner working-directory and host-service behavior.

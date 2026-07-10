@@ -3,7 +3,7 @@
 **Date:** 2026-07-09
 **Scope:** Make the two repository MCP servers discoverable and startable by GitHub Copilot in VS Code; provide a GitHub-hosted Copilot configuration payload and cloud-agent setup; mirror the applicable agentic contract and hook outcomes without creating a second behavioral source of truth.
 **Authority:** `CLAUDE.md` rules 1, 3, 6, 10, 11, and 12; `AGENTS.md` rules 1, 4, and 6; `wiki/Meta/conventions.md`; `wiki/System/harness-copilot.md`; official VS Code and GitHub Copilot MCP/hook configuration contracts.
-**Status:** in progress
+**Status:** implementation complete; final verification in progress
 
 ## Problem
 
@@ -37,3 +37,8 @@ shown to a human from its ephemeral runner.
 
 - 2026-07-09 — plan created after verifying the root Claude manifest, current Copilot adapter,
   Codex MCP/hook donor, official VS Code MCP/hook schema, and GitHub cloud-agent setup contract.
+- 2026-07-09 — added both host-native manifests, GitHub setup workflow, dynamic instruction
+  mirror, native hook dispatcher, parity guard, and real stdio contract tests. Hardened the
+  hosted runner boundary at the MCP tool layer (`VIBR_COPILOT_HOSTED=1` rejects interactive
+  studio calls) and added CI validation for parity-only changes. Focused validation is green;
+  full build/test remains the final gate.

@@ -37,15 +37,34 @@ function isProgressBoundary(toolName) {
   );
 }
 
-export function planHookActions(payload, fallbackEvent = '') {
+export function parseHookPayload(raw, command) {
+  let payload = {};
+  let parsedObject = false;
+  try {
+    const parsed = raw.trim() ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      payload = parsed;
+      parsedObject = true;
+    }
+  } catch {
+    // An unparseable payload cannot safely be classified as irrelevant.
+  }
+  const fallback = command === 'post-tool-use' ? 'PostToolUse' : command === 'pipe-progress' ? 'Stop' : '';
+  const toolName = hookValue(payload, 'tool_name', 'toolName');
+  const requiresToolName = fallback === 'PostToolUse';
+  return { payload, fallback, conservative: !parsedObject || (requiresToolName && !String(toolName).trim()) };
+}
+
+export function planHookActions(payload, fallbackEvent = '', { conservative = false } = {}) {
   const event = eventName(hookValue(payload, 'hook_event_name', 'hookEventName') || fallbackEvent);
   const toolName = normalizedToolName(hookValue(payload, 'tool_name', 'toolName'));
   const postToolUse = event === 'PostToolUse';
-  const fileMutation = postToolUse && isFileMutation(toolName);
+  const fileMutation = postToolUse && (isFileMutation(toolName) || conservative);
   return {
     forwardProgress: event === 'SubagentStop' || event === 'Stop' || (postToolUse && isProgressBoundary(toolName)),
     checkAgenticSurface: fileMutation,
     checkCopilotParity: fileMutation,
+    forceFullParity: postToolUse && conservative,
     event,
     toolName,
   };
@@ -80,19 +99,15 @@ async function readStdin() {
 async function main() {
   const command = process.argv[2] ?? '';
   const raw = await readStdin();
-  let payload = {};
-  try {
-    payload = raw.trim() ? JSON.parse(raw) : {};
-  } catch {
-    payload = {};
-  }
-  const fallback = command === 'post-tool-use' ? 'PostToolUse' : command === 'pipe-progress' ? 'Stop' : '';
-  const actions = planHookActions(payload, fallback);
+  const { payload, fallback, conservative } = parseHookPayload(raw, command);
+  const actions = planHookActions(payload, fallback, { conservative });
   const preparedPayload = childPayload(payload, actions);
   const statuses = [];
   if (actions.forwardProgress) statuses.push(run('pipe-progress.mjs', [], preparedPayload));
   if (actions.checkAgenticSurface) statuses.push(run('check-agentic-surface.mjs', ['--hook'], preparedPayload));
-  if (actions.checkCopilotParity) statuses.push(run('check-copilot-parity.mjs', ['--hook'], preparedPayload));
+  if (actions.checkCopilotParity) {
+    statuses.push(run('check-copilot-parity.mjs', actions.forceFullParity ? [] : ['--hook'], preparedPayload));
+  }
   if (statuses.includes(2)) process.exit(2);
   if (statuses.some((status) => status !== 0)) process.exit(1);
 }

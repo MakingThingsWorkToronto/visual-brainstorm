@@ -18,10 +18,22 @@ Conventions:
   harnesses are concurrency-safe (`fs.mkdtempSync` profile dirs + ephemeral bridge ports),
   so simultaneous `npm test` runs across sessions don't collide.
 - Copilot MCP verification is split honestly: `tests/copilot-adapter.test.mjs` proves the
-  registry / adapter-registry / wrapper chain, and `tests/copilot-mcp.test.mjs` proves parity
-  plus real stdio `initialize` handshakes for both local commands. Whether VS Code discovers,
-  starts, and trusts the workspace servers, whether slash entries surface in the Copilot `/`
-  menu, and GitHub cloud configuration/policy are host-controlled checks that remain manual.
+  authoritative registry -> Copilot adapter registry -> prompt/agent wrapper chain.
+  `tests/copilot-mcp.test.mjs` runs the parity guard and, for every configured server in
+  `.vscode/mcp.json` and `.github/mcp.json`, uses real stdio `initialize` ->
+  `notifications/initialized` -> `tools/list` discovery and asserts the exact tool inventory.
+  It starts the hosted product server with `VIBR_COPILOT_HOSTED=1` and actively calls
+  `open_studio`, `ask_concierge`, `present_gallery`, and `present_board`; each must return
+  `{ status: "unsupported-host" }` before bridge startup. Native hook-wrapper behavior is
+  exercised for `{}`, `null`, malformed JSON, and a normal edit payload. After `npm run build`,
+  the cloud setup workflow runs `npm run check:copilot-parity`,
+  `node --test tests/copilot-mcp.test.mjs`, and `node --test tests/copilot-adapter.test.mjs` in
+  that order. Its push and pull-request filters include `.github/agentic-surface-registry.json`,
+  `.github/prompts/**`, and `tests/copilot-adapter.test.mjs` as parity-owned paths.
+- Copilot host checks remain manual: VS Code workspace trust, start/discovery, MCP tools, and `/`
+  menu behavior; GitHub organization policy and repository MCP-settings/custom-agent acceptance;
+  and GitHub runner working-directory and host-service behavior. The repo makes no automated
+  claim for these host-managed conditions.
 - Codex adapter verification is local and deterministic: the repo proves the `.codex` config,
   hooks, custom-agent roster, and `.agents/skills` mirror. Whether a particular Codex client
   has trusted the project and loaded project-local config is a client state check (`/mcp`,

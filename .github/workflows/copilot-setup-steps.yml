@@ -5,18 +5,48 @@ on:
   push:
     paths:
       - .github/workflows/copilot-setup-steps.yml
+      - .github/mcp.json
+      - .github/hooks/**
+      - .github/agents/**
+      - .github/agentic-surface-registry.json
+      - .github/prompts/**
+      - .github/copilot-instructions.md
+      - .vscode/**
+      - .claude/agentic-surface-registry.json
+      - .mcp.json
+      - CLAUDE.md
+      - AGENTS.md
       - package.json
       - package-lock.json
       - apps/**
       - packages/**
+      - scripts/check-copilot-parity.mjs
+      - scripts/copilot-hook.mjs
+      - tests/copilot-mcp.test.mjs
+      - tests/copilot-adapter.test.mjs
       - tsconfig*.json
   pull_request:
     paths:
       - .github/workflows/copilot-setup-steps.yml
+      - .github/mcp.json
+      - .github/hooks/**
+      - .github/agents/**
+      - .github/agentic-surface-registry.json
+      - .github/prompts/**
+      - .github/copilot-instructions.md
+      - .vscode/**
+      - .claude/agentic-surface-registry.json
+      - .mcp.json
+      - CLAUDE.md
+      - AGENTS.md
       - package.json
       - package-lock.json
       - apps/**
       - packages/**
+      - scripts/check-copilot-parity.mjs
+      - scripts/copilot-hook.mjs
+      - tests/copilot-mcp.test.mjs
+      - tests/copilot-adapter.test.mjs
       - tsconfig*.json
 
 jobs:
@@ -37,3 +67,9 @@ jobs:
         run: npm ci
       - name: Build MCP servers and studio
         run: npm run build
+      - name: Validate GitHub Copilot MCP parity
+        run: npm run check:copilot-parity
+      - name: Exercise Copilot MCP startup contracts
+        run: node --test tests/copilot-mcp.test.mjs
+      - name: Validate Copilot prompt and agent adapters
+        run: node --test tests/copilot-adapter.test.mjs

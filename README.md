@@ -14,11 +14,11 @@ Claude Code ◀─tool result─          ▲          ◀─── you click "S
 Mashup-culture architecture: three small pieces loosely joined — Claude Code (intelligence),
 an MCP server (glue), a local React app (surface). No accounts, no cloud, MIT.
 
-GitHub Copilot workspace adapters now live in `.github/` as thin prompts/agents that read the
+GitHub Copilot workspace adapters live in `.github/` as thin prompts/agents that read the
 provider-neutral registry at `.claude/agentic-surface-registry.json` and then the authoritative
-`.claude/` workflows themselves instead of duplicating them. The current local runtime and
-studio now read runtime/model labels from structured metadata, but the only implemented live
-orchestration runtime is still Claude Code.
+`.claude/` workflows themselves instead of duplicating them. Local VS Code Copilot Chat can use
+the same MCP tool surface and browser studio; the shipped runtime/model catalog still defaults to
+Claude Code and Anthropic models, so this is not a fabricated Copilot model route.
 
 ## What a session feels like
 
@@ -60,17 +60,21 @@ visual. Tip: raise the MCP tool timeout so boards can wait for slow humans —
 
 Use with GitHub Copilot in this workspace:
 
-- Open the repo in VS Code with GitHub Copilot Chat enabled.
-- Let the workspace load its `.github/` prompts and agents.
-- Type `/` and VS Code should surface `run-brainstorm`, `build-check`, `plan-closeout`, `discover-skills`,
-   `diagnose-studio`, `artifact-chat`, `read-mindmap`, `read-scribble`, `reopen`, `new-command`, or
-   `create-dispatch-command`.
-- These prompt files are thin adapters over the provider-neutral `.claude/agentic-surface-registry.json`
-   and the referenced `.claude/commands`, `.claude/skills`, and `.claude/agents`; the repo's
-   behavior still lives there.
-- Repo verification proves the registry → adapter-map → prompt/agent wrapper chain and the shared
-   MCP/runtime path; whether Copilot Chat shows those slash entries in the `/` menu is still a VS Code
-   host behavior, so spot-check it after VS Code or Copilot upgrades.
+- **Local VS Code Copilot Chat is the interactive path.** Run `npm install` and `npm run build`,
+  trust the workspace, then use **MCP: List Servers** to start/trust both servers from
+  `.vscode/mcp.json`. The local bridge binds to your `127.0.0.1`, so its browser studio can collect
+  real board responses. Type `/` for workspace prompts such as `run-brainstorm`, `build-check`,
+  `plan-closeout`, `discover-skills`, `diagnose-studio`, `artifact-chat`, `read-mindmap`,
+  `read-scribble`, `reopen`, `new-command`, or `create-dispatch-command`.
+- **GitHub-hosted Copilot is noninteractive.** `.github/mcp.json` is a versioned payload for
+  agent-scoped MCP declarations or repository **Settings > Copilot > MCP servers**; GitHub.com
+  does not auto-discover it. The setup workflow builds the servers in the runner, but the product
+  MCP explicitly returns `unsupported-host` for browser-dependent studio tools there. Hosted
+  sessions can use noninteractive tools, including the wiki server, but cannot complete a visual
+  board journey.
+- Repo verification proves the adapter chain, parity configuration, and real stdio MCP tool
+  discovery. VS Code trust/server discovery and `/` menu visibility, plus GitHub organization
+  policy and repository MCP acceptance, remain host-managed checks.
 
 ## MCP tools
 
@@ -101,7 +105,8 @@ apps/studio         Vite + React + Tailwind v4 survey UI (shadcn-chat-inspired)
 wiki/               authoritative facts & guardrails + user-guide.md (start: README.md there)
 discussion/         plans + the brainstorm thread cache (_completed/ = archive; .logs/ = runtime logs)
 .claude/            commands (procedures) · skills (craft) · agents (specialized roles)
-.github/            Copilot instructions + thin prompt/agent adapters over the `.claude/` SSOT
+.vscode/            VS Code Copilot workspace MCP manifest and native-hook loading settings
+.github/            Copilot instructions, prompts/agents, MCP payload, hooks, and cloud setup over `.claude/`
 .claude/agentic-surface-registry.json  provider-neutral registry external harness adapters reference
 ```
 

@@ -29,28 +29,40 @@ installing dependencies and running `npm run build`, trust the workspace, open *
 Servers**, and start/trust `visual-brainstorm` plus `visual-brainstorm-wiki`. The manifest uses
 VS Code's `servers` schema and `${workspaceFolder}` as the working directory. This is the
 supported full-studio route: the browser can reach the bridge on your local `127.0.0.1` and you
-can answer its boards.
+can answer its boards. Both this manifest and the root `.mcp.json` deliberately omit
+`VIBR_COPILOT_HOSTED`, so the local interactive studio remains enabled.
 
 In Copilot Chat, type `/` to use workspace prompts such as `run-brainstorm`, `build-check`,
 `plan-closeout`, `discover-skills`, `diagnose-studio`, `artifact-chat`, `reopen`,
 `new-command`, or `create-dispatch-command`. They remain thin adapters over the authoritative
 `.claude/` workflows and the same local MCP/studio stack. Repo tests prove the registry →
 adapter-map → prompt/agent chain and real MCP startup contracts; whether slash entries appear in
-the Copilot `/` menu remains a VS Code host behavior to spot-check after host upgrades.
+the Copilot `/` menu remains a VS Code host behavior to spot-check after host upgrades. Workspace
+trust, server start/discovery, and MCP tool/menu behavior are VS Code-managed manual checks.
 
 **GitHub-hosted Copilot is a noninteractive runner path.** `.github/mcp.json` is a versioned,
 GitHub-compatible `mcpServers` payload with explicit tool allowlists, but GitHub.com does not
 discover it automatically. GitHub-hosted agents receive it through relevant agent-scoped
 `mcp-servers` declarations or a repository administrator pastes it into **Settings > Copilot >
 MCP servers**. The setup workflow runs `npm ci` and `npm run build` before cloud agents launch
-the dist-based servers.
+the dist-based servers, then runs `npm run check:copilot-parity`,
+`node --test tests/copilot-mcp.test.mjs`, and `node --test tests/copilot-adapter.test.mjs`.
+Its push and pull-request filters treat `.github/agentic-surface-registry.json`,
+`.github/prompts/**`, and `tests/copilot-adapter.test.mjs` as parity-owned paths; the adapter
+test proves the authoritative registry -> Copilot adapter registry -> prompt/agent wrapper chain.
 
 Those servers run inside an ephemeral Actions runner. Its product bridge listens only on the
-runner's `127.0.0.1`, so it cannot show you the browser studio or collect a board response. A
-hosted run must not claim that it completed a full interactive brainstorm; use local VS Code
-Copilot Chat for that journey. Its read-only wiki server and other noninteractive MCP operations
-can still be useful. A Copilot-run tool call is a Copilot action, not a Claude-engine run merely
-because the bridge's runtime metadata may mention Claude.
+runner's `127.0.0.1`, so it cannot show you the browser studio or collect a board response. The
+hosted product entry and product-capable agent declarations set `VIBR_COPILOT_HOSTED=1`; with that
+flag, the server refuses `open_studio`, `ask_concierge`, `present_gallery`, and `present_board`
+with `{ status: "unsupported-host" }` before starting a bridge. The focused MCP test actively
+calls all four tools with `VIBR_COPILOT_HOSTED=1` and requires that refusal before a bridge can
+start. A hosted run therefore cannot claim that it completed a full interactive brainstorm; use
+local VS Code Copilot Chat for that journey. Its read-only wiki server and other noninteractive
+MCP operations can still be useful. GitHub organization policy, repository MCP-settings/custom-
+agent acceptance, and runner working-directory/host-service behavior are GitHub-managed manual
+checks. A Copilot-run tool call is a Copilot action, not a Claude-engine run merely because the
+bridge's runtime metadata may mention Claude.
 
 **Use Codex in this workspace.** This repo also ships a Codex adapter: `.codex/config.toml`
 registers the local `visual-brainstorm` and `visual-brainstorm-wiki` MCP servers, `.codex/hooks.json`

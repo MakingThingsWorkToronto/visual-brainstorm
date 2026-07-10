@@ -1,5 +1,20 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — a shared MCP server needs host-specific launch files AND an enforced capability boundary
+
+- **The trap:** one root `.mcp.json` is not portable configuration. VS Code Copilot discovers
+  `.vscode/mcp.json` with a `servers` object and a workspace `cwd`; GitHub-hosted Copilot uses
+  agent-scoped declarations or repository settings, while `.github/mcp.json` is only a versioned
+  `mcpServers` payload. More dangerous: both hosts can launch the same stdio process, but a
+  GitHub Actions runner's `127.0.0.1` studio has no human browser — prose saying "do not call it"
+  leaves the model free to block on an impossible board response.
+- **How to apply:** encode host mode in the launch environment and reject user-interactive tools
+  at the MCP boundary (`VIBR_COPILOT_HOSTED=1` → `unsupported-host`) before a bridge starts.
+  Prove both manifests with real `initialize → initialized → tools/list`, test the hosted refusal,
+  and keep the local manifest unflagged. For hooks, VS Code ignores Claude matcher filters, so
+  load a native `.github/hooks/` wrapper and suppress the automatic Claude-hook import; malformed
+  hook payloads must conservatively run guards rather than silently bypass them.
+
 ## 2026-07-09 — a "non-destructive" pause needs a first-class RESUME, or the resume path quietly undoes it (and the docs will claim otherwise)
 
 - **The trap:** the artifact-chat detour took the pending `present_board` resolver while the

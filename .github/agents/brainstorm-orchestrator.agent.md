@@ -7,6 +7,8 @@ mcp-servers:
     type: stdio
     command: node
     args: [apps/mcp/dist/index.js]
+    env:
+      VIBR_COPILOT_HOSTED: "1"
     tools:
       - present_board
       - open_studio
