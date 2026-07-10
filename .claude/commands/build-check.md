@@ -35,8 +35,16 @@ model: haiku
    body; a granular read returns only the requested subsection). This is the MCP analogue of
    step 3's "prove the real path."
 6. Report results verbatim — failures are reported as failures with output, never smoothed over.
+7. **Trust the EXIT CODE you actually captured, not the one the shell hands back.**
+   `npm test 2>&1 | tail -40` reports TAIL's exit code (0) even when the suite failed —
+   a false-green that survived one real session until a FAIL line was spotted by luck.
+   Capture the suite's own status (`PIPESTATUS[0]` in bash, or run unpiped / append
+   `; echo EXIT:$?` INSIDE the same command) before claiming green; the same trap applies
+   to any trailing `echo`/`grep` whose exit code masks the command before it.
 
 ## Changelog
+- 2026-07-09 — step 7: piped test output masks the suite's exit code (`| tail` reports tail's
+  0) — capture PIPESTATUS/unpiped status before claiming green (from mindmap-chat-hardening)
 - 2026-07-09 — step 1: build order now protocol → studio → mcp → wiki-mcp; a NEW workspace
   needs `npm install` before build/tests can see its dist. Added step 5: prove a new stdio
   MCP server over the protocol with a JSON-RPC probe, not just its pure functions (from

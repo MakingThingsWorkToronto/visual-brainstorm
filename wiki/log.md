@@ -1,5 +1,6 @@
 # Wiki edit log (append-only)
 
+- 2026-07-09 — System/harness-cursor.md + user-guide.md §1/§2 — NEW Cursor harness adapter (.cursor/mcp.json, hooks, 13 slash commands, bootstrap rule); tests/cursor-adapter.test.mjs — reason: Cursor visual brainstorming parity with Claude Code
 - 2026-07-09 — System/testing-observability.md — added shared harness infrastructure bullet (sim-runner.mjs scaffold + bridge-harness.mjs one-spelling) to conventions; added TOKEN_SINKS validation note to Observability (protocol-via-guarded-import, rule 5, no-fail hook) — reason: review-followups-2026-07-09 closeout
 - 2026-07-09 — Requirements/interaction-protocol.md — rewritten "Non-destructive detour + board drafts" section: resume is first-class rearm (rearmBoardId call, rearmAndWait consults parked/recorded responses preventing mid-detour stranding), recordBoard loses duplicate-id guard; updated draft contract: drafts restore dials not bytes (dataUri blanked both ends, name survives); updated "Mind-map persistence": tree.md inline note markers (each once at node), noted-node count header, trailing roll-up GONE, snapshot artifact carries explicit provenance.kind:'mindmap-snapshot', legacy fallback: old boardId+zero-optionIds heuristic — reason: review-followups-2026-07-09 closeout
 
@@ -224,3 +225,4 @@
 - 2026-07-09 — System/harness-copilot.md — recorded the parity-owned workflow triggers, three post-build checks, and all-four hosted interactive-tool refusal coverage — reason: final Copilot MCP parity facts
 - 2026-07-09 — System/testing-observability.md — clarified all-four hosted-tool refusal coverage and workflow proof of the registry-to-wrapper adapter chain — reason: final Copilot MCP parity facts
 - 2026-07-09 — user-guide.md — updated hosted-Copilot verification with adapter-wrapper coverage and all-four pre-bridge refusal checks — reason: final Copilot MCP parity facts
+- 2026-07-09 — System/testing-observability.md — mindchat gated-journey clause refreshed to the 5-step truth (real engine edit before maximize, lazy-instance wait, draft flush + Live tree heading, mindmap-aware hint) — reason: mindmap-chat-hardening closeout; the row undersold the proof

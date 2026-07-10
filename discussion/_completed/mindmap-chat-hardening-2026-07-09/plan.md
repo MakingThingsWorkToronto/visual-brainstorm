@@ -1,7 +1,7 @@
 # Plan — Mind-map review: harden the chat-iteration loop end to end
 
 **Slug:** mindmap-chat-hardening-2026-07-09
-**Status:** closed
+**Status:** closed 2026-07-09
 
 ## Operator ask (2026-07-09)
 
