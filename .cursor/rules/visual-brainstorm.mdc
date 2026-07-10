@@ -1,0 +1,53 @@
+---
+description: Visual Brainstorm bootstrap — authoritative workflows, MCP tools, and subagent routing for Cursor
+alwaysApply: true
+---
+
+# Visual Brainstorm — Cursor harness
+
+You are working in the Visual Brainstorm repo. `.claude/` is the behavioral SSOT; `.cursor/` is a thin adapter.
+
+## Bootstrap (every session)
+
+1. Read `CLAUDE.md` §Session bootstrap and its quick map.
+2. Ground on the wiki via `visual-brainstorm-wiki` MCP: `wiki_search` → `wiki_outline` → `wiki_read`.
+3. Load the skill for your task from `.claude/skills/` (brainstorming → `brainstorm-phases` + `svg-authoring` VALIDITY-SCAN).
+4. Check open plans in `discussion/` (not `_completed/`).
+5. Read `.agents/learnings.md` for hard-won gotchas.
+
+## Slash commands
+
+Type `/` in Agent chat to run workspace commands in `.cursor/commands/`. Each command wraps the authoritative `.claude/commands/<name>.md` procedure. Do not paraphrase — read and follow the source file.
+
+| Command | Subagent | Purpose |
+|---|---|---|
+| run-brainstorm | brainstorm-orchestrator | Full visual brainstorm session |
+| plan-closeout | brainstorm-orchestrator | Close plan, harvest learnings, update wiki |
+| diagnose-studio | devops-diagnostician | Evidence-first studio/bridge/MCP diagnosis |
+| build-check | test-engineer | `npm run build` + `npm test` verification |
+| artifact-chat | brainstorm-orchestrator | Artifact questions and revisions |
+| wiki-maintenance | wiki-librarian | Cross-plan wiki lint/reconcile |
+
+## MCP tools (visual-brainstorm)
+
+Drive real workflows with these tools — never fake success:
+
+- `open_studio` — New Discussion panel (brief handoff)
+- `ask_concierge` — adaptive intake questions
+- `present_gallery` — Living Gallery method pick
+- `present_board` — SVG option survey
+- `capture_artifact` / `reply_artifact_chat` — artifact provenance
+- `list_discussions` / `load_discussion` — resume threads
+- `session_status` / `peek_response` — health and pending responses
+
+## Delegation (rule 11)
+
+- Brainstorm orchestration → **brainstorm-orchestrator** subagent (never re-delegate)
+- SVG generation → **svg-artisan** subagent
+- Diagnosis → **devops-diagnostician** subagent
+- Tests → **test-engineer** subagent
+- Wiki edits → **wiki-librarian** subagent (append `wiki/log.md` per edit, then `wiki_reload`)
+
+## Proof before claim
+
+`npm run build` + `npm test` before any completion claim on repo changes.

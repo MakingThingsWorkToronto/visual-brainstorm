@@ -71,16 +71,27 @@ specialist personas, and `.agents/skills/` mirrors the authoritative `.claude/sk
 Trust the project in Codex, restart the task, then check `/mcp` for both servers. The Codex
 layer is intentionally a wrapper: read and execute `.claude/commands/*.md` for procedures.
 
+**Use Cursor in this workspace.** This repo ships a Cursor adapter: `.cursor/mcp.json`
+registers both local stdio servers, `.cursor/hooks.json` pipes progress to the studio,
+`.cursor/commands/` provides slash commands (`/run-brainstorm`, `/build-check`, etc.), and
+`.cursor/rules/visual-brainstorm.mdc` carries bootstrap + subagent routing. After
+`npm install` and `npm run build`, reload the Cursor window (Cmd/Ctrl+Shift+P →
+**Developer: Reload Window**), then open **Cursor Settings → MCP** to verify both servers
+are connected. Type `/` in Agent chat to run workspace commands. This is the fully interactive
+supported path — the browser studio on `127.0.0.1` is reachable on your machine.
+
 ## 2. Starting a brainstorm, step by step
 
 1. **Open a terminal in the project you want artifacts saved to.** In this repo the MCP
    server auto-loads via `.mcp.json`; in any other project register it first (see §1).
-2. **Start Claude Code, Codex, or local VS Code Copilot Chat:** use `claude` for the native
-  harness; start Codex after trusting the repo so `.codex/` project config loads; or use VS
-  Code Copilot after starting/trusting both servers through **MCP: List Servers**.
+2. **Start Claude Code, Codex, Cursor, or local VS Code Copilot Chat:** use `claude` for the
+  native harness; start Codex after trusting the repo so `.codex/` project config loads; open
+  this repo in Cursor after build + window reload; or use VS Code Copilot after
+  starting/trusting both servers through **MCP: List Servers**.
 3. **Check the connection (first time):** type `/mcp` in Claude Code or Codex —
-  `visual-brainstorm` should be listed as connected. In VS Code Copilot, verify both entries
-  in **MCP: List Servers**. If they are absent, repeat the relevant setup and restart the host.
+  `visual-brainstorm` should be listed as connected. In Cursor, verify both servers in
+  **Cursor Settings → MCP**. In VS Code Copilot, verify both entries in **MCP: List Servers**.
+  If they are absent, repeat the relevant setup and restart the host.
 4. **Say what you want, prefixed however feels natural:**
    - *"brainstorm: app icons for a note-taking tool — warm, hand-drawn, must read at 16px"*
    - *"let's visually brainstorm the architecture for our search feature"*
@@ -292,10 +303,13 @@ discussion — orchestrator and subagents alike, captured deterministically from
 transcripts — accumulate and persist with the thread. The running total shows as a
 `Σ … tok` badge on the activity strip (there even before the first live event arrives), as
 a per-thread `… tok` badge in the sidebar, and on an archived thread's banner as its `Σ`
-total. When any token sink has recorded usage, the expanded activity list also shows a
-**"Where the tokens went"** panel — labeled horizontal bars per sink (generation, tweak,
-intake, orchestration, poster) with their proportional token counts — so you see not just
-the total spend but which activities consumed the most.
+total. When any token sink has recorded usage, the activity strip also shows a
+**"Where the tokens went"** panel (always visible, no expanding needed) — labeled horizontal
+bars per sink (generation, tweak, intake, orchestration, poster) with their proportional
+token counts — so you see not just the total spend but which activities consumed the most.
+Each bar's length is its honest share of the total, and a soft theme-coloured **pulse
+travels along each bar** (staggered per row) so the economy view reads alive while numbers
+accrue; under your OS's reduced-motion setting the pulse switches off and the bars stay.
 
 **Every gesture counts** — this is the core contract:
 - **Dials** (min 5 per board, tailored to your topic): each dial shows its current numeric value in a bordered tag right-aligned next to the heading (turns accent-coloured when moved off its default). Moving a dial and sending — with nothing else — is a complete instruction; the next round is visibly re-tuned. Moved dials show a ● and "steers next round".

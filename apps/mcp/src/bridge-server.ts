@@ -10,6 +10,7 @@ import {
   BoardResponseSchema,
   PaletteColorSchema,
   ProgressEventSchema,
+  ProgressStageSchema,
   ResponseAttachmentSchema,
   SeedIntakeSchema,
   ThemeSchema,
@@ -22,6 +23,7 @@ import {
   type ConciergeExchange,
   type LivingGallery,
   type ModelCatalogEntry,
+  type PendingReplacement,
   type ResponseAttachment,
   type RuntimeEngine,
   type ScribbleAnnotations,
@@ -194,6 +196,12 @@ export class Bridge {
   private readonly responses = new Map<string, BoardResponse>();
   private activeBoard: Board | null = null;
   private thinking: string | null = null;
+  /**
+   * Kill-verdict replacements still generating (one placeholder per entry):
+   * announced via `artifact-pending`, resolved when a capture whose
+   * provenance.replaces names the entry streams in.
+   */
+  private pendingReplacements: PendingReplacement[] = [];
   private browserOpened = false;
   /** UI-invoked procedures queued while no board is awaiting a response. */
   private commandQueue: CommandRequest[] = [];
@@ -342,6 +350,7 @@ export class Bridge {
       tokens: this.store.tokenTotals(),
       tokensBySink: this.store.tokensBySink(),
       artifactChat: this.store.artifactChat,
+      pendingReplacements: this.pendingReplacements,
       drafts: this.store.drafts,
       seedBrief: this.seedBrief,
       concierge: this.concierge,
@@ -673,6 +682,13 @@ export class Bridge {
                   .object({ input: z.number().min(0).default(0), output: z.number().min(0).default(0) })
                   .optional(),
                 category: TokenSinkSchema.optional(),
+                stage: ProgressStageSchema.optional(),
+                artifactSlug: z.string().max(200).optional(),
+                optionId: z.string().max(200).optional(),
+                boardId: z.string().max(200).optional(),
+                sequence: z
+                  .object({ current: z.number().int().min(1), total: z.number().int().min(1) })
+                  .optional(),
               })
               .parse(JSON.parse(body));
             const event = ProgressEventSchema.parse({

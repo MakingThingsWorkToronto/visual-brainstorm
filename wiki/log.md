@@ -226,3 +226,4 @@
 - 2026-07-09 — System/testing-observability.md — clarified all-four hosted-tool refusal coverage and workflow proof of the registry-to-wrapper adapter chain — reason: final Copilot MCP parity facts
 - 2026-07-09 — user-guide.md — updated hosted-Copilot verification with adapter-wrapper coverage and all-four pre-bridge refusal checks — reason: final Copilot MCP parity facts
 - 2026-07-09 — System/testing-observability.md — mindchat gated-journey clause refreshed to the 5-step truth (real engine edit before maximize, lazy-instance wait, draft flush + Live tree heading, mindmap-aware hint) — reason: mindmap-chat-hardening closeout; the row undersold the proof
+- 2026-07-09 — user-guide.md — economy view corrected (always-visible panel, not expanded-only) + documented the traveling bar pulse and its reduced-motion behavior — reason: pulse shipped 5ea1559; rule 12

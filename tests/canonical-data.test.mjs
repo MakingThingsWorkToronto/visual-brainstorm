@@ -23,6 +23,7 @@ const CANONICAL_FILES = {
   'threads/session.json': SessionInfoSchema,
   'threads/discussion-summary.json': DiscussionSummarySchema,
   'threads/progress.json': ProgressEventSchema,
+  'threads/progress-structured.json': ProgressEventSchema,
   'boards/diverge.json': BoardSchema,
   'boards/expand.json': BoardSchema,
   'boards/mutate.json': BoardSchema,

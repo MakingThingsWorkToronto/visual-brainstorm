@@ -14,6 +14,9 @@
     "agents": [],
     "copilot": {
       "commands": ["dispatch-*-next-phase", "add-theme", "revisit-round"]
+    },
+    "cursor": {
+      "commands": ["dispatch-*-next-phase", "add-theme", "revisit-round"]
     }
   },
   "surfaces": [

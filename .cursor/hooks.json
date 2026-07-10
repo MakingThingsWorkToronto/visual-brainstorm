@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Task|MCP: visual-brainstorm",
+        "command": "node scripts/pipe-progress.mjs"
+      },
+      {
+        "matcher": "Write|StrReplace",
+        "command": "node scripts/check-agentic-surface.mjs --hook"
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "node scripts/pipe-progress.mjs"
+      }
+    ],
+    "stop": [
+      {
+        "command": "node scripts/pipe-progress.mjs"
+      }
+    ]
+  }
+}

@@ -15,6 +15,7 @@ const EMPTY: StudioState = {
   activeBoard: null,
   artifacts: [],
   artifactChat: [],
+  pendingReplacements: [],
   drafts: [],
   thinking: null,
   runtime: { id: 'claude', label: 'Claude Code', provider: 'Anthropic' },
@@ -102,11 +103,30 @@ export function useBridge() {
               // Upsert: the envelope carries new captures AND updates to an
               // existing capture's metadata (e.g. saved notes) — same slug.
               const exists = prev.artifacts.some((a) => a.slug === msg.artifact.slug);
+              // A capture that replaces a killed artifact resolves its placeholder.
+              const replaces = msg.artifact.provenance.replaces;
               return {
                 ...prev,
                 artifacts: exists
                   ? prev.artifacts.map((a) => (a.slug === msg.artifact.slug ? msg.artifact : a))
                   : [...prev.artifacts, msg.artifact],
+                pendingReplacements: replaces
+                  ? prev.pendingReplacements.filter((p) => p.replacesSlug !== replaces)
+                  : prev.pendingReplacements,
+              };
+            }
+            case 'artifact-pending': {
+              // Upsert by killed slug — one replacement in flight per slot.
+              const exists = prev.pendingReplacements.some(
+                (p) => p.replacesSlug === msg.pending.replacesSlug,
+              );
+              return {
+                ...prev,
+                pendingReplacements: exists
+                  ? prev.pendingReplacements.map((p) =>
+                      p.replacesSlug === msg.pending.replacesSlug ? msg.pending : p,
+                    )
+                  : [...prev.pendingReplacements, msg.pending],
               };
             }
             case 'artifact-chat':

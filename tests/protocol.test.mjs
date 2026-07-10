@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import {
+  ARTIFACT_VERDICTS,
+  ArtifactSchema,
+  ArtifactVerdictSchema,
   AxisSchema,
   BoardResponseSchema,
   BoardSchema,
@@ -8,6 +11,10 @@ import {
   MindNodeSchema,
   MindTreeSchema,
   PHASES,
+  PROGRESS_STAGES,
+  PendingReplacementSchema,
+  ProgressEventSchema,
+  ProgressStageSchema,
   ResponseActionSchema,
   DEFAULT_INTAKE_QUESTIONS,
   SeedIntakeSchema,
@@ -309,4 +316,101 @@ test('parseOptionChatSlug refuses ordinary artifact slugs and malformed shapes',
   assert.equal(parseOptionChatSlug('option:a:b:c'), null, 'extra colon segment');
   assert.equal(parseOptionChatSlug('option::'), null, 'empty parts');
   assert.equal(parseOptionChatSlug('OPTION:a:b'), null, 'prefix is case-sensitive');
+});
+
+// ---------------------------------------------------------------------------
+// Structured progress + artifact verdict/replacement (in-progress-feedback phase 1)
+// ---------------------------------------------------------------------------
+
+test('PROGRESS_STAGES and ARTIFACT_VERDICTS are the exact literal vocabularies', () => {
+  assert.deepEqual([...PROGRESS_STAGES], ['generating', 'revising', 'replacing']);
+  assert.deepEqual([...ARTIFACT_VERDICTS], ['keep', 'kill']);
+});
+
+test('ProgressEvent round-trips every new structured field, preserving literals', () => {
+  const event = ProgressEventSchema.parse({
+    at: '2026-07-09T10:00:00.000Z',
+    source: 'pipe-progress',
+    note: 'drawing option 3 of 6',
+    stage: 'generating',
+    artifactSlug: 'glow-mark',
+    optionId: 'r3-o2',
+    boardId: 'board-r3-1719400000',
+    sequence: { current: 3, total: 6 },
+  });
+  assert.equal(event.stage, 'generating');
+  assert.equal(event.artifactSlug, 'glow-mark');
+  assert.equal(event.optionId, 'r3-o2');
+  assert.equal(event.boardId, 'board-r3-1719400000');
+  assert.deepEqual(event.sequence, { current: 3, total: 6 });
+});
+
+test('ProgressEvent rejects an unknown stage', () => {
+  assert.throws(() => ProgressStageSchema.parse('polishing'));
+  assert.throws(() =>
+    ProgressEventSchema.parse({ at: 'now', note: 'n', stage: 'polishing' }),
+  );
+});
+
+test('ProgressEvent: a legacy event with none of the new fields still parses', () => {
+  const event = ProgressEventSchema.parse({ at: 'now', source: 'orchestrator', note: 'a subagent finished' });
+  assert.equal(event.stage, undefined);
+  assert.equal(event.artifactSlug, undefined);
+  assert.equal(event.optionId, undefined);
+  assert.equal(event.boardId, undefined);
+  assert.equal(event.sequence, undefined);
+});
+
+const ARTIFACT_BASE = {
+  slug: 'glow-mark',
+  name: 'Glow Mark',
+  svgPath: 'round-01/option-a.svg',
+  provenance: { boardId: 'board-r1-1719400000', optionIds: ['a'] },
+  capturedAt: '2026-07-09T10:00:00.000Z',
+};
+
+test('Artifact round-trips a kill verdict + replacement lineage', () => {
+  const artifact = ArtifactSchema.parse({
+    ...ARTIFACT_BASE,
+    verdict: 'kill',
+    verdictNote: 'too literal, wants more warmth',
+    verdictAt: '2026-07-09T10:05:00.000Z',
+    replacedBy: 'warm-filament',
+    provenance: { ...ARTIFACT_BASE.provenance, replaces: 'glow-mark-v0' },
+  });
+  assert.equal(artifact.verdict, 'kill');
+  assert.equal(artifact.verdictNote, 'too literal, wants more warmth');
+  assert.equal(artifact.verdictAt, '2026-07-09T10:05:00.000Z');
+  assert.equal(artifact.replacedBy, 'warm-filament');
+  assert.equal(artifact.provenance.replaces, 'glow-mark-v0');
+});
+
+test('Artifact rejects an unknown verdict', () => {
+  assert.throws(() => ArtifactVerdictSchema.parse('meh'));
+  assert.throws(() => ArtifactSchema.parse({ ...ARTIFACT_BASE, verdict: 'meh' }));
+});
+
+test('Artifact: a legacy capture with no verdict fields still parses; they stay undefined', () => {
+  const artifact = ArtifactSchema.parse(ARTIFACT_BASE);
+  assert.equal(artifact.verdict, undefined);
+  assert.equal(artifact.verdictNote, undefined);
+  assert.equal(artifact.verdictAt, undefined);
+  assert.equal(artifact.replacedBy, undefined);
+  assert.equal(artifact.provenance.replaces, undefined);
+});
+
+test('PendingReplacement round-trips and requires replacesSlug', () => {
+  const pending = PendingReplacementSchema.parse({
+    replacesSlug: 'glow-mark',
+    characteristic: 'too literal',
+    note: 'wants more warmth',
+    at: '2026-07-09T10:05:00.000Z',
+  });
+  assert.deepEqual(pending, {
+    replacesSlug: 'glow-mark',
+    characteristic: 'too literal',
+    note: 'wants more warmth',
+    at: '2026-07-09T10:05:00.000Z',
+  });
+  assert.throws(() => PendingReplacementSchema.parse({ at: '2026-07-09T10:05:00.000Z' }), 'replacesSlug required');
 });

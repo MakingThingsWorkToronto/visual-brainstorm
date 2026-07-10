@@ -605,6 +605,67 @@ test('POST /api/progress → 400 when the note is missing (zod refuses)', async 
   }
 });
 
+test('POST /api/progress → 200 a fully-structured event survives into the store AND /api/state', async () => {
+  const { bridge, store } = await startBridge();
+  const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
+  try {
+    const messages = [];
+    ws.addEventListener('message', (event) => messages.push(JSON.parse(String(event.data))));
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve);
+      ws.addEventListener('error', reject);
+    });
+    await waitFor(() => messages.some((m) => m.type === 'hello'), 'ws hello');
+
+    const event = readCanonicalRaw('threads/progress-structured.json');
+    const { status, body } = await postJson(bridge, '/api/progress', event);
+    assert.equal(status, 200);
+    assertMatches(body, expectation('progress-200.json'));
+    // Store: the parsed event round-trips its structured fields exactly.
+    assert.deepEqual(store.progress, [ProgressEventSchema.parse(event)]);
+    assert.equal(store.progress[0].stage, 'generating');
+    assert.equal(store.progress[0].artifactSlug, 'glow-mark');
+    assert.equal(store.progress[0].optionId, 'r3-o2');
+    assert.equal(store.progress[0].boardId, 'board-r3-1719400000');
+    assert.deepEqual(store.progress[0].sequence, { current: 3, total: 6 });
+
+    // Broadcast: the WS progress envelope carries the same structured fields.
+    await waitFor(() => messages.some((m) => m.type === 'progress'), 'progress broadcast');
+    const broadcast = messages.find((m) => m.type === 'progress');
+    assert.equal(broadcast.event.stage, 'generating');
+    assert.equal(broadcast.event.artifactSlug, 'glow-mark');
+    assert.deepEqual(broadcast.event.sequence, { current: 3, total: 6 });
+
+    // /api/state: the thread's progress tail carries the structured fields too.
+    const state = await getJson(bridge, '/api/state');
+    assert.equal(state.status, 200);
+    assert.equal(state.body.progress.length, 1);
+    assert.equal(state.body.progress[0].stage, 'generating');
+    assert.equal(state.body.progress[0].artifactSlug, 'glow-mark');
+    assert.equal(state.body.progress[0].optionId, 'r3-o2');
+    assert.equal(state.body.progress[0].boardId, 'board-r3-1719400000');
+    assert.deepEqual(state.body.progress[0].sequence, { current: 3, total: 6 });
+    prove('POST /api/progress', 200);
+  } finally {
+    ws.close();
+    await bridge.stop();
+  }
+});
+
+test('POST /api/progress → 400 an unknown stage is rejected (zod refuses)', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const event = { ...readCanonicalRaw('threads/progress-structured.json'), stage: 'bogus' };
+    const { status, body } = await postJson(bridge, '/api/progress', event);
+    assert.equal(status, 400);
+    assertMatches(body, expectation('progress-400-bad-stage.json'));
+    assert.deepEqual(store.progress, [], 'nothing recorded for a rejected stage');
+    prove('POST /api/progress', 400);
+  } finally {
+    await bridge.stop();
+  }
+});
+
 // ---------------------------------------------------------------------------
 // POST /api/client-log — 200, 400
 // ---------------------------------------------------------------------------

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "visual-brainstorm": {
+      "command": "node",
+      "args": ["apps/mcp/dist/index.js"],
+      "cwd": "${workspaceFolder}"
+    },
+    "visual-brainstorm-wiki": {
+      "command": "node",
+      "args": ["apps/wiki-mcp/dist/index.js"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

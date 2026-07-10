@@ -482,16 +482,37 @@ export type BoardResponse = z.infer<typeof BoardResponseSchema>;
 // Session + artifacts
 // ---------------------------------------------------------------------------
 
+/**
+ * Fullscreen keep/kill verdict on a captured artifact (POST /api/artifact-verdict).
+ * Distinct from board-level triage: this judges ONE capture. `kill` triggers the
+ * regeneration loop — a replacement is generated guided by the killed option's
+ * characteristic + the verdict note; the original is never deleted (rule 7),
+ * only marked and superseded via `replacedBy`.
+ */
+export const ARTIFACT_VERDICTS = ['keep', 'kill'] as const;
+export const ArtifactVerdictSchema = z.enum(ARTIFACT_VERDICTS);
+export type ArtifactVerdict = z.infer<typeof ArtifactVerdictSchema>;
+
 export const ArtifactSchema = z.object({
   slug: z.string(),
   name: z.string(),
   svgPath: z.string(),
   notes: z.string().default(''),
+  /** Post-capture keep/kill judgement; absent = unjudged. Mutable (sidecar rewrite). */
+  verdict: ArtifactVerdictSchema.optional(),
+  /** The note accompanying the verdict — on kill it GUIDES the replacement. */
+  verdictNote: z.string().optional(),
+  /** ISO timestamp of the verdict. */
+  verdictAt: z.string().optional(),
+  /** On a killed artifact: slug of the replacement once captured. Mutable. */
+  replacedBy: z.string().optional(),
   provenance: z.object({
     boardId: z.string().optional(),
     optionIds: z.array(z.string()).default([]),
     /** Artifact-chat revision lineage: the slug of the artifact this one revised. */
     revises: z.string().optional(),
+    /** Kill-replacement lineage: slug of the killed artifact this one replaces. */
+    replaces: z.string().optional(),
     /**
      * Explicit capture role. `mindmap-snapshot` = the tree snapshot
      * SessionStore.recordBoard auto-captures on presenting a mindmap board —
@@ -702,6 +723,19 @@ export const TOKEN_SINKS = ['generation', 'tweak', 'intake', 'orchestration', 'p
 export const TokenSinkSchema = z.enum(TOKEN_SINKS);
 export type TokenSink = z.infer<typeof TokenSinkSchema>;
 
+/**
+ * Structured stage vocabulary for in-progress status — what the reported work IS,
+ * machine-legible so the studio can correlate status to a specific streaming
+ * artifact instead of only rendering mechanical labels. Extend HERE (rule 5);
+ * senders with an unknown stage have it stripped (pipe) or rejected (bridge zod).
+ * `generating` = drawing a fresh option/artifact; `revising` = mutating an
+ * existing one (artifact chat / tweak round); `replacing` = regenerating a
+ * killed artifact's slot.
+ */
+export const PROGRESS_STAGES = ['generating', 'revising', 'replacing'] as const;
+export const ProgressStageSchema = z.enum(PROGRESS_STAGES);
+export type ProgressStage = z.infer<typeof ProgressStageSchema>;
+
 export const ProgressEventSchema = z.object({
   /** ISO timestamp — the bridge stamps arrival time when the sender omits it. */
   at: z.string(),
@@ -718,8 +752,39 @@ export const ProgressEventSchema = z.object({
    * Absent on legacy events (they fold into `orchestration` in the breakdown).
    */
   category: TokenSinkSchema.optional(),
+  /** Structured stage — absent on legacy/mechanical events. */
+  stage: ProgressStageSchema.optional(),
+  /** The captured artifact this status concerns (Artifact.slug). */
+  artifactSlug: z.string().optional(),
+  /** The board option this status concerns (BoardOption.id). */
+  optionId: z.string().optional(),
+  /** The board this status concerns (Board.id). */
+  boardId: z.string().optional(),
+  /** N-of-M position when the work is one of a known batch ("generating 3 of 6"). */
+  sequence: z
+    .object({ current: z.number().int().min(1), total: z.number().int().min(1) })
+    .optional(),
 });
 export type ProgressEvent = z.infer<typeof ProgressEventSchema>;
+
+/**
+ * A kill verdict's in-flight replacement: announced the moment the regeneration
+ * is dispatched so the studio can render a live placeholder in the killed slot.
+ * Resolves when an artifact whose `provenance.replaces` names `replacesSlug`
+ * streams in. One replacement in flight per killed slug. Persisted by the
+ * bridge to the thread dir so a reload re-renders in-flight placeholders.
+ */
+export const PendingReplacementSchema = z.object({
+  /** The killed artifact's slug — also the placeholder's identity. */
+  replacesSlug: z.string(),
+  /** The killed option's characteristic the replacement is guided by. */
+  characteristic: z.string().optional(),
+  /** The user's kill note — the other half of the regeneration brief. */
+  note: z.string().optional(),
+  /** ISO timestamp the regeneration was dispatched. */
+  at: z.string(),
+});
+export type PendingReplacement = z.infer<typeof PendingReplacementSchema>;
 
 // ---------------------------------------------------------------------------
 // Bridge ⇄ studio envelopes
@@ -755,6 +820,8 @@ export interface StudioState {
   tokensBySink: Partial<Record<TokenSink, number>>;
   /** Artifact chat dialogs (all slugs mixed — filter by artifactSlug client-side). */
   artifactChat: ArtifactChatMessage[];
+  /** Kill-verdict replacements still generating — one placeholder per entry. */
+  pendingReplacements: PendingReplacement[];
   /**
    * In-progress board answers ("the meta for generating these artifacts"): the
    * user's dials/selections/notes/elaboration/model on a live board, persisted
@@ -784,6 +851,7 @@ export type ServerToStudio =
   | { type: 'thinking'; note: string | null }
   | { type: 'responded'; boardId: string; response: BoardResponse }
   | { type: 'artifact'; artifact: Artifact }
+  | { type: 'artifact-pending'; pending: PendingReplacement }
   | { type: 'progress'; event: ProgressEvent }
   | { type: 'artifact-chat'; message: ArtifactChatMessage; discussionId?: string }
   | { type: 'draft'; draft: BoardResponse }

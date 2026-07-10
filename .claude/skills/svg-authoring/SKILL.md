@@ -42,6 +42,24 @@ one structural, one minimal. If two options would earn the same one-line descrip
 - **mindmap**: radial node trees; center node = the seed concept.
 - **matrix**: grid with row/column labels; highlight the diagonal of tradeoffs.
 
+## Living lines (optional motion — only when briefed)
+
+Board SVGs may carry ONE subtle animated accent — a pulse traveling a connector/flow line
+(`<animateMotion>` on a small `<circle>` along the path), a slow glow breath
+(`<animate>` on opacity) — SMIL ONLY: no scripts, no event handlers (rule 8; the studio
+sanitizer passes SMIL and `<style>`, strips the rest). Constraints, all hard:
+
+- **Opt-in, never default.** Animate only when the BRIEF asks for motion (the user's words,
+  a "liveness" intake answer, a motion-leaning theme) or on a converge/winner/poster-bound
+  piece. Motion markup costs output tokens on every option — spend it when it's the point,
+  not as garnish (token economy).
+- **Uniform mid-funnel.** Options are judged side-by-side; a single animated option steals
+  attention and biases the survey. If one option animates, ALL options on that board animate
+  with the same weight — or none do.
+- **The static read must survive.** The option must communicate fully with animation frozen
+  (SMIL ignores prefers-reduced-motion; some contexts render SVG still). Motion may
+  emphasize, never carry, the idea.
+
 ## Palette constraint
 
 When the response or digest carries `paletteColors` / a "Discussion theme" palette line,
@@ -69,6 +87,10 @@ renamed them, and speaks in those names.
       for this before present_board)
 
 ## Changelog
+- 2026-07-09 — Living lines: opt-in SMIL-only motion recipe (briefed-only, uniform
+  mid-funnel, static read must survive) — the studio's chart-line pulse inspired it; the
+  craft version lives HERE, never in the agent file (operator question, token-economy
+  fresh-eyes round 3)
 - 2026-07-09 — split: this file is the ARTISAN's full craft doc; the orchestrator's compact
   judge-side share moved to VALIDITY-SCAN.md beside it (token-economy phase 4)
 - 2026-07-07 — storyboard hero-frame recipe for finalist/merge rounds + checklist item:

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "updated": "2026-07-09",
+  "registry": "../.claude/agentic-surface-registry.json",
+  "rule": "This file is the Cursor adapter registry. The provider-neutral authoritative registry lives at .claude/agentic-surface-registry.json, and workflow logic remains in the referenced .claude files.",
+  "mcp": {
+    "cursorManifest": "mcp.json",
+    "servers": ["visual-brainstorm", "visual-brainstorm-wiki"],
+    "rule": "Cursor loads .cursor/mcp.json from the project root. After npm run build, reload the window so both stdio servers connect. The local studio is reachable on 127.0.0.1."
+  },
+  "commands": [
+    { "name": "run-brainstorm", "cursorCommand": ".cursor/commands/run-brainstorm.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "plan-closeout", "cursorCommand": ".cursor/commands/plan-closeout.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "discover-skills", "cursorCommand": ".cursor/commands/discover-skills.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "diagnose-studio", "cursorCommand": ".cursor/commands/diagnose-studio.md", "subagent": "devops-diagnostician" },
+    { "name": "artifact-chat", "cursorCommand": ".cursor/commands/artifact-chat.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "read-mindmap", "cursorCommand": ".cursor/commands/read-mindmap.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "read-scribble", "cursorCommand": ".cursor/commands/read-scribble.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "reopen", "cursorCommand": ".cursor/commands/reopen.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "build-check", "cursorCommand": ".cursor/commands/build-check.md", "subagent": "test-engineer" },
+    { "name": "new-command", "cursorCommand": ".cursor/commands/new-command.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "create-dispatch-command", "cursorCommand": ".cursor/commands/create-dispatch-command.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "compress-learnings", "cursorCommand": ".cursor/commands/compress-learnings.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "wiki-maintenance", "cursorCommand": ".cursor/commands/wiki-maintenance.md", "subagent": "wiki-librarian" }
+  ],
+  "agents": [
+    { "name": "brainstorm-orchestrator", "source": ".claude/agents/brainstorm-orchestrator.md" },
+    { "name": "devops-diagnostician", "source": ".claude/agents/devops-diagnostician.md" },
+    { "name": "svg-artisan", "source": ".claude/agents/svg-artisan.md" },
+    { "name": "test-engineer", "source": ".claude/agents/test-engineer.md" },
+    { "name": "wiki-librarian", "source": ".claude/agents/wiki-librarian.md" }
+  ]
+}

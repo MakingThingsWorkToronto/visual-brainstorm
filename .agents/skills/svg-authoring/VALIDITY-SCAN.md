@@ -30,6 +30,9 @@ when the concept itself missed the brief.
 - One coherent stroke system per board — style is a board-level decision; difference lives
   in the CONCEPT.
 - Palette cohesion: named palette colors honored exactly; narrate by the user's color NAMES.
+- Motion only when BRIEFED (SMIL only, no scripts): if any option animates, all on the board
+  do with equal weight — one pulsing option biases the side-by-side judgment; and the static
+  read must carry the idea on its own (SKILL.md § Living lines).
 
 ## Briefing reminder (the terse-brief contract)
 
@@ -45,3 +48,4 @@ misfiles the round's cost.
 - 2026-07-09 — created: judge-side split of svg-authoring so the orchestrator stops carrying
   the full craft doc it delegates away (token-economy phase 4)
 - 2026-07-09 — briefing reminder: label→file mapping + keep the MUTATE marker verbatim (the token pipe bins tweak-vs-generation by it) (fresh-eyes round 2 of token-economy-2026-07-07)
+- 2026-07-09 — judging: motion only when briefed, uniform across the board, static read carries (pairs SKILL.md § Living lines) (token-economy fresh-eyes round 3)
