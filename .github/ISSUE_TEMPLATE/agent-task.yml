@@ -1,0 +1,40 @@
+name: Agent task
+description: Agent-submitted work item — prompt-first, cache-stable prefix. The prompt block IS the issue.
+title: "task: <summary>"
+labels: ["agent:task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repo takes issues in the agent task format only. The prompt below is runnable:
+        pasting it into a Claude Code session executes the task end to end. Keep the text
+        above the `---` marker **byte-identical** (it is the cache-stable prefix shared by
+        every issue); fill only the variable payload below the marker.
+        CI enforces the format (.github/workflows/agent-issue-format.yml).
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Prompt
+      description: Edit only the payload below the --- marker. Title must start with "task:", "bug:", or "chore:".
+      value: |
+        ```prompt
+        Agent task runner — visual-brainstorm.
+        Ground first: CLAUDE.md, then wiki/README.md and the wiki pages this task touches — the
+        wiki is authoritative; reconcile drift, never ignore it. Work the task end to end:
+        plan at discussion/<slug>-<yyyy-mm-dd>/plan.md (rule 3); surgical changes only (rule 9);
+        tests ship with the change (rule 10); wiki + log move with any fact or contract change
+        (rules 2, 12); honest errors over fake success (rule 6). When npm run build and npm test
+        are green, move the plan folder to discussion_pr/<slug>/, open a PR in the agent PR
+        format (.github/pull_request_template.md — fill only the variable payload below its
+        marker), and link this issue.
+        The variable payload below the marker is this task's only unique content.
+        ---
+        slug: <kebab-case-slug>
+        intent: <one sentence — what and why>
+        acceptance:
+          - <observable check that proves the task is done>
+        pointers:
+          - <file, wiki page, or discussion path — or delete this list>
+        ```
+    validations:
+      required: true
