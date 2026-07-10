@@ -13,8 +13,9 @@ many token when few token do trick"), adapted to this repo's token-economy guard
 
 - **Subagent final report-backs** to the orchestrator (test-engineer, wiki-librarian,
   devops-diagnostician verdicts, svg-artisan's non-JSON status notes). The reader is a model.
-- **Mechanical command reports**: build-check results, dispatch-tick summaries,
-  pipe-progress notes.
+- **Mechanical command reports**: build-check results, dispatch-tick summaries. NOT
+  pipe-progress notes — those render LIVE to the waiting human in the studio's Session
+  activity strip (human-facing, full prose).
 - **Delegation-brief prose** — composes with the terse-brief discipline (run-brainstorm
   step 4): the round delta in caveman register, every literal (option ids, color names,
   file paths, schemas) exact and verbatim.
@@ -54,6 +55,8 @@ ambiguity; the reader asks to clarify. Resume after the clear part is done.
 No self-reference: never announce the register or tag output "caveman".
 
 ## Changelog
+- 2026-07-09 — pipe-progress notes moved from "applies" to excluded: they render live to the
+  human in the Session activity strip (fresh-eyes review of token-economy-2026-07-07)
 - 2026-07-09 — ingested (upstream JuliusBrussee/caveman, full level) scoped to machine-read
   seams only; human-facing voice / SVG / durable docs excluded by the token-economy quality
   lock (operator request during token-economy phases)

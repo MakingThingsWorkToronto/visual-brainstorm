@@ -211,6 +211,54 @@ test('a token event with its OWN category consumes the armed boundary label — 
   assert.deepEqual(reopened.tokensBySink(), { tweak: 150, orchestration: 30 });
 });
 
+test('a token-less turn-end consumes the armed label — no leak onto a later unrelated delta', () => {
+  const root = tmp();
+  const store = new SessionStore('Stale label test', root);
+  store.recordProgress(progressEvent('presented a board', { category: 'generation' }));
+  // The labeled turn ends with ZERO new billable tokens (fully cached turn /
+  // unreadable transcript): the label must still be consumed by the turn-end.
+  store.recordProgress(progressEvent('turn end', { source: 'hook:Stop' }));
+  // A later unrelated turn must fold into orchestration, never inherit 'generation'.
+  store.recordProgress(progressEvent('turn end', { source: 'hook:Stop', tokens: { input: 40, output: 60 } }));
+  assert.deepEqual(store.tokensBySink(), { orchestration: 100 });
+  // Reload reconstruction mirrors the same consume rule.
+  const reopened = SessionStore.open(store.info.dir);
+  assert.deepEqual(reopened.tokensBySink(), { orchestration: 100 });
+});
+
+test('reload of a thread whose LAST event is an unconsumed boundary re-arms it', () => {
+  const root = tmp();
+  const store = new SessionStore('Trailing boundary test', root);
+  store.recordProgress(progressEvent('presented a board', { category: 'generation' }));
+  const reopened = SessionStore.open(store.info.dir);
+  // The first live delta after reload inherits the still-armed label.
+  reopened.recordProgress(progressEvent('turn end', { source: 'hook:Stop', tokens: { input: 10, output: 90 } }));
+  assert.deepEqual(reopened.tokensBySink(), { generation: 100 });
+});
+
+test('the persisted brainstorm.md digest routes EXPLICITLY to the best-SVG default (decision 4)', () => {
+  const root = tmp();
+  const store = new SessionStore('Routing line test', root);
+  store.defaultModel = 'claude-fable-5';
+  store.recordBoard(board(1));
+  // The canonical response carries NO per-round model pick.
+  store.recordResponse(response('b1'));
+  const md = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+  assert.ok(
+    md.includes('best-SVG default claude-fable-5'),
+    'the durable record must carry the routing line even without a per-round pick — the rolling-digest resume reads THIS, not the live tool result',
+  );
+});
+
+test('readIntakeGallery returns the cached cards, or null when nothing was cached', () => {
+  const root = tmp();
+  const store = new SessionStore('Gallery read test', root);
+  assert.equal(store.readIntakeGallery(), null, 'no cache yet → null, never a throw');
+  const gallery = { id: 'g1', prompt: 'p', cards: [{ method: 'funnel', label: 'Funnel', blurb: '', svg: '<svg viewBox="0 0 1 1"/>', recommended: true, reason: 'r' }] };
+  store.cacheIntakeGallery(gallery);
+  assert.deepEqual(store.readIntakeGallery(), gallery);
+});
+
 test('list() summaries carry per-thread token totals; 0 without a progress file', () => {
   const root = tmp();
   const counting = new SessionStore('Counting thread', root);
@@ -294,6 +342,25 @@ test('captureArtifact records provenance.revises', () => {
     JSON.parse(fs.readFileSync(path.join(store.info.dir, 'artifacts', `${first.slug}.json`), 'utf8')),
   );
   assert.equal(firstSidecar.provenance.revises, undefined, 'revises stays absent when not passed');
+});
+
+test('a presented mindmap board auto-captures its snapshot with provenance.kind (explicit Maximize-chat target)', () => {
+  const root = tmp();
+  const store = new SessionStore('Snapshot kind test', root);
+  const tree = { nodeData: { id: 'root', topic: 'Root', children: [{ id: 'k', topic: 'Kid' }] } };
+  store.recordBoard(board(1, { kind: 'mindmap', options: [], tree }));
+  assert.equal(store.artifacts.length, 1, 'presenting a tree captures exactly one snapshot');
+  const snapshot = store.artifacts[0];
+  assert.equal(snapshot.provenance.kind, 'mindmap-snapshot', 'the snapshot is marked explicitly, not by heuristic');
+  assert.equal(snapshot.provenance.boardId, 'b1');
+  // The sidecar round-trips through the schema with the kind intact (rule 5).
+  const sidecar = ArtifactSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'artifacts', `${snapshot.slug}.json`), 'utf8')),
+  );
+  assert.equal(sidecar.provenance.kind, 'mindmap-snapshot');
+  // Ordinary captures stay kind-less — the role is exclusive to the snapshot.
+  const plain = store.captureArtifact('Winner', '<svg/>', 'n', { optionIds: ['a'] });
+  assert.equal(plain.provenance.kind, undefined);
 });
 
 test('artifacts capture with provenance and slug dedupe', () => {

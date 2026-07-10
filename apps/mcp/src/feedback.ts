@@ -131,7 +131,7 @@ export function buildFeedbackDigest(
 
   for (const [id, lenses] of Object.entries(response.mutations)) {
     if (lenses.length > 0) {
-      digest.push(`Mutation: "${label(id)}" revealed something under ${lenses.join(', ')} — lean the regeneration into those distortions.`);
+      digest.push(`Mutation: "${label(id)}" revealed something under ${lenses.join(', ')} — lean the next round into those distortions.`);
     }
   }
 
@@ -222,7 +222,7 @@ export function buildFeedbackDigest(
     Object.keys(response.triage).length > 0 ||
     response.clusters.length > 0 ||
     response.gapNotes.length > 0 ||
-    Object.values(response.deckVerdicts).some((v) => v === 'kill') ||
+    Object.keys(response.deckVerdicts).length > 0 ||
     response.duelResults.length > 0 ||
     response.ranking.length > 0 ||
     Boolean(response.requestedPhase) ||
@@ -233,17 +233,21 @@ export function buildFeedbackDigest(
     Object.keys(response.perOptionNotes).length > 0 ||
     Object.keys(response.flaws).length > 0 ||
     Object.values(response.optionAnnotations).some((ann) => ann.items.length > 0) ||
-    response.uncertainties.length > 0 ||
     Object.values(response.mutations).some((lenses) => lenses.length > 0);
   if (response.action === 'iterate' && !structuralSignals && nudges) {
     const pad = String(board.round).padStart(2, '0');
+    const sources = board.options
+      .map((option) => `"${option.label}" → round-${pad}/option-${option.id}.svg`)
+      .join(', ');
     digest.push(
       `TWEAK, not redirect — MUTATE, don't redraw: this response only adjusts what it saw, so ` +
-        `the next round is a targeted MUTATION of THIS round's captured SVGs (thread dir ` +
-        `round-${pad}/option-<id>.svg), never a from-scratch re-authoring. Hand the artisan those ` +
-        `source files plus ONLY the deltas above; geometry the deltas don't touch is preserved ` +
-        `verbatim. Exception: if the elaboration reads as a NEW direction, treat this as a ` +
-        `redirect and author fresh.`,
+        `the next round is a targeted MUTATION of THIS round's captured SVGs, never a ` +
+        `from-scratch re-authoring. Sources (thread dir): ${sources}. Hand the artisan those ` +
+        `files plus ONLY the deltas above; geometry the deltas don't touch is preserved ` +
+        `verbatim. Permitted fresh options inside a mutation round: a clarifying variant an ` +
+        `UNSURE line ordered, and the one variant "embracing" a flaw. Exception: if the ` +
+        `elaboration or a question answer reads as a NEW direction, treat this as a redirect ` +
+        `and author fresh.`,
     );
   }
 

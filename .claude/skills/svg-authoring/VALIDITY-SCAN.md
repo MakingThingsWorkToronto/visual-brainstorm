@@ -7,6 +7,9 @@ if you find yourself needing them to WRITE SVG, you are doing the artisan's job 
 
 ## Validity scan (run on every delegated SVG before present_board)
 
+> Deliberate two-copy overlap with `SKILL.md` § Quality checklist — a change to either
+> checklist updates BOTH files in the same edit (drift here silently splits judge vs artisan).
+
 - [ ] valid XML: NO duplicate attributes on any element (`<text x=… x=…>` has happened —
       DOMParser rejects it); no stray/unbalanced quotes
 - [ ] self-contained: `xmlns` + `viewBox` present; no external refs, raster, or scripts

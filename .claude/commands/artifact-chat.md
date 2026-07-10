@@ -36,7 +36,9 @@ Users can ask about any artifact whenever they want — you answer in place, in 
      breaks the co-edit loop (the canvas edits `tree`, not the artwork).
    - **Question** → spawn a general subagent that Reads the artifact SVG plus the thread's
      `brainstorm.md` (provenance: which round, which parents, which notes decided it) and
-     returns a short answer. Works on ANY thread, live or archived.
+     returns a short answer. Works on ANY thread, live or archived. The answer text is
+     delivered VERBATIM to the human — brief the subagent that the reply itself is
+     human-facing full prose (the caveman report-back register never applies to it).
    - **Change request (LIVE thread only)** → spawn agent **`svg-artisan`** (any
      `BoardResponse.model` override in force for the thread applies here too) to produce a FULL
      self-contained revised SVG per `.claude/skills/svg-authoring` — a complete replacement,
@@ -67,6 +69,8 @@ Users can ask about any artifact whenever they want — you answer in place, in 
    was in progress. The chat changes nothing about the funnel state.
 
 ## Changelog
+- 2026-07-09 — question branch: the reply text is human-facing full prose — the caveman
+  report-back register never applies to it (fresh-eyes review of token-economy-2026-07-07)
 - 2026-07-09 — resume is now a first-class rearm: `present_board {rearmBoardId}` re-arms the
   still-live board (and consumes a mid-detour submit) instead of re-sending the board content
   (from review-followups-2026-07-09: mid-detour submits used to strand until timeout)

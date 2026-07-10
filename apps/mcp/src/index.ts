@@ -481,11 +481,28 @@ server.tool(
     // (timeout, resume) reuses the SAME cards instead of re-delegating
     // generation. Also rule 7: presented SVGs persist.
     let cachedAt: string | undefined;
+    let cacheNote: string | undefined;
     if (store) {
-      try {
-        cachedAt = store.cacheIntakeGallery(gallery);
-      } catch (err) {
-        console.error(`[mcp] intake-gallery cache write failed: ${String(err)}`);
+      // Crash recovery (rule 7 provenance): when a durably stored pick is about
+      // to be returned, the cards passed NOW were never shown to the user — do
+      // not let them overwrite the cache of the gallery the user actually judged.
+      const pendingKind = store.readIntakePending<{ kind?: string }>()?.kind;
+      if (pendingKind === 'gallery-picked') {
+        cacheNote =
+          'a durably stored pick is pending — the passed cards were NOT cached (the user never saw them).';
+      } else {
+        const prior = store.readIntakeGallery<{ cards?: unknown[] }>();
+        if (prior?.cards && JSON.stringify(prior.cards) !== JSON.stringify(gallery.cards)) {
+          cacheNote =
+            'cards DIVERGE from the previously cached gallery (overwritten, last-write-wins) — ' +
+            'regenerating minis is only right when the brief/answers materially changed since the ' +
+            'cached cards were drawn; otherwise re-present the cached cards (token economy).';
+        }
+        try {
+          cachedAt = store.cacheIntakeGallery(gallery);
+        } catch (err) {
+          console.error(`[mcp] intake-gallery cache write failed: ${String(err)}`);
+        }
       }
     }
     const pick = await bridge.presentGallery(gallery, timeoutSeconds * 1000);
@@ -494,9 +511,12 @@ server.tool(
         status: 'pending',
         studioUrl: bridge.url,
         ...(cachedAt ? { cardsCachedAt: cachedAt } : {}),
+        ...(cacheNote ? { cacheNote } : {}),
         hint:
           'User has not picked yet. The gallery is still live (it survives an MCP restart); call present_gallery ' +
-          'again to re-present with the SAME cards (cached at cardsCachedAt — NEVER regenerate the minis), or proceed.',
+          'again to re-present with the SAME cards' +
+          (cachedAt ? ' (cached at cardsCachedAt — NEVER regenerate the minis)' : '') +
+          ', or proceed.',
       });
     }
     // `recommended` = the user took YOUR recommendation (calibrates future recs);
@@ -508,6 +528,7 @@ server.tool(
       recommended: pick.recommended,
       reason: pick.reason,
       ...(cachedAt ? { cardsCachedAt: cachedAt } : {}),
+      ...(cacheNote ? { cacheNote } : {}),
     });
   },
 );
@@ -526,7 +547,14 @@ server.tool(
       bridge?.peekResponse(boardId) ??
       store?.rounds.find((r) => r.board.id === boardId)?.response ??
       null;
-    return text(response ? { status: 'responded', boardId, response } : { status: 'pending', boardId });
+    if (!response) return text({ status: 'pending', boardId });
+    // Same digest as the blocking path: a recovered round must carry the
+    // explicit Model-routing line and the TWEAK-vs-redirect classification, or
+    // the orchestrator re-derives them (and plausibly re-authors a nudge-only
+    // round from scratch — the token cost the mutation doctrine exists to avoid).
+    const board = store?.rounds.find((r) => r.board.id === response.boardId)?.board;
+    const digest = board ? buildFeedbackDigest(board, response, config.defaultModel) : undefined;
+    return text({ status: 'responded', boardId, response, ...(digest ? { digest } : {}) });
   },
 );
 

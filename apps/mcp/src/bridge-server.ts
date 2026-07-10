@@ -241,6 +241,8 @@ export class Bridge {
     private store: SessionStore,
     private readonly options: BridgeOptions,
   ) {
+    // Digest routing lines are explicit even without a per-round pick (decision 4).
+    this.store.defaultModel = options.defaultModel;
     this.engine = options.engine ?? createEngineAdapter(options.runtime);
     this.themesList = options.themes;
     this.runtime = this.engine.runtime;
@@ -275,6 +277,7 @@ export class Bridge {
 
   /** Point the bridge at a fresh thread (New Brainstorm) and resync all clients. */
   attachStore(store: SessionStore): void {
+    store.defaultModel = this.options.defaultModel;
     this.store = store;
     this.activeBoard = null;
     this.thinking = null;
@@ -641,6 +644,9 @@ export class Bridge {
               rounds: thread.rounds,
               artifacts: thread.artifacts,
               tokens: thread.tokenTotals(),
+              // The per-sink breakdown the progress.jsonl fully supports — the
+              // live A/B reads POST-session data, so archived views carry it too.
+              tokensBySink: thread.tokensBySink(),
               // Persisted dialogs reload with the thread (read-only in the studio).
               artifactChat: thread.artifactChat,
             }),

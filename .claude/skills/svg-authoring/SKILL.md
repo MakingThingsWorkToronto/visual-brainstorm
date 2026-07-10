@@ -52,6 +52,9 @@ renamed them, and speaks in those names.
 
 ## Quality checklist (run before present_board)
 
+> Deliberate two-copy overlap with `VALIDITY-SCAN.md` § Validity scan — a change to either
+> checklist updates BOTH files in the same edit (drift here silently splits artisan vs judge).
+
 - [ ] viewBox present, nothing clipped at edges (4-unit safe margin)
 - [ ] currentColor structure + at most one accent — UNLESS a palette constraint is active
       (then: only the named palette colors)

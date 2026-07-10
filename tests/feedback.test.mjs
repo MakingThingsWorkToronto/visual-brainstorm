@@ -126,8 +126,29 @@ test('no per-round pick still routes EXPLICITLY to the best-SVG default (never b
 test('a nudge-only response is classified TWEAK — mutate this round, never redraw', () => {
   const text = digestText({ axisValues: { tone: 80 } });
   assert.ok(text.includes('TWEAK, not redirect'));
-  assert.ok(text.includes(`round-0${board.round}/option-<id>.svg`), 'digest names the source SVG paths');
+  assert.ok(
+    text.includes(`"Alpha" → round-0${board.round}/option-a.svg`),
+    'digest maps option labels to concrete source SVG paths (no <id> placeholder to resolve)',
+  );
+  assert.ok(text.includes(`"Gamma" → round-0${board.round}/option-c.svg`));
   assert.ok(text.includes('MUTATE'));
+});
+
+test('unsure-only is NOT a TWEAK — UNSURE orders clarifying variants (fresh), never a mutation', () => {
+  const text = digestText({ uncertainties: ['b'] });
+  assert.ok(text.includes('UNSURE'));
+  assert.ok(!text.includes('TWEAK'), 'a probe request is not a re-tune');
+});
+
+test('any deck verdict is structural (aligned with triage) — keep-only deck + dial is no TWEAK', () => {
+  const text = digestText({ deckVerdicts: { a: 'keep' }, axisValues: { tone: 80 } });
+  assert.ok(!text.includes('TWEAK'), 'deck keep-only aligns with triage keep-only: structural');
+});
+
+test('the TWEAK escape hatch names question answers and the permitted fresh options', () => {
+  const text = digestText({ axisValues: { tone: 80 } });
+  assert.ok(text.includes('question answer'), 'a redirect can arrive via a question answer');
+  assert.ok(text.includes('embracing'), 'the flaw-embracing variant is the one permitted fresh option');
 });
 
 test('notes and flaws alone are also a TWEAK', () => {

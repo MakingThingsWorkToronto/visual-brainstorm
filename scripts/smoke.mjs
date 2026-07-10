@@ -749,6 +749,49 @@ assert.equal(
   'the following uncategorized delta consumed the label and folded into orchestration',
 );
 
+// Delegated-generation attribution: a PreToolUse Agent/Task boundary with
+// subagent_type svg-artisan declares the sink BEFORE the subagent runs, so the
+// SubagentStop delta lands in generation (or tweak on a MUTATE brief) — never
+// folding the mandated delegation path into orchestration.
+const runPreToolUseHook = (toolInput) =>
+  new Promise((resolve) => {
+    const child = spawn(process.execPath, [pipeScript, '--port', String(bridge.port)], {
+      stdio: ['pipe', 'ignore', 'pipe'],
+    });
+    let stderr = '';
+    child.stderr.on('data', (d) => (stderr += d));
+    child.on('close', (status) => resolve({ status, stderr }));
+    child.stdin.end(
+      JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: toolInput }),
+    );
+  });
+const postDelta = (source, input, output) =>
+  fetch(`http://127.0.0.1:${bridge.port}/api/progress`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ note: 'turn end', source, tokens: { input, output } }),
+  });
+let preHook = await runPreToolUseHook({ subagent_type: 'svg-artisan', prompt: 'Draw 4 divergent options.' });
+assert.equal(preHook.status, 0, `PreToolUse hook exited ${preHook.status}: ${preHook.stderr}`);
+await postDelta('hook:SubagentStop', 100, 900);
+let sinkDelegated = (await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json()).tokensBySink;
+assert.equal(sinkDelegated.generation, 2000, 'the artisan delegation delta attributed to generation');
+preHook = await runPreToolUseHook({ subagent_type: 'svg-artisan', prompt: 'TWEAK — MUTATE round-02/option-a.svg: thicker stroke only.' });
+assert.equal(preHook.status, 0, `tweak PreToolUse hook exited ${preHook.status}: ${preHook.stderr}`);
+await postDelta('hook:SubagentStop', 40, 60);
+sinkDelegated = (await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json()).tokensBySink;
+assert.equal(sinkDelegated.tweak ?? 0, 100, 'a MUTATE brief delegation attributed to tweak');
+// A non-artisan delegation posts NO boundary — its delta stays orchestration.
+preHook = await runPreToolUseHook({ subagent_type: 'wiki-librarian', prompt: 'File a fact.' });
+assert.equal(preHook.status, 0, `non-artisan PreToolUse hook exited ${preHook.status}: ${preHook.stderr}`);
+await postDelta('hook:SubagentStop', 10, 10);
+sinkDelegated = (await (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json()).tokensBySink;
+assert.equal(
+  sinkDelegated.orchestration,
+  sinkBase.orchestration + 50 + 20,
+  'a non-artisan delegation stays orchestration (no boundary posted)',
+);
+
 // WS broadcast delivery is async — give it a beat before asserting.
 for (let i = 0; i < 20 && !seen.includes('progress'); i++) await new Promise((r) => setTimeout(r, 50));
 assert.ok(

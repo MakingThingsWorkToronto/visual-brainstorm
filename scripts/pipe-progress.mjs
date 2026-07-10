@@ -8,7 +8,8 @@
  *   CLI:  node scripts/pipe-progress.mjs --note "drawing round 2" [--source svg-artisan]
  *         [--in 1234 --out 567] [--port 5199]
  *   Hook: wired in .claude/settings.json — reads the Claude Code hook JSON from
- *         stdin (PostToolUse/SubagentStop/Stop) and forwards a mechanical label.
+ *         stdin (PreToolUse/PostToolUse/SubagentStop/Stop) and forwards a
+ *         mechanical label.
  *
  * Hook safety: ALWAYS exits 0, silently — a missing bridge must never break a
  * session. The bridge persists each event to the thread's progress.jsonl.
@@ -79,7 +80,25 @@ const TOOL_SINKS = {
   'mcp__visual-brainstorm__ask_concierge': 'intake',
   'mcp__visual-brainstorm__compose_poster': 'poster',
 };
-const SINKS = new Set(['generation', 'tweak', 'intake', 'orchestration', 'poster']);
+
+/**
+ * Valid `--category` values come from the protocol package (rule 5:
+ * `TOKEN_SINKS` in packages/protocol is the single source of truth — an unknown
+ * category is silently stripped here and would misfold into `orchestration`).
+ * The import is guarded because this pipe is a hook that must NEVER fail: with
+ * protocol unbuilt (fresh clone, mid-build), fall back to a local mirror.
+ */
+async function loadSinks() {
+  try {
+    const protocol = await import('../packages/protocol/dist/index.js');
+    if (Array.isArray(protocol.TOKEN_SINKS)) return new Set(protocol.TOKEN_SINKS);
+  } catch {
+    /* protocol dist unbuilt — hook safety over freshness */
+  }
+  // Fallback mirror of protocol TOKEN_SINKS — used only when dist is unreadable.
+  return new Set(['generation', 'tweak', 'intake', 'orchestration', 'poster']);
+}
+const SINKS = await loadSinks();
 
 async function readStdin() {
   if (process.stdin.isTTY) return '';
@@ -153,6 +172,25 @@ function tokenDelta(sessionId, transcriptPath) {
 function fromHook(payload) {
   const event = payload.hook_event_name ?? 'hook';
   const tool = payload.tool_name ?? '';
+  // Delegation boundary (PreToolUse Agent/Task): an svg-artisan delegation
+  // declares its sink BEFORE the subagent runs, so the SubagentStop delta —
+  // which carries the artisan's transcript usage — attributes to generation
+  // (or tweak when the brief carries the deterministic MUTATE marker) instead
+  // of folding into orchestration. Mechanical string match, no interpretation;
+  // other subagent types stay unlabeled (their deltas are orchestration).
+  if (event === 'PreToolUse' && (tool === 'Agent' || tool === 'Task')) {
+    const input = payload.tool_input ?? {};
+    const kind = String(input.subagent_type ?? input.subagentType ?? '');
+    if (kind !== 'svg-artisan') return { note: undefined, commitTokens: () => {} };
+    const sink = /\bMUTATE\b/.test(String(input.prompt ?? '')) ? 'tweak' : 'generation';
+    return {
+      note: sink === 'tweak' ? 'delegating a mutation round to svg-artisan' : 'delegating a board round to svg-artisan',
+      source: 'hook:PreToolUse',
+      tokens: undefined,
+      category: sink,
+      commitTokens: () => {},
+    };
+  }
   const note =
     event === 'SubagentStop'
       ? 'a subagent finished'

@@ -110,15 +110,23 @@ flew — and it generalises to any optimistic/pending surface.
   not just a running total. `ProgressEvent.category` (a `TokenSink`: `generation` | `tweak` |
   `intake` | `orchestration` | `poster`) is set two ways — a **boundary** event (a tool
   label posted by `pipe-progress.mjs`: `present_board`→generation, `present_gallery`/
-  `ask_concierge`→intake, `compose_poster`→poster; or any harness via CLI `--category`)
+  `ask_concierge`→intake, `compose_poster`→poster, **PreToolUse `Agent`/`Task` with
+  `subagent_type: svg-artisan`→generation, or →tweak when the delegation brief carries the
+  deterministic MUTATE marker** — so the artisan's SubagentStop delta lands in its real
+  sink, not orchestration; or any harness via CLI `--category`)
   DECLARES the current sink; the NEXT token-bearing turn-end event (the blind Stop-hook
   delta) inherits it, then the label is CONSUMED so it attributes exactly that one turn —
   later uncategorized turns fold into `orchestration`. Honesty (rule 6): the token counts
   are the REAL measured deltas; only the sink attribution is a documented heuristic ("what
-  the turn was doing"). Subagent-internal usage that never reaches the main transcript is
-  under-counted — a known Claude-Code limitation, disclosed not faked. The store owns
+  the turn was doing"). Subagent (sidechain) usage recorded in the session transcript DOES
+  ride the deltas — the delegation boundary above bins it; only usage that never reaches
+  the transcript at all is invisible, disclosed not faked. The store owns
   attribution (`SessionStore.recordProgress` stamps, `tokensBySink()` reduces), the bridge
   ships `StudioState.tokensBySink`, and `SessionActivity` renders the labeled bars.
+  The live-session A/B (the token-economy plan's outstanding future verification) has a
+  written baseline + runnable procedure:
+  `discussion/_completed/token-economy-2026-07-07/baseline.md`; its predicted human journey
+  is `tests/journeys.md` row 9 (component + attribution proofs DONE, live end-to-end OWED).
 - **Live ring**: last 500 lines in memory → `GET /api/logs` → studio Logs modal (Logs
   button, bottom-left of the left nav).
 - **`GET /api/health`**: pid, port, startedAt, session id/dir, active board,

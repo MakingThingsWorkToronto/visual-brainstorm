@@ -39,7 +39,9 @@ export function SessionActivity({
   const sinkRows = TOKEN_SINKS.map((sink) => ({ sink, value: tokensBySink?.[sink] ?? 0 })).filter(
     (r) => r.value > 0,
   );
-  const sinkMax = sinkRows.reduce((m, r) => Math.max(m, r.value), 0);
+  // Bars scale against the TOTAL, so a bar's length reads honestly as its
+  // share of all tokens (max-normalized bars overstate every non-max sink).
+  const sinkTotal = sinkRows.reduce((sum, r) => sum + r.value, 0);
   // Tokens can be known even before any live event arrives (reloaded thread):
   // the meter must not hide behind an empty activity tail.
   if (events.length === 0 && totalTokens === 0) return null;
@@ -79,7 +81,7 @@ export function SessionActivity({
               <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-2">
                 <span
                   className="block h-full rounded-full bg-accent"
-                  style={{ width: `${sinkMax > 0 ? Math.round((value / sinkMax) * 100) : 0}%` }}
+                  style={{ width: `${sinkTotal > 0 ? Math.round((value / sinkTotal) * 100) : 0}%` }}
                 />
               </span>
               <span className="shrink-0 font-mono text-[10px] text-ink-dim">{compactCount(value)}</span>

@@ -37,5 +37,12 @@ is runnable by whoever drives the next real session, without archaeology.
 ## Known limits (disclosed, rule 6)
 
 - Attribution is a heuristic (what was being done when the turn ended); the token deltas are real.
-- Subagent token usage is under-counted by the pipe (SubagentStop events carry no usage) — the
-  bake-off measured subagent cost out-of-band; per-sink bars understate generation accordingly.
+- Delegated svg-artisan generation attributes via the PreToolUse delegation boundary
+  (`pipe-progress.mjs`: `subagent_type: svg-artisan` → `generation`, or `tweak` on a MUTATE
+  brief); sidechain usage recorded in the session transcript rides the deltas. Only usage that
+  never reaches the transcript is invisible.
+- Measurement noise: the pipe's token cursor is per-event read-modify-write with no locking —
+  two hooks firing close together (Stop + SubagentStop, parallel subagents) can double-post an
+  overlap window, and a slow bridge accept (>1.5s abort) can re-post a committed delta. Treat
+  single-digit-percent inflation as noise, not signal; a locking/idempotency fix is a
+  follow-up, deliberately not built before the A/B (pipe simplicity is a hook-safety feature).

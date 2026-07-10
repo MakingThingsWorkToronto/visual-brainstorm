@@ -70,7 +70,10 @@ A vague brief costs a reconcile round (see learnings).
 Machine-read seams use the `caveman` register (`.claude/skills/caveman/SKILL.md`): tell
 subagents to report back in it, and write your brief PROSE in it — literals stay exact.
 It NEVER touches the human-facing voice, SVG content, or durable docs (the skill's scope
-contract; token economy never trades product quality).
+contract; token economy never trades product quality). Carve-out the subagent can't infer:
+an artifact-chat ANSWER is delivered verbatim to the human via `reply_artifact_chat` — brief
+the answering subagent that the reply text itself is human-facing FULL PROSE (the caveman
+report-back register applies only to anything it reports besides the reply).
 
 ## Creative duties (you are a facilitator, not a form-filler)
 

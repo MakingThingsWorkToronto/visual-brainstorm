@@ -86,6 +86,13 @@ export class SessionStore {
    * category is attributed to this. Undefined until the first labeled activity.
    */
   private currentSink: TokenSink | undefined;
+  /**
+   * Best-SVG default model for digest routing lines (decision 4: routing is
+   * ALWAYS explicit, never by omission). Set by the live owner (MCP entry /
+   * bridge) after construction; when unset, the persisted digest omits the
+   * fallback routing line (archived read-only opens don't record responses).
+   */
+  defaultModel: string | undefined;
   /** Artifact chat dialogs (artifacts/chat.jsonl) — append-only, reloadable (rule 7). */
   readonly artifactChat: ArtifactChatMessage[] = [];
   /**
@@ -163,7 +170,8 @@ export class SessionStore {
           // inherits a trailing un-consumed boundary label (persisted events are
           // already stamped, so only currentSink needs reconstructing).
           if (event.category && !event.tokens) store.currentSink = event.category;
-          else if (event.tokens) store.currentSink = undefined;
+          else if (event.tokens || /^hook:(Stop|SubagentStop)$/.test(event.source))
+            store.currentSink = undefined;
         } catch (err) {
           console.error(`[store] skipping progress line: ${String(err)}`);
         }
@@ -318,7 +326,9 @@ export class SessionStore {
         `${board.title} — round ${board.round} tree`,
         treeToSvg(board.tree),
         `Presented mind-map tree (${nodes} node${nodes === 1 ? '' : 's'}), archival snapshot.`,
-        { boardId: board.id, optionIds: [] },
+        // kind marks the Maximize→chat target explicitly — never located by
+        // the "no optionIds" heuristic again (that's the legacy fallback).
+        { boardId: board.id, optionIds: [], kind: 'mindmap-snapshot' },
       );
     }
     this.appendMd(
@@ -355,6 +365,17 @@ export class SessionStore {
     return file;
   }
 
+  /** The cached intake gallery, if any — the cards the user actually saw. */
+  readIntakeGallery<T>(): T | null {
+    try {
+      return JSON.parse(
+        fs.readFileSync(path.join(this.info.dir, 'intake-gallery.json'), 'utf8'),
+      ) as T;
+    } catch {
+      return null;
+    }
+  }
+
   recordResponse(response: BoardResponse): void {
     const round = this.rounds.find((r) => r.board.id === response.boardId);
     if (!round) return;
@@ -386,7 +407,7 @@ export class SessionStore {
       [
         '',
         `### User response (${response.respondedAt})`,
-        ...buildFeedbackDigest(round.board, response).map((line) => `- ${line}`),
+        ...buildFeedbackDigest(round.board, response, this.defaultModel).map((line) => `- ${line}`),
       ].join('\n'),
     );
     // The decision tree is a derived index over every round — rebuild + persist it
@@ -521,6 +542,11 @@ export class SessionStore {
       this.currentSink = undefined;
     } else if (event.category) {
       this.currentSink = event.category;
+    } else if (/^hook:(Stop|SubagentStop)$/.test(event.source)) {
+      // A token-less turn-end still ENDS the labeled turn — consume the armed
+      // label so it can't leak onto a later unrelated delta (zero-delta turn:
+      // fully cached, or the transcript was unreadable when the hook fired).
+      this.currentSink = undefined;
     }
     this.progress.push(event);
     try {
@@ -629,7 +655,7 @@ export class SessionStore {
     name: string,
     svg: string,
     notes: string,
-    provenance: { boardId?: string; optionIds: string[]; revises?: string },
+    provenance: { boardId?: string; optionIds: string[]; revises?: string; kind?: 'mindmap-snapshot' },
   ): Artifact {
     const base = slugify(name);
     let slug = base;

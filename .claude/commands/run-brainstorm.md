@@ -64,7 +64,11 @@ top to bottom; each numbered step below dispatches the next UI stage.
      method, few elements (a mini is a glimpse, not a board option; fewer elements = fewer
      output tokens, and a spare mini reads BETTER at card size). Generate them ONCE: the tool
      caches the cards at the thread's `intake-gallery.json` (`cardsCachedAt`) — a re-present
-     (timeout, resume) reuses the SAME cards; NEVER re-delegate the minis. Mark exactly ONE
+     (timeout, resume) reuses the SAME cards; NEVER re-delegate the minis. One escape hatch:
+     if the brief/answers MATERIALLY changed since the cards were drawn (e.g. new concierge
+     answers after a timeout), regenerate and re-cache — stale minis that no longer reflect
+     the intake are a quality bug, not a saving (the tool's `cacheNote` flags a divergent
+     overwrite). Mark exactly ONE
      `recommended:true` with a `reason` that QUOTES the user's answers. The roster — mind map
      is a methodology BESIDE the others, never the centerpiece or the default:
        - **mindmap** — one co-edited structure; recommend when the shape is still forming or
@@ -111,7 +115,10 @@ top to bottom; each numbered step below dispatches the next UI stage.
    each response field) and `.claude/skills/svg-authoring/VALIDITY-SCAN.md` (the compact
    scan + what-good-looks-like + terse-brief contract). The FULL `svg-authoring/SKILL.md`
    is the artisan's load, not yours — you brief and judge, you do not draw (token economy:
-   never carry craft you delegate away).
+   never carry craft you delegate away). **Resuming a thread? Read the ROLLING DIGEST, not the
+   whole `brainstorm.md`**: the per-round `#### Round N — decision` blocks plus the LAST round's
+   full record carry the running direction; a full re-read pays unbounded context for history
+   the decision blocks already compress (context economy).
 3. **Round 1** — `present_board` with `phase:"diverge"`, 4–8 meaningfully divergent options,
    ≥5 axes tailored to the domain (ranges, never absolutes), a prompt that says what to judge.
    **Every `present_board` gets a FRESH board id** — the bridge dedups responses
@@ -198,6 +205,10 @@ top to bottom; each numbered step below dispatches the next UI stage.
    `session_status`) so the store is attached, then peek.
 
 ## Changelog
+- 2026-07-09 — step 0c: stale-cache escape hatch (materially changed brief/answers →
+  regenerate + re-cache; `cacheNote` flags divergence) + step 2: the rolling-digest resume
+  rule now lives in the command BODY, not only the orchestrator persona (fresh-eyes review
+  of token-economy-2026-07-07)
 - 2026-07-09 — handoff fidelity: step 4 authors per-option `rationale` from round 2 on
   (quoting the feedback it responds to) + optional mid-round `questions` (the "Claude asks"
   box); step 0b notes ask_concierge's structured {answer, picked, typed} return (typed =
