@@ -26,6 +26,11 @@ done/skipped-with-reason.
    double-commit, async-send double-dispatch, cross-browser rasterization loss, dishonest
    generated README, live/reload attribution divergence…); fix what traces to the plan,
    file the rest as a follow-ups plan.
+   **Reviews also diff INSTRUCTION SURFACES pairwise**: when a deterministic producer
+   (digest builder, seedNote, hook) emits imperative text that an agent/skill file also
+   legislates, read the producer's OUTPUT against every consumer's contract — either alone
+   can pass review while together they deadlock (2026-07-09: the TWEAK digest ordered
+   fresh variants that svg-artisan's "never re-author" contract had to refuse).
 3. **Harvest learnings** — reread the session. Every non-obvious discovery (gotcha, API
    quirk, decision + rationale, failed approach) goes to `.agents/learnings.md` (newest
    first). If nothing was learned, write nothing — no filler.
@@ -117,11 +122,25 @@ done/skipped-with-reason.
     that doesn't build), include the minimal build-coupled closure as DECLARED riders and
     prove the exact committed snapshot builds+tests in a fresh `git worktree` of that
     commit before pushing.
+    **An EMPTY-commit failure (exit 1, "nothing to commit") is a race signal, not an add
+    failure:** a limit-hit peer's catch-all commit can consume your staged files in the
+    seconds between your `git add` and `git commit`. Do not re-add blindly — re-attribute
+    against HEAD (`git grep '<distinctive marker>' HEAD -- <paths>`); if your edits rode
+    the peer's commit, your only remaining job may be `git push` (their session often died
+    before pushing — check `git status -sb` for "ahead"). And never dispatch the same
+    closeout/resume prompt to two chats: twin sessions race these exact steps.
 11. **Report** — one summary: learnings count, commands improved (names), wiki pages
     touched, artifacts handed off (destination), build plan generated (target + path, or
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 10: empty-commit exit is a race signal (peer catch-all commit consumed
+  the staged index) — re-attribute against HEAD, push their stranded commit; never
+  double-dispatch a closeout to two chats (from token-economy fresh-eyes closeout)
+- 2026-07-09 — step 2: fresh-eyes/crash reviews also diff INSTRUCTION SURFACES pairwise —
+  a deterministic producer's output text (digest/seedNote/hook) against every agent/skill
+  contract that consumes it; either alone can pass review while together they deadlock
+  (from token-economy fresh-eyes closeout)
 - 2026-07-09 — step 10: never `--amend` in the shared tree — a peer may have pushed the
   original within seconds; the rebase drops the amended duplicate (from
   handoff-fidelity-2026-07-09)

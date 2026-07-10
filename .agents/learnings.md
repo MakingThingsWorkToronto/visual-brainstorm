@@ -1,5 +1,37 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — a peer's catch-all commit can CONSUME your staged index between your `git add` and `git commit`
+
+- **The trap:** in the shared tree, a limit-hit peer ran a catch-all `git commit` ("all
+  changes for cursor before limit") in the seconds between this session's `git add` and its
+  `git commit` — the peer's commit swallowed the staged files, our commit failed with
+  exit 1 (nothing to commit), and the peer's commit sat UNPUSHED because that session died.
+  Naively re-adding and re-committing would have duplicated the work; treating exit 1 as
+  "add failed" would have been wrong too.
+- **How to apply:** on an empty-commit failure in a shared tree, do NOT retry blindly —
+  re-attribute against HEAD first (`git grep '<your distinctive marker>' HEAD -- <paths>`).
+  If your edits are already in a peer's commit, your only job may be `git push` (check
+  `git status -sb` for "ahead"). Same lesson as crash-resume attribution, but the race
+  window is SECONDS, not sessions. Related: never dispatch the same closeout/resume prompt
+  to two chats — twin sessions race the identical steps 8–10 (observed d5b56d6: safe only
+  because the loser stopped at read-only verification).
+
+## 2026-07-09 — deterministic digests and agent contracts can contradict each other; review INSTRUCTION SURFACES pairwise, not just code
+
+- **The trap:** the TWEAK digest (feedback.ts) ordered "include a clarifying variant of
+  each UNSURE option" and "return a variant embracing the flaw" while svg-artisan.md's
+  mutation contract said "NEVER re-author from scratch" — an artisan following its own
+  file literally must refuse its brief. Code review of either file alone passes; only
+  diffing the two instruction surfaces against each other exposes the deadlock. Same
+  class: the pipe comment claimed tweak needs manual `--category tweak` after the
+  PreToolUse boundary had made it mechanical.
+- **How to apply:** when a deterministic producer (digest builder, seedNote, hook) emits
+  instructions that an agent/skill file also legislates, fresh-eyes reviews must read the
+  producer's OUTPUT TEXT and the consumer's contract side by side and reconcile every
+  imperative. A load-bearing MARKER (e.g. the digest's MUTATE keyword driving the token
+  pipe's tweak/generation binning) must be documented at the point where a human or model
+  could paraphrase it away (VALIDITY-SCAN briefing contract does this now).
+
 ## 2026-07-09 — adding a ProgressEvent/BoardResponse field: the bridge's INBOUND zod whitelist strips it silently despite rule 5
 
 - **The trap:** protocol schemas are the single source of truth, but the bridge's POST
