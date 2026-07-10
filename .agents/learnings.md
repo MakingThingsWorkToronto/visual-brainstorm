@@ -1,5 +1,20 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-10 — a delegated DOC pass fails by FABRICATING plausible glue facts, not only by dying mid-file
+
+- **The trap:** the wiki-librarian delegation for in-progress-feedback got every named fact
+  right but invented connective tissue that was never in the brief: "the note becomes the
+  characteristic" (they're separate fields), "`delivered`: true" (it's a channel enum), a
+  phantom `optionId` on PendingReplacement, "the artifact is NOT removed from the shelf"
+  (the chip IS removed; the DISK keeps it). Each invention was plausible enough to survive
+  a skim — a different failure mode from the known partial-completion crash: the page looks
+  COMPLETE and coherent while quietly wrong.
+- **How to apply:** after any delegated doc/wiki pass, fresh-eyes audit every TECHNICAL
+  LITERAL the page asserts (field names, enum values, response shapes, UI semantics)
+  against the code, not against the agent's report. Brief doc agents that anything not in
+  the brief is omitted, never inferred; then grep the touched pages for assertions about
+  values the brief never mentioned — those are the fabrications.
+
 ## 2026-07-09 — deleting a fake harness is not the same as taking the real route: audit the PATHWAY, not just the fixtures
 
 - **The trap:** after the preview harness was excised (2026-07-07), every "real path"

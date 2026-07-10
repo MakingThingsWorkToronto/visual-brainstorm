@@ -1,6 +1,6 @@
 # In-Progress Feedback — live status, artifact keep/kill, and the kill→regenerate loop
 
-**Status:** open
+**Status:** closed 2026-07-10
 **Goal:** After a chat request is submitted, the user continuously sees structured, real-time
 status of what Claude Code is doing (persisted to the discussion folder, recallable on
 reload). As artifacts stream in, the user can open any one fullscreen and render a
