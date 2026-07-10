@@ -129,6 +129,7 @@ Claude Code ◀─tool result── apps/mcp ◀─POST /api/respond── studi
   `artifacts/<slug>.json` in place (the SVG is untouched) and broadcasts the updated
   `artifact` envelope (useBridge upserts by slug). Live thread only; unknown slug →
   honest 404.
+- `POST /api/artifact-verdict` — `{artifactSlug, verdict: 'keep'|'kill', note?: string}` (zod-validated, 4k note cap) from the fullscreen viewer Keep/Kill controls. Live thread only; unknown slug → honest 404, bad body → honest 400. `keep` → 200 `{ok, artifact}`; `kill` → 200 `{ok, artifact, pending, delivered}` + broadcasts `artifact` then `artifact-pending` WS envelopes, persists `<thread>/pending-replacements.json` (whole-array atomic rewrite, reload-safe via SessionStore.open), derives a characteristic label from the killed artifact's provenance board option(s) label/description (falls back to artifact name), and dispatches command `replace-artifact` (queued to `<discussionRoot>/.logs/pending-commands.jsonl`, surfaced via `session_status.pendingUiCommands`). A later `capture_artifact {replaces}` stamps the killed artifact's `replacedBy` (sidecar rewrite; SVG untouched, rule 7), retires the pending entry, and re-broadcasts the killed artifact.
 - `GET /api/decision-tree/:id` — builds and returns the decision tree from the reloaded
   thread (live or archived), deterministically rendered to sanitized SVG. `SessionStore`
   writes `decision-tree.json` (structured tree) + `decision-tree.svg` (rendered index) at
@@ -219,10 +220,15 @@ discussion/<yyyy-mm-dd-hhmm>-<slug>/
                                token meter) — never rewritten, reloads with the thread
   artifacts/<slug>.svg         accepted/final artifacts
   artifacts/<slug>.json        provenance: boardId, optionIds, notes (+ optional `revises`:
-                               parent slug — a revision is a NEW artifact, rule 7);
+                               parent slug — a revision is a NEW artifact, rule 7; optional
+                               `verdict('keep'|'kill')/verdictNote/verdictAt/replacedBy`);
                                rewritten in place when notes are saved (/api/artifact-notes)
+                               or verdict is recorded (/api/artifact-verdict)
   artifacts/chat.jsonl         append-only artifact-chat messages (ArtifactChatMessage:
                                user questions + Claude replies, revisedSlug links)
+  pending-replacements.json    array of `PendingReplacement` (replacesSlug, characteristic,
+                               note?, at) — in-flight kill→replace entries; rewritten
+                               whole-array atomic on every verdict + capture; reload-safe
   decision-tree.json           derived index: per-thread decision tree (one node per round,
                                chosen ✓ / rejected ✕ / action / explode·delete·note ops,
                                coloured by decision kind) — built server-side, safe to overwrite

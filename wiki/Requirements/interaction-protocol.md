@@ -165,6 +165,34 @@ thread-addressed and remain interactive (answer-in-place; see the loop above).
 
 **Pinned artifacts.** A captured artifact can be pinned from the fullscreen viewer's 📌 toggle (live threads only); pinned artifacts appear in a dedicated "📌 pinned" row beneath the WayfinderStrip. Pins persist per-thread in `session.json` (`SessionInfo.pinnedSlugs: string[]`) and reload with the thread. On completed/archived threads, pinned artifacts appear read-only (no pin toggle). The pin control sends `POST /api/pinned {slug}` (validates the slug is a live-thread artifact, 404 otherwise), which `SessionStore.togglePinned(slug)` toggles, rewrites `session.json`, appends a one-line brainstorm.md note, and broadcasts `hello`.
 
+## Artifact keep/kill verdicts and live replacement
+
+On the fullscreen viewer's header, captured artifacts carry **Keep** and **Kill** buttons (live threads only).
+
+1. **Keep** — marks the artifact kept (stored as `verdict: 'keep'` in the sidecar + a `brainstorm.md` digest line). A kept artifact receives a **✓** badge in the shelf slot (WayfinderStrip). `POST /api/artifact-verdict {artifactSlug, verdict: 'keep'}` → 200 `{ok, artifact}`.
+
+2. **Kill with intent-to-replace** — clicking **Kill** opens a note form (the form's text is optional, max 4000 chars; typically brief replacement guidance, e.g. "bolder strokes" or "use a different layout"). `POST /api/artifact-verdict {artifactSlug, verdict: 'kill', note?: string}` → 200 `{ok, artifact, pending, delivered}`. The response carries:
+   - `pending`: a `PendingReplacement` entry `{replacesSlug, characteristic, note?, at}`. The **characteristic** is derived from the killed artifact's provenance board option label(s) + description (falling back to the artifact name) — it names what the slot IS; the user's **note** is the separate steering text (what to change). Both go into the regeneration brief.
+   - `delivered`: `'via-board-response' | 'queued'` — which dispatch channel carried the `replace-artifact` command (a parked live board vs. the pending-commands queue).
+
+   The bridge broadcasts two WS envelopes: first the updated `artifact` (verdict + verdictAt marked), then `artifact-pending` carrying the pending replacement. The killed artifact's chip is REMOVED from the shelf — its slot shows a shimmering **↻ replacing…** placeholder (testid: `pending-replacement`) while the replacement is drawn. The artifact itself stays on disk with its verdict (rule 7 — the shelf hides it, nothing deletes it).
+
+3. **The orchestrator routes `replace-artifact` as a UI command** — dispatched the same way as `artifact-chat` (queued to `pendingUiCommands` or as a parked-board response). The orchestrator (`brainstorm-orchestrator`) ALWAYS delegates to `svg-artisan` (procedure `.claude/commands/replace-artifact.md`): the artisan reads the killed artifact's SVG as an **anti-reference** (what NOT to do), the characteristic + kill note as a **regeneration brief**, and draws a replacement. The anti-reference is for signal only — the killed artwork is never modified (rule 7).
+
+4. **Capture with `replaces`** — when the artisan calls `capture_artifact {replaces: <killedSlug>}` (registering that the new SVG replaces the killed one):
+   - The killed artifact's sidecar is rewritten: `replacedBy: <newSlug>` + verdict kept as context.
+   - The pending-replacement entry is retired from `pending-replacements.json` (atomic rewrite).
+   - The artifact `broadcast` is re-sent (so `useBridge` refreshes both the original and any UI state watching replacedBy chains).
+   - The new artifact is a SEPARATE artifact with its own `provenance.replaces` link (rule 7: nothing is overwritten).
+
+5. **Live status** — while the replacement is in-flight, the studio displays:
+   - The killed artifact's original slot on the shelf shows the shimmer placeholder (testid: `pending-replacement`).
+   - When capture completes, the placeholder is replaced by the new artifact (same slot, new SVG).
+   - The killed artifact remains browsable in the history (never deleted); the `replacedBy` field is visible in metadata when you open the original.
+   - A `replacedBy` chain can span multiple replacements if the user kills the first replacement and issues a new brief.
+
+**Honest failure contract (rule 6).** If the replacement fails (e.g. `svg-artisan` returns an error, or the regeneration times out), the pending entry is cleared and a progress note is appended: "Could not replace <slug> — the killed artifact remains on the shelf; try asking again." The placeholder vanishes and the kept artifact slot shows the dead slot as-is (no crash). The user can retry the replacement by re-opening the killed artifact and clicking **Kill** again.
+
 ## Mind-map persistence (model-legible contract)
 
 On `present_board` of a mindmap board, `SessionStore.recordBoard` writes `round-NN/tree.json` (presented tree), `round-NN/tree.md` (traversable markdown outline: header line carries a noted-node count ("N noted nodes — inline `note:` markers are the user's steering; read them as intent"), indented hierarchy, per-node `id` + inline `note: …` markers at each node where present — each note appears ONCE, the trailing "Node notes" roll-up is GONE), and AUTO-CAPTURES a snapshot artifact with explicit `provenance.kind: 'mindmap-snapshot'` — the maximize→fullscreen-chat target; no orchestrator action needed (rule 7). Legacy fallback: old threads cache the snapshot heuristic (boardId + zero optionIds).

@@ -268,7 +268,7 @@ In short:
 | Mutate | view one option through distortion lenses; mark what "reveals something" | that distortion is leaned into |
 | Wreck | write ≥3 flaws — brutal beats polite | each flaw returns as a fix candidate |
 | Cluster | drag similar options together; click the pulsing ? gaps and name them | gap notes spawn hybrids; clusters teach Claude your taxonomy |
-| Converge | every option is a card: its **Keep / Kill / Merge / Final** verdict buttons and a "why this verdict" note box sit right on it — verdict everything, crown ONE with **Final**, or let **Sudden death** duel 2–4 keeps down to an auto-crown | keeps are captured; kills are forever; **Finalize & close out** ends the brainstorm, composes the **decision poster** (winner + lineage + the notes that decided it, shareable as one SVG), and runs plan closeout |
+| Converge | every option is a card: its **Keep / Kill / Merge / Final** verdict buttons and a "why this verdict" note box sit right on it — verdict everything, crown ONE with **Final**, or let **Sudden death** duel 2–4 keeps down to an auto-crown | keeps are captured (wear **✓** badges); kills can be replaced (click Kill in fullscreen, add a note steering the replacement, wait for ↻ replacing… shimmer to fill); **Finalize & close out** ends the brainstorm, composes the **decision poster** (winner + lineage + the notes that decided it, shareable as one SVG), and runs plan closeout |
 
 **Judge deck** (toggle next to the grid in Diverge/Expand) — review the pool one card at
 a time: **→ keeps, ← kills** (arrow keys work). When every card is judged, close calls are
@@ -277,16 +277,16 @@ every duel reach Claude as preference data — top ranks lead the next round's s
 
 **Wayfinder strip** (above the timeline) — one strip is the whole brainstorm: every round as
 a clickable thumbnail (narrowing toward the winner; click = jump back), your **keeps hanging
-beneath** (drag one straight into your editor to export it, no export dialog, or click to open
-fullscreen with notes and chat), optionally a **📌 pinned** row (artifacts you pinned from the
-fullscreen viewer — click to open read-only, or unpin via the 📌 toggle), a **🌳 decision tree**
+beneath** (each with a **✓** badge when marked kept; drag one straight into your editor to export it, no export dialog, or click to open fullscreen with notes and chat), optionally a **📌 pinned** row (artifacts you pinned from the fullscreen viewer — click to open read-only, or unpin via the 📌 toggle), optionally in-flight **pending replacements** (killed artifacts with a shimmering "↻ replacing…" placeholder until Claude draws the replacement), a **🌳 decision tree**
 toggle (opens an overlay showing how the brainstorm decided — root → one node per round → chosen
 ✓ / rejected ✕ / action / explode/delete/note operations, coloured by decision kind), and a
 glowing **next-phase pill** at the right end. Once you've judged, **Enter** sends and requests
 that phase; the composer shows "Enter sends & asks for …" when it's armed.
 
-**Fullscreen viewer — ONE surface for every artifact and option.** Clicking any captured artifact (a keep on the wayfinder strip or pinned row), a pinned artifact, a previous round's option, or a live board's option opens the same fullscreen surface: a zoom/pan/pinch SVG stage on the left, a right dock with **Notes** above an optional **Chat**. 
+**Fullscreen viewer — ONE surface for every artifact and option.** Clicking any captured artifact (a keep on the wayfinder strip or pinned row), a pinned artifact, a previous round's option, or a live board's option opens the same fullscreen surface: a zoom/pan/pinch SVG stage on the left, a right dock with **Notes** above an optional **Chat**. The header carries **Keep** and **Kill** buttons on live captured artifacts (archived threads and round options don't show them).
 - **Captured artifacts and live board options:** Notes are editable. For artifacts, **Save notes** persists them with the artifact; for live options, notes ship with your response. A chat composer (one box, one **Send**) lets you ask questions or request changes; answers come from Claude via subagents. A requested change is captured as a NEW version (original untouched, marked `revised`); the view switches to the revision while the dialog stays open. **Asking about a live option never costs you your work:** the board stays put and your **dials, selections, and notes are kept** while Claude answers (your in-progress answer is saved with the thread, so it also survives a reload).
+- **Keep** (captured artifacts only, live threads) — marks the artifact as intentionally kept. The artifact receives a **✓** badge in its shelf slot and is recorded as kept in the decision.
+- **Kill with replacement intent** (captured artifacts only, live threads) — clicking **Kill** opens a note form where you can describe what you'd like instead (optional, max 4000 chars — e.g. "bolder, more geometric", "use cooler colors", or leave blank to ask Claude to find an alternative). Submit the note and Claude draws a replacement. **While the replacement is being drawn, the artifact's slot shows a shimmering "↻ replacing…" placeholder** (testid: pending-replacement). When ready, the new artifact appears in the same slot; the original stays browsable in the history (never deleted), tagged with what replaced it. If you decide the replacement isn't right, kill it and issue a new brief — you can iterate indefinitely.
 - **Pinned artifacts:** Same as captured artifacts, but displayed in a dedicated "📌 pinned" row (below the wayfinder strip). Pin/unpin any captured artifact by toggling the 📌 button in the fullscreen header (live threads only).
 - **Previous-round options:** The note you sent with that round shows read-only, but the **chat is interactive** — ask about an earlier choice whenever you want.
 - **Completed threads:** Artifact chat is interactive too — ask a question on any keep and it is answered in place (the note/pin stay read-only). Revising an archived artifact still needs **Reopen** (see below).
@@ -295,8 +295,7 @@ that phase; the composer shows "Enter sends & asks for …" when it's armed.
 
 **Session activity strip** (in the live timeline) — while Claude works, real progress
 events from the working session stream into the studio and persist with the thread: the
-strip shows the latest event's note (it also replaces the shimmer's canned "drawing new
-candidates…" line), with a count badge; click to expand the full recent list — each entry
+strip shows the latest event's note and a live **status line** (e.g. "generating 3 of 6", "revising option-a", "replacing killed-artifact-x"), with a count badge; click to expand the full recent list — each entry
 timestamped, tagged with its source (orchestrator, agent, or hook), and, when known, its
 token cost. Every thread also carries a **token meter**: all tokens reported for that
 discussion — orchestrator and subagents alike, captured deterministically from session
