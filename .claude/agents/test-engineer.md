@@ -128,7 +128,15 @@ A test-honesty gap once let a whole methodology ship unproven — encode these s
    `bridge.presentGallery(...)` itself is THE anti-pattern — it proved the studio CAN render a
    gallery but never that a real orchestrated session PRODUCES one, which hid a real bug. A journey
    test must assert the surface AROSE FROM THE REAL PATH (a session driving the MCP tools), not
-   from direct producer/state injection.
+   from direct producer/state injection. **The scaffold enforces this now (2026-07-09):**
+   `scripts/lib/sim-runner.mjs` spawns the BUILT stdio MCP server (cwd=scratch config,
+   `VIBR_HOME`+`VIBR_PORT=0`, studio URL from `.logs/bridge-port.json`) and hands sims a real
+   `mcp.call(tool, args)` client (`scripts/lib/mcp-client.mjs`) — there is no `bridge` handle to
+   misuse. Corollaries: canonical fixtures must satisfy the TOOL-boundary contract (an option
+   board needs ≥5 axes — the loose protocol schema is not the bar); cross-process disk asserts
+   POLL briefly (a WS echo can render before the server's write lands); the in-process Bridge is
+   legitimate ONLY where the Bridge is the subject (`smoke.mjs`, `api-status-matrix`,
+   `ui-break-sweep` fuzzer, `latency-profile`).
 4. **Every human journey is PREDICTED then audited ADDITIVELY.** The registry is `tests/journeys.md`
    (append new journeys, never remove). Each journey names its surfaces, the canonical DATA asserted
    at each, and the runnable real-path command — and carries a nav-discoverability check: the
@@ -152,6 +160,11 @@ A test-honesty gap once let a whole methodology ship unproven — encode these s
      assertion.
 
 ## Changelog
+- 2026-07-09 — point 3 hardened structurally: sim-runner now SPAWNS the real stdio MCP server
+  and sims orchestrate via mcp-client tools/call (no bridge handle exists to misuse); fixtures
+  must satisfy tool-boundary contracts (≥5 axes caught canonical diverge.json violating the
+  product's own rule); cross-process disk asserts poll; in-process Bridge only where the Bridge
+  is the subject (from real-routes-human-sim-2026-07-09)
 - 2026-07-09 — point 4 extended: journey rows are part of a feature's definition of done —
   a new user-visible affordance lands WITH its predicted DONE/OWED rows in the same change
   (from handoff-fidelity-2026-07-09)

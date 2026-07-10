@@ -16,10 +16,11 @@ port — the browser shows the ghost.
    engine, session.id, activeBoard, connectedClients, studioDistExists. Wrong session id or
    engine = the tab is showing a DIFFERENT instance.
 2. **Process census:** PowerShell:
-   `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'preview\.js|apps/mcp/dist/index.js' } | Select-Object ProcessId, CommandLine`
+   `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'apps/mcp/dist/index.js' } | Select-Object ProcessId, CommandLine`
    More than one instance → stale ones must die: `Stop-Process -Id <pid> -Force` (always the
-   node.exe pid — killing an npm wrapper orphans the child).
-3. **Logs:** `discussion/.logs/{mcp,preview}-<yyyy-mm-dd>.log` (pid-tagged; also live
+   node.exe pid — killing an npm wrapper orphans the child). Human-sim runs spawn their OWN
+   servers with `VIBR_HOME` under `vibr-*` temp dirs — concurrency-safe siblings, not strays.
+3. **Logs:** `discussion/.logs/mcp-<yyyy-mm-dd>.log` (pid-tagged; also live
    via `GET /api/logs` and the studio's 🧾 button). Key signals:
    - `PORT CONFLICT` lines name the holder pid and the real URL.
    - `presenting … 0 client(s) connected` → no browser tab on THIS instance.

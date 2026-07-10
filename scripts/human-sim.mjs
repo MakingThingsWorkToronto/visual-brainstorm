@@ -3,11 +3,18 @@
  *
  * A frameworkless driver: headless Edge/Chrome spoken to over RAW CDP using the
  * repo's own `ws` package (no Playwright/Puppeteer), loading the REAL built studio
- * (apps/studio/dist) served by a REAL Bridge on an ephemeral port, and scripting a
- * full human goal end to end:
+ * (apps/studio/dist) served by the REAL stdio MCP server (spawned by
+ * scripts/lib/sim-runner.mjs exactly as Claude Code runs it), and scripting a
+ * full human goal end to end. BOTH ends are the real route: the human side is
+ * raw CDP on the real studio; the orchestrator side is real `tools/call`
+ * requests (open_studio → ask_concierge → present_gallery → present_board →
+ * capture_artifact → reply_artifact_chat) against the product's own tool layer
+ * — its intake lock, validation, and feedback digest are all live in this run:
  *
- *   new discussion (type a brief, pick a chip, annotate a photo seed, send)
- *   → respond to a presented canonical board (select, elaborate, submit)
+ *   open_studio blocks → new discussion (type a brief, pick a chip, annotate a
+ *   photo seed, send) resolves it with the new-brainstorm command
+ *   → present_board is REFUSED before the gallery pick (the intake gate, live)
+ *   → concierge Q&A → gallery pick → mindmap round → canonical board round
  *   → a captured artifact becomes visible in the wayfinder strip.
  *
  * Interaction choices (documented per the mandate):
@@ -31,7 +38,6 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
-import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
 import { BoardSchema, LivingGallerySchema } from '../packages/protocol/dist/index.js';
 // Visual-honesty (CLAUDE.md rule 10): a rendered surface / testid is not proof —
@@ -42,8 +48,7 @@ import { runHumanSim } from './lib/sim-runner.mjs';
 
 await runHumanSim('', {
   models: ['claude-fable-5', 'claude-haiku-4-5'],
-  prepare: ({ scratch }) => ({ store: new SessionStore('Human sim session', scratch) }),
-  run: async ({ bridge, base, store, scratch, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
+  run: async ({ mcp, awaitBase, scratch, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
     // --- scribble-pad primitives: a real pointer DRAG (pen/arrow) and a key
     //     press (commit a text note), plus a real file-picker set. These drive
     //     the studio's genuine pointer/keyboard/file paths — nothing faked. ----
@@ -108,9 +113,12 @@ await runHumanSim('', {
     );
 
     // =========================================================================
-    // The human goal.
+    // The human goal. The REAL open_studio tool blocks for the brief — exactly
+    // how a bare /run-brainstorm session starts — while raw CDP plays the human.
     // =========================================================================
-    await step('studio loads over the real bridge (root mounted, session titled)', async () => {
+    const openStudioWait = mcp.call('open_studio', { timeoutSeconds: 600, openBrowser: false }, 660_000);
+    const base = await awaitBase();
+    await step('studio loads over the real bridge (root mounted, landing panel up)', async () => {
       const loadStudio = async () => {
         await cdp.send('Page.navigate', { url: `${base}/` });
         await waitInPage(
@@ -126,12 +134,8 @@ await runHumanSim('', {
         await sleep(2_000);
         await loadStudio();
       }
-      // The hello envelope arrived when the sidebar names the live session.
-      await waitInPage(
-        'the hello state (session title in the sidebar)',
-        `document.body.textContent.includes('Human sim session')`,
-      );
-      // Empty live thread → the New Discussion landing surface is the opener.
+      // Empty live thread (open_studio's placeholder) → the New Discussion
+      // landing surface is the opener.
       await waitInPage(
         'the New Discussion landing panel',
         `document.body.textContent.includes('New Discussion') && !!document.querySelector('textarea')`,
@@ -316,25 +320,26 @@ await runHumanSim('', {
       );
     });
 
-    await step('human sends it — new-brainstorm reaches the bridge queue', async () => {
+    let threadDir;
+    await step('human sends it — the BLOCKED open_studio tool resolves with the command', async () => {
       await click(
         'the landing Send & iterate button',
         `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Send & iterate')`,
       );
-      // Bridge side: the command queues with the composed prompt (brief + chip).
-      const deadline = Date.now() + 10_000;
-      while (bridge.peekCommands().length === 0) {
-        if (Date.now() > deadline) throw new Error('new-brainstorm never reached the bridge queue');
-        await sleep(100);
-      }
-      const [cmd] = bridge.drainCommands(); // the harness stands in for the orchestrator's check-in
-      assert.equal(cmd.command, 'new-brainstorm');
-      assert.equal(cmd.prompt, `${brief} (a logo)`, 'prompt carries the brief and the chip');
+      // The real route: the submit resolves the blocked open_studio tool call —
+      // the exact payload a real orchestrator receives at this moment.
+      const submitted = await openStudioWait;
+      assert.equal(submitted.status, 'submitted', 'open_studio resolved as submitted');
+      assert.equal(submitted.command, 'new-brainstorm');
+      assert.equal(submitted.prompt, `${brief} (a logo)`, 'prompt carries the brief and the chip');
+      assert.ok(submitted.instruction.includes('run-brainstorm'), 'the instruction routes to run-brainstorm.md');
+      threadDir = submitted.threadDir;
+      assert.ok(threadDir && fs.existsSync(threadDir), 'the thread directory exists on disk');
 
       // The annotated scribble persisted as a TRAVERSABLE FOLDER the model can
-      // fully read — proven off disk on the REAL bridge (no faked orchestrator).
-      // The seedNote routes the orchestrator to /read-scribble.
-      assert.ok(cmd.seedNote && cmd.seedNote.includes('read-scribble.md'), 'the scribble routes the orchestrator to /read-scribble');
+      // fully read — proven off disk. The seedNote routes the orchestrator to
+      // /read-scribble.
+      assert.ok(submitted.seedNote && submitted.seedNote.includes('read-scribble.md'), 'the scribble routes the orchestrator to /read-scribble');
       const seedDir = path.join(scratch, '.seeds');
       const folder = fs.existsSync(seedDir)
         ? fs.readdirSync(seedDir).find((f) => /^seed-/.test(f) && fs.statSync(path.join(seedDir, f)).isDirectory())
@@ -364,7 +369,7 @@ await runHumanSim('', {
       assert.ok(note.colorName && note.colorName !== 'accent', `the ink resolved to its Aurora palette color NAME (got "${note.colorName}")`);
       assert.ok(fs.readFileSync(path.join(fp, 'README.md'), 'utf8').includes('read-scribble'), 'the folder README routes to /read-scribble');
       // Keep both: the raw photo ALSO persisted as a plain attachment.
-      const attachDir = path.join(store.info.dir, 'attachments');
+      const attachDir = path.join(threadDir, 'attachments');
       const attachFiles = fs.existsSync(attachDir) ? fs.readdirSync(attachDir) : [];
       assert.ok(
         attachFiles.some((f) => /\.(png|jpe?g|gif|webp)$/i.test(f)),
@@ -387,19 +392,37 @@ await runHumanSim('', {
     });
 
     // =========================================================================
-    // The concierge → gallery → mindmap intake (concierge-living-gallery,
-    // phase 6 — REAL-SESSION proof, not the preview player). The harness plays
-    // both ends: the Bridge side (askConcierge/presentGallery/presentAndWait,
-    // exactly the calls the MCP tools make) and the human side (real CDP driving
-    // the real studio surfaces those calls put on the wire).
+    // The concierge → gallery → mindmap intake, on the REAL tool route: every
+    // orchestrator-side move below is an actual MCP tools/call against the
+    // spawned server, while raw CDP drives the studio surfaces those calls put
+    // on the wire. The tool layer's own guardrails are live — proven first.
     // =========================================================================
+    const divergeCanonical = loadCanonical('boards/diverge.json', BoardSchema);
+    await step('the intake gate is LIVE: present_board is refused before a gallery pick', async () => {
+      const refused = await mcp.call('present_board', {
+        title: divergeCanonical.title,
+        prompt: divergeCanonical.prompt,
+        kind: divergeCanonical.kind,
+        phase: divergeCanonical.phase,
+        options: divergeCanonical.options,
+        axes: divergeCanonical.survey.axes,
+        timeoutSeconds: 10,
+        openBrowser: false,
+      });
+      assert.equal(refused.status, 'error', 'the first board of a fresh thread is refused before intake');
+      assert.ok(
+        refused.error.includes('Intake incomplete'),
+        `the refusal names the intake lock (got: ${refused.error})`,
+      );
+    });
+
     let cAnswer;
     await step('concierge appears + human answers ("who is this glyph for?")', async () => {
-      const cWait = bridge.askConcierge(
-        'Who is this glyph for?',
-        ['my team', 'developers'],
-        60_000,
-      );
+      const cWait = mcp.call('ask_concierge', {
+        question: 'Who is this glyph for?',
+        suggestions: ['my team', 'developers'],
+        timeoutSeconds: 120,
+      }, 150_000);
       await waitInPage(
         'the concierge intake surface with its question',
         `!!document.querySelector('[data-testid="concierge-intake"]') &&
@@ -419,7 +442,7 @@ await runHumanSim('', {
         `[...document.querySelectorAll('[data-testid="concierge-intake"] button')].find((b) => b.textContent.trim() === 'Send answer')`,
       );
       cAnswer = await cWait;
-      assert.ok(cAnswer, 'askConcierge resolved with a posted answer, not a timeout');
+      assert.equal(cAnswer.status, 'answered', 'ask_concierge resolved with a posted answer, not a timeout');
       assert.ok(cAnswer.answer.includes('developers'), 'answer carries the tapped chip');
       assert.ok(cAnswer.answer.includes('shipping a CLI'), 'answer carries the typed free text');
       assert.deepEqual(cAnswer.picked, ['developers'], 'picked chips stay structured on the answer');
@@ -428,13 +451,15 @@ await runHumanSim('', {
 
     let picked;
     await step('gallery appears + human picks Mind map', async () => {
-      // NOTE (journeys.md, faked-orchestrator risk HIGH): the harness stands in for
-      // the orchestrator here — bridge.presentGallery is the exact call the real
-      // present_gallery tool makes, but a live model isn't in the loop. The
-      // STRUCTURAL guarantee that a real session reaches this surface is the intake
-      // gate (tests/intake-gate.test.mjs: present_board is refused before a pick).
-      const gallery = { ...loadCanonical('gallery/gallery.json', LivingGallerySchema), id: 'human-sim-gallery' };
-      const gWait = bridge.presentGallery(gallery, 60_000);
+      // The REAL present_gallery tool call (canonical cards — the content is a
+      // fixture, the pathway is the product's; only the model that would author
+      // the minis is out of the loop). Its pick opens the intake gate for real.
+      const gallery = loadCanonical('gallery/gallery.json', LivingGallerySchema);
+      const gWait = mcp.call('present_gallery', {
+        prompt: gallery.prompt,
+        cards: gallery.cards,
+        timeoutSeconds: 120,
+      }, 150_000);
       await waitInPage(
         'the living gallery with its recommended ribbon (proves it renders live)',
         `!!document.querySelector('[data-testid="living-gallery"]') &&
@@ -453,21 +478,23 @@ await runHumanSim('', {
         `document.querySelector('[data-testid="method-card-mindmap"]')`,
       );
       picked = await gWait;
-      assert.ok(picked, 'presentGallery resolved with the picked method');
-      assert.equal(picked.method, 'mindmap', 'presentGallery resolved with the picked method');
-      assert.equal(picked.label, 'Mind map', 'presentGallery preserves the picked card label');
-      assert.equal(picked.recommended, true, 'presentGallery preserves whether the pick was recommended');
+      assert.equal(picked.status, 'picked', 'present_gallery resolved with a pick, not a timeout');
+      assert.equal(picked.method, 'mindmap', 'present_gallery resolved with the picked method');
+      assert.equal(picked.label, 'Mind map', 'present_gallery preserves the picked card label');
+      assert.equal(picked.recommended, true, 'present_gallery preserves whether the pick was recommended');
+      assert.ok(picked.cardsCachedAt, 'the premium minis were cached with the thread (token economy, rule 7)');
     });
 
-    const treeBoard = BoardSchema.parse({
-      id: 'human-sim-mindmap',
-      sessionId: store.info.id,
-      round: store.nextRound(),
-      kind: 'mindmap',
-      phase: 'diverge',
+    // The gallery routed to the mindmap methodology — present it through the
+    // REAL present_board tool (kind="mindmap" + tree, no options/axes). The
+    // server mints the round (round 1 of this thread) and its board id.
+    const treeArgs = {
       title: 'Mind map — your glyph',
       prompt: 'Co-edit the tree.',
+      kind: 'mindmap',
+      phase: 'diverge',
       options: [],
+      axes: [],
       tree: {
         nodeData: {
           id: 'root',
@@ -479,12 +506,12 @@ await runHumanSim('', {
         },
         direction: 2,
       },
-      survey: {},
-      createdAt: new Date().toISOString(),
-    });
+      timeoutSeconds: 600,
+      openBrowser: false,
+    };
     let treeWait;
     await step('mindmap board renders with the LIVE mind-elixir engine mounted', async () => {
-      treeWait = bridge.presentAndWait(treeBoard, 60_000, false);
+      treeWait = mcp.call('present_board', treeArgs, 660_000);
       await waitInPage(
         'the mindmap canvas surface',
         `!!document.querySelector('[data-testid="mindmap-canvas"]')`,
@@ -503,8 +530,8 @@ await runHumanSim('', {
       // topics actually rendered in the canvas (a mounted-but-empty engine is a
       // false-green; childElementCount>0 alone would pass on chrome-only DOM).
       await assertShowsCanonical(evaluate, 'mindmap canvas', [
-        treeBoard.tree.nodeData.topic,
-        ...treeBoard.tree.nodeData.children.map((c) => c.topic),
+        treeArgs.tree.nodeData.topic,
+        ...treeArgs.tree.nodeData.children.map((c) => c.topic),
       ]);
     });
 
@@ -616,8 +643,16 @@ await runHumanSim('', {
         'the mindmap composer Send & iterate button',
         `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Send & iterate')`,
       );
-      const treeResp = await treeWait;
-      assert.ok(treeResp, 'presentAndWait resolved with a response for the mindmap board, not a timeout');
+      const treeResult = await treeWait;
+      assert.equal(treeResult.status, 'responded', 'present_board resolved with a response for the mindmap board, not a timeout');
+      // The REAL tool result: the feedback digest a live orchestrator acts on —
+      // finally under test (the faked-orchestrator route never built it).
+      assert.ok(Array.isArray(treeResult.feedbackDigest) && treeResult.feedbackDigest.length > 0, 'the tool built a feedback digest');
+      assert.ok(
+        treeResult.feedbackDigest.some((line) => line.includes('Model routing')),
+        'the digest carries the explicit Model-routing line (token-economy doctrine)',
+      );
+      const treeResp = treeResult.response;
       assert.ok(treeResp.editedTree, 'response carries editedTree');
       const c1r = treeResp.editedTree.nodeData.children.find((n) => n.id === 'c1');
       assert.ok(c1r && c1r.children && c1r.children.length === 4, 'editedTree shows Mark at 4 children (5 added, 1 deleted)');
@@ -635,11 +670,12 @@ await runHumanSim('', {
       assert.ok(treeResp.treeOps.some((o) => o.op === 'delete'), 'the delete op rode back');
 
       // The decisions persisted as structured jsonl (rule: jsonl for decisions).
-      const roundDir = path.join(store.info.dir, `round-${String(treeBoard.round).padStart(2, '0')}`);
+      // The mindmap is this thread's FIRST server-minted round → round-01.
+      const roundDir = path.join(threadDir, 'round-01');
       const opsLines = fs.readFileSync(path.join(roundDir, 'tree-ops.jsonl'), 'utf8').trim().split('\n');
       assert.ok(opsLines.length >= 3, 'tree-ops.jsonl recorded add + explode + delete');
 
-      const introMd = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+      const introMd = fs.readFileSync(path.join(threadDir, 'brainstorm.md'), 'utf8');
       assert.ok(introMd.includes('Concierge Q: Who is this glyph for?'), 'brainstorm.md records the concierge question');
       assert.ok(introMd.includes(`Concierge A: ${cAnswer.answer}`), 'brainstorm.md records the concierge answer');
       assert.ok(introMd.includes('Mind-map tree presented'), 'brainstorm.md records the mindmap presentation (recordBoard)');
@@ -671,19 +707,34 @@ await runHumanSim('', {
       await click('close the decision tree', `[...document.querySelectorAll('[data-testid="decision-tree-view"] button')].find((b) => b.textContent.trim() === 'Close')`);
     });
 
-    // The canonical diverge board, re-anchored to this thread (fresh id rule
-    // does not apply — this is its first presentation). activeBoard was cleared
-    // by the mindmap submit above, so this still lands as a fresh presentation.
-    const board = { ...loadCanonical('boards/diverge.json', BoardSchema), sessionId: store.info.id };
+    // The canonical diverge board through the REAL present_board tool — its
+    // option/axes validation runs live (an option board with fewer than 5 axes
+    // is refused; the canonical fixture must satisfy the product's contract).
+    // The server mints the round + board id; the sim reads the live id from
+    // /api/state exactly as any observer of the real state would.
+    const board = divergeCanonical;
     let waitForResponse = null;
+    let liveBoardId;
     await step('a canonical board is presented and renders as the survey', async () => {
-      waitForResponse = bridge.presentAndWait(board, 60_000, /* open browser */ false);
+      waitForResponse = mcp.call('present_board', {
+        title: board.title,
+        prompt: board.prompt,
+        kind: board.kind,
+        phase: board.phase,
+        options: board.options,
+        axes: board.survey.axes,
+        timeoutSeconds: 600,
+        openBrowser: false,
+      }, 660_000);
       await waitInPage(
         'the board survey (3 selectable options, "your turn")',
         `document.querySelectorAll('button[title="Select"], button[title="Deselect"]').length === 3 &&
          document.body.textContent.includes('your turn') &&
          document.body.textContent.includes(${JSON.stringify(board.title)})`,
       );
+      const st = await (await fetch(`${base}/api/state`)).json();
+      liveBoardId = st.activeBoard?.id;
+      assert.ok(liveBoardId, 'the live board id is readable from /api/state');
     });
 
     await step('human selects an option (Beta)', async () => {
@@ -718,11 +769,16 @@ await runHumanSim('', {
         if (Date.now() > deadline) throw new Error('activeBoard never cleared after submit');
         await sleep(120);
       }
-      const response = await waitForResponse;
-      assert.ok(response, 'presentAndWait resolved with a response, not a timeout');
+      const result = await waitForResponse;
+      assert.equal(result.status, 'responded', 'present_board resolved with a response, not a timeout');
+      const response = result.response;
       assert.deepEqual(response.selectedOptionIds, ['b'], 'the clicked option rode the response');
       assert.equal(response.elaboration, elaboration, 'the typed elaboration rode the response');
       assert.equal(response.action, 'iterate');
+      assert.ok(
+        result.feedbackDigest.some((line) => line.includes('Beta')),
+        'the feedback digest resolves the selection to its option label',
+      );
       // The UI settles into history: the reply bubble shows the verdict.
       await waitInPage(
         'the round-history reply bubble',
@@ -733,11 +789,17 @@ await runHumanSim('', {
 
     let artifact;
     await step('a captured artifact appears in the wayfinder keeps', async () => {
-      artifact = store.captureArtifact('Beta keeper', board.options[1].svg, 'kept by the human sim', {
-        boardId: board.id,
+      // The REAL capture_artifact tool — provenance + persistence + announce in
+      // one product call (rule 7), never a hand-rolled store write.
+      const captured = await mcp.call('capture_artifact', {
+        name: 'Beta keeper',
+        svg: board.options[1].svg,
+        notes: 'kept by the human sim',
+        boardId: liveBoardId,
         optionIds: ['b'],
       });
-      bridge.announceArtifact(artifact);
+      assert.equal(captured.status, 'captured');
+      artifact = captured.artifact;
       assert.ok(fs.existsSync(artifact.svgPath), 'artifact SVG persisted to the thread (rule 7)');
       const shown = artifact.slug.slice(0, 18);
       await waitInPage(
@@ -801,6 +863,31 @@ await runHumanSim('', {
       );
     });
 
+    // With no board waiting, the chat QUEUES for the orchestrator's next
+    // check-in — session_status surfaces it, reply_artifact_chat answers it.
+    // The full real dance, including Claude's bubble rendering back in frame.
+    const liveChatA = 'At 16px the counters hold — the stroke is 2.4px at that scale.';
+    await step('the queued chat reaches session_status; reply_artifact_chat renders the answer', async () => {
+      let pending = [];
+      const deadline = Date.now() + 10_000;
+      for (;;) {
+        const status = await mcp.call('session_status', {});
+        pending = status.pendingUiCommands ?? [];
+        if (pending.some((c) => c.command === 'artifact-chat')) break;
+        if (Date.now() > deadline) throw new Error('the artifact-chat command never reached session_status');
+        await sleep(200);
+      }
+      const chatCmd = pending.find((c) => c.command === 'artifact-chat');
+      assert.equal(chatCmd.prompt, liveChatQ, 'the queued command carries the user question verbatim');
+      const replied = await mcp.call('reply_artifact_chat', { artifactSlug: artifact.slug, text: liveChatA });
+      assert.equal(replied.status, 'replied');
+      await waitInPage(
+        "Claude's reply bubble appears in the artifact dialog",
+        `document.body.textContent.includes(${JSON.stringify(liveChatA)})`,
+        8_000,
+      );
+    });
+
     await step('pinning the keep round-trips through /api/pinned and hits the filmstrip', async () => {
       await click(
         'the 📌 Pin toggle',
@@ -825,11 +912,12 @@ await runHumanSim('', {
 
     return (
       `${stepCount()} steps: real ${browserName} over raw CDP drove the built studio ` +
-      'against a real bridge (new discussion → annotate a photo seed [pen + highlighter + box + note ' +
-      '+ arrow in a palette color, undo, fullscreen] → a traversable .seeds/ folder with a real ' +
-      'composite PNG + scribble.json → concierge Q&A → gallery pick → live mindmap edit → editedTree → board response → ' +
-      'artifact visible → unified fullscreen viewer → pinned to the filmstrip), zero exceptions, ' +
-      'zero STUDIO CLIENT ERROR lines, root mounted throughout'
+      'against the REAL stdio MCP tool route (open_studio blocked → brief + annotated photo seed ' +
+      '[pen + highlighter + box + note + arrow in a palette color, undo, fullscreen] → a traversable ' +
+      '.seeds/ folder with a real composite PNG + scribble.json → present_board REFUSED by the live intake ' +
+      'gate → ask_concierge → present_gallery pick → mindmap round via present_board (editedTree + digest) → ' +
+      'canonical board round → capture_artifact → queued chat answered via reply_artifact_chat → pinned to ' +
+      'the filmstrip), zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout'
     );
   },
 });

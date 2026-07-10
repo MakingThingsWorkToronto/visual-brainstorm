@@ -4,11 +4,26 @@
  * previously five scripts each carried ~100 verbatim lines of this, and the
  * flagship's launch-retry hardening never reached its siblings).
  *
+ * REAL ROUTE (real-routes-human-sim-2026-07-09): the orchestrator side is NOT
+ * faked. The scaffold spawns the BUILT stdio MCP server (apps/mcp/dist/index.js)
+ * in a scratch working directory — exactly the process Claude Code runs — and
+ * hands the sim a real MCP client (`mcp.call('present_board', …)`), never an
+ * in-process Bridge whose producers the sim could call directly. The tool
+ * layer's own contracts (intake lock, option/axes validation, digest
+ * construction, park→reply→rearm) are therefore under test in every journey.
+ * The only thing still fixture-driven is the CONTENT of the calls (canonical
+ * boards — rule 11: harness code stays dumb) and the model that would author
+ * replies; the pathway is the product's.
+ *
  * Owns, identically for every sim:
  *   - browser discovery + the loud SKIP (exit 0 — genuinely absent, nothing faked)
  *   - scratch/profile temp dirs (profile always removed; scratch kept as evidence
  *     on failure, removed on pass)
- *   - the REAL Bridge on an ephemeral port over the sim's prepared store
+ *   - the spawned MCP server: cwd = scratch (its visual-brainstorm.config.json
+ *     carries the sim's models/theme), VIBR_HOME = scratch (thread cache),
+ *     VIBR_PORT=0 (ephemeral — concurrency-safe across simultaneous runs)
+ *   - awaitBase(): the studio URL discovered from the bridge's own
+ *     .logs/bridge-port.json once the FIRST tool call arms the server
  *   - headless launch with ONE retry (a loaded machine can miss the DevTools
  *     window once without anything being wrong) + raw-CDP wiring: page
  *     exceptions, console.error, and STUDIO CLIENT ERROR log-ring lines all
@@ -17,29 +32,31 @@
  *     (Page.bringToFront first — backgrounded tabs return stale frames)
  *   - teardown: CDP close, WHOLE browser tree + profile stragglers (Windows
  *     orphans renderer children; leaked trees starve the next run's launch),
- *     bridge stop. NEVER process.exit() — exitCode only, the loop drains
+ *     MCP child killed. NEVER process.exit() — exitCode only, the loop drains
  *     (Windows/libuv learning 2026-07-07).
  *
  * The sim supplies only its journey:
  *
  *   runHumanSim('MINDCHAT', {
  *     prepare: ({ scratch }) => {
- *       const store = new SessionStore('…', scratch);
- *       return { store, board: … };          // store REQUIRED; extras reach run()
+ *       const store = new SessionStore('…', scratch);   // optional disk seeding
+ *       return { store, board: … };                      // extras reach run()
  *     },
- *     run: async ({ bridge, base, store, board, step, … }) => {
+ *     run: async ({ mcp, awaitBase, step, … }) => {
+ *       const wait = mcp.call('present_board', …);       // the REAL tool
+ *       const base = await awaitBase();
  *       await step('…', async () => { … });
  *       return 'summary for the PASS line';
  *     },
  *   });
  */
-import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Bridge } from '../../apps/mcp/dist/bridge-server.js';
+import { fileURLToPath } from 'node:url';
 import { loadCanonical } from '../../tests/canonical/load.mjs';
 import { ThemeSchema } from '../../packages/protocol/dist/index.js';
+import { McpClient } from './mcp-client.mjs';
 import {
   Cdp,
   findBrowsers,
@@ -51,10 +68,13 @@ import {
   sleep,
 } from './cdp.mjs';
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const MCP_ENTRY = path.resolve(HERE, '../../apps/mcp/dist/index.js');
+
 /**
  * @param {string} label   Sim name for messages ('' for the flagship): SKIP/PASS/
  *                         FAIL lines read `HUMAN SIM <LABEL> …`, logs `human-sim-<label>: …`.
- * @param {object} spec    { models?, prepare({scratch}) -> {store, ...extras}, run(ctx) -> pass summary }
+ * @param {object} spec    { models?, prepare({scratch}) -> extras, run(ctx) -> pass summary }
  */
 export async function runHumanSim(label, { models = ['claude-fable-5'], prepare, run }) {
   const tag = label ? `HUMAN SIM ${label}` : 'HUMAN SIM';
@@ -69,31 +89,61 @@ export async function runHumanSim(label, { models = ['claude-fable-5'], prepare,
   const logLines = [];
   const exceptions = [];
   const consoleErrors = [];
-  let bridge = null;
+  let mcp = null;
   let browser = null;
   let browserName = 'browser';
   let cdp = null;
   let currentStep = 'bootstrap';
   let passed = false;
+  let base = null;
 
   try {
     currentStep = 'prepare (seed stores/canonical data)';
-    const prepared = await prepare({ scratch });
-    assert.ok(prepared?.store, 'prepare() must return { store, … }');
+    const prepared = (await prepare?.({ scratch })) ?? {};
 
-    currentStep = 'bridge boot';
-    bridge = new Bridge(prepared.store, {
-      discussionRoot: scratch,
-      themes: [loadCanonical('themes/theme.json', ThemeSchema)],
-      theme: 'aurora',
-      models,
-      defaultModel: models[0],
-      log: (line) => logLines.push(line),
-      recentLogs: () => logLines.slice(-500),
+    currentStep = 'MCP server spawn (the real stdio route)';
+    // The server reads visual-brainstorm.config.json from ITS cwd — give the
+    // scratch one the sim's models + the canonical Aurora theme (stylesDir).
+    fs.mkdirSync(path.join(scratch, 'styles'), { recursive: true });
+    const theme = loadCanonical('themes/theme.json', ThemeSchema);
+    fs.writeFileSync(path.join(scratch, 'styles', `${theme.name}.json`), JSON.stringify(theme, null, 2));
+    fs.writeFileSync(
+      path.join(scratch, 'visual-brainstorm.config.json'),
+      JSON.stringify({ theme: theme.name, models, defaultModel: models[0], stylesDir: 'styles' }, null, 2),
+    );
+    if (!fs.existsSync(MCP_ENTRY)) throw new Error(`built MCP server missing at ${MCP_ENTRY} — run npm run build first`);
+    mcp = new McpClient({
+      args: [MCP_ENTRY],
+      cwd: scratch,
+      env: { ...process.env, VIBR_HOME: scratch, VIBR_PORT: '0' },
+      onLog: (line) => logLines.push(line),
     });
-    await bridge.start(0); // ephemeral port
-    const base = `http://127.0.0.1:${bridge.port}`;
-    console.log(`${prefix}: bridge up at ${base} (thread ${prepared.store.info.id})`);
+    await mcp.initialize();
+    console.log(`${prefix}: real MCP server up over stdio (scratch ${scratch})`);
+
+    // The bridge (and its HTTP port) exists only once the first tool call arms
+    // it — the port file is the bridge's own durable announcement.
+    const awaitBase = async (timeoutMs = 30_000) => {
+      if (base) return base;
+      const portFile = path.join(scratch, '.logs', 'bridge-port.json');
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        if (fs.existsSync(portFile)) {
+          try {
+            const { port } = JSON.parse(fs.readFileSync(portFile, 'utf8'));
+            if (port) {
+              base = `http://127.0.0.1:${port}`;
+              console.log(`${prefix}: bridge up at ${base}`);
+              return base;
+            }
+          } catch {
+            /* torn write — retry */
+          }
+        }
+        if (Date.now() > deadline) throw new Error('bridge-port.json never appeared — did a tool call arm the bridge?');
+        await sleep(100);
+      }
+    };
 
     // One retry: on a machine loaded with concurrent sessions, a cold launch can
     // miss the 20s DevTools window once without anything being wrong.
@@ -118,7 +168,7 @@ export async function runHumanSim(label, { models = ['claude-fable-5'], prepare,
 
     currentStep = 'CDP connect';
     const pageWsUrl = await findPageTarget(launched.devtoolsPort);
-    assert.ok(pageWsUrl, 'DevTools /json/list exposed a page target');
+    if (!pageWsUrl) throw new Error('DevTools /json/list exposed no page target');
     cdp = await Cdp.connect(pageWsUrl);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
@@ -140,9 +190,11 @@ export async function runHumanSim(label, { models = ['claude-fable-5'], prepare,
       if (rootChildren <= 0) throw new Error(`crash after "${stepLabel}": #root childElementCount=${rootChildren}`);
       if (exceptions.length > 0) throw new Error(`crash after "${stepLabel}": ${exceptions.join('\n')}`);
       if (consoleErrors.length > 0) throw new Error(`crash after "${stepLabel}": console.error: ${consoleErrors.join('\n')}`);
-      const logs = await (await fetch(`${base}/api/logs`)).json();
-      const clientErrors = logs.lines.filter((l) => l.includes('STUDIO CLIENT ERROR'));
-      if (clientErrors.length > 0) throw new Error(`crash after "${stepLabel}":\n${clientErrors.join('\n')}`);
+      if (base) {
+        const logs = await (await fetch(`${base}/api/logs`)).json();
+        const clientErrors = logs.lines.filter((l) => l.includes('STUDIO CLIENT ERROR'));
+        if (clientErrors.length > 0) throw new Error(`crash after "${stepLabel}":\n${clientErrors.join('\n')}`);
+      }
     };
     let stepCount = 0;
     const step = async (name, fn) => {
@@ -155,8 +207,8 @@ export async function runHumanSim(label, { models = ['claude-fable-5'], prepare,
 
     const summary = await run({
       ...prepared,
-      bridge,
-      base,
+      mcp,
+      awaitBase,
       scratch,
       logLines,
       browserName,
@@ -177,7 +229,7 @@ export async function runHumanSim(label, { models = ['claude-fable-5'], prepare,
     console.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
     if (exceptions.length > 0) console.error(`\npage exceptions:\n${exceptions.join('\n')}`);
     if (consoleErrors.length > 0) console.error(`\npage console errors:\n${consoleErrors.join('\n')}`);
-    console.error(`\nlast bridge log lines:\n${logLines.slice(-30).join('\n') || '(none)'}`);
+    console.error(`\nlast MCP-server log lines:\n${logLines.slice(-30).join('\n') || '(none)'}`);
     if (cdp) {
       try {
         // Backgrounded tabs return stale composited frames — bring to front first.
@@ -198,7 +250,7 @@ export async function runHumanSim(label, { models = ['claude-fable-5'], prepare,
     // 2026-07-07: ~100 leaked chrome/msedge processes across harness runs).
     killBrowserTree(browser);
     killProfileStragglers(profileDir);
-    await bridge?.stop();
+    mcp?.close();
     // Temp profile always goes; the thread scratch dir survives failures as evidence.
     try {
       fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5 });

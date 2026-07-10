@@ -5,25 +5,23 @@
  * App.tsx wired chatMessages/chatArtifact/WayfinderStrip to the LIVE state only, so
  * a completed (_completed/) thread's captured-artifact chat never rendered. A
  * component-only test cannot catch this — the bug lived in App-level wiring — so
- * this drives the REAL built studio against a REAL bridge end to end:
+ * this drives the REAL built studio against the REAL stdio MCP route end to end:
  *
- *   left-nav Completed section → open a seeded archived thread → "Completed thread"
- *   banner + WayfinderStrip renders its keep → click the keep → the unified
- *   ArtifactFullscreen viewer opens (item 5: replaces the old PreviewModal/ArtifactChat
- *   split) showing the PERSISTED chat (user + claude) WITH a live composer (ask about the
- *   artifact anytime — answered in place; no Save notes / no pin toggle, those stay
- *   live-thread only) → a NEW question typed there records into the archived thread and
- *   echoes back in place → the "↩ Reopen" controls (item 3) are present on the archived
- *   banner and on the round separator.
+ *   open_studio blocks on the landing panel → left-nav Completed section → open a
+ *   seeded archived thread → "Completed thread" banner + WayfinderStrip renders its
+ *   keep → click the keep → the unified ArtifactFullscreen viewer opens showing the
+ *   PERSISTED chat (user + claude) WITH a live composer → a NEW question typed there
+ *   records into the archived thread, echoes back in place, AND resolves the blocked
+ *   open_studio with the artifact-chat command (discussionId in the seedNote) → the
+ *   REAL reply_artifact_chat (with that discussionId) renders Claude's answer into
+ *   the archived dialog — never the live thread.
  *
  * The archived thread is seeded PHYSICALLY on disk under discussionRoot/_completed/
- * using the real SessionStore write helpers (recordBoard/recordResponse/
- * captureArtifact/recordArtifactChat) against canonical fixtures (tests/canonical/
- * boards/diverge.json, responses/iterate.json) — mirroring tests/canonical/threads/
- * session.json's glow-mark narrative — never a hand-built object literal (rule 5/
- * canonical-data convention). Nothing is faked: the bridge reloads this thread from
- * disk through the SAME GET /api/discussions/:id → SessionStore.open() path a real
- * plan-closeout leaves behind.
+ * using the real SessionStore write helpers against canonical fixtures (rule 11) —
+ * mirroring tests/canonical/threads/session.json's glow-mark narrative. Nothing is
+ * faked: the bridge reloads this thread from disk through the SAME GET
+ * /api/discussions/:id → SessionStore.open() path a real plan-closeout leaves behind,
+ * and the orchestrator side is real tools/call requests.
  */
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -31,7 +29,21 @@ import path from 'node:path';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
 import { ArtifactChatMessageSchema, BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
+import { sleep } from './lib/cdp.mjs';
 import { runHumanSim } from './lib/sim-runner.mjs';
+
+/**
+ * The bridge runs in its OWN process on the real route, so a disk write can
+ * land a beat after its WS echo renders — poll briefly instead of reading once.
+ */
+async function waitForDisk(what, predicate, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (predicate()) return;
+    if (Date.now() > deadline) throw new Error(`never persisted to disk: ${what}`);
+    await sleep(150);
+  }
+}
 
 await runHumanSim('ARCHIVED', {
   prepare: ({ scratch }) => {
@@ -61,14 +73,14 @@ await runHumanSim('ARCHIVED', {
     // /api/discussions/:id (bridge-server.ts) reloads it via SessionStore.open().
     assert.ok(fs.existsSync(path.join(archivedStore.info.dir, 'artifacts', 'chat.jsonl')), 'chat.jsonl seeded on disk');
     assert.ok(fs.existsSync(path.join(archivedStore.info.dir, 'artifacts', `${artifact.slug}.svg`)), 'artifact svg seeded on disk');
-
-    // A separate LIVE thread — the bridge's bound store — so the studio has a live
-    // session too (its landing panel is not the surface under test here).
-    const store = new SessionStore('Human sim archived-journey session', scratch);
-    return { store, archivedStore, artifact, userText, claudeText };
+    return { archivedStore, artifact, userText, claudeText };
   },
-  run: async ({ base, store, archivedStore, artifact, userText, claudeText, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
+  run: async ({ mcp, awaitBase, archivedStore, artifact, userText, claudeText, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
     console.log(`human-sim-archived: archived thread ${archivedStore.info.id} seeded under _completed/`);
+    // The REAL landing flow: open_studio blocks for a command — an archived
+    // artifact-chat question resolves it exactly as a brief submit would.
+    const openStudioWait = mcp.call('open_studio', { timeoutSeconds: 600, openBrowser: false }, 660_000);
+    const base = await awaitBase();
 
     // =========================================================================
     await step('studio loads over the real bridge (root mounted)', async () => {
@@ -130,7 +142,7 @@ await runHumanSim('ARCHIVED', {
         `[...document.querySelectorAll('a')].find((a) => (a.getAttribute('href') || '').includes('/api/artifact-svg/${encodeURIComponent(artifact.slug)}.svg'))`,
       );
       // Signature markers of the unified viewer (item 5: ArtifactFullscreen replaces
-      // the old ArtifactChat/PreviewModal split) — zoom % control + Notes dock.
+      // the old split viewer) — zoom % control + Notes dock.
       await waitInPage(
         'the fullscreen viewer (title + zoom control + Notes dock)',
         `document.body.textContent.includes(${JSON.stringify(artifact.name)}) &&
@@ -179,11 +191,12 @@ await runHumanSim('ARCHIVED', {
     });
 
     // A REAL question typed on the ARCHIVED thread must round-trip: recorded into
-    // that thread and echoed back into its dialog over WS (routed by discussionId).
-    // No orchestrator runs here, so only the user echo is asserted — the answer is
-    // the orchestrator's job (proven by api-status-matrix on the real bridge).
+    // that thread, echoed back into its dialog over WS (routed by discussionId),
+    // DELIVERED to the blocked open_studio as the artifact-chat command, and
+    // answered in place via the real reply_artifact_chat.
     const followUp = 'On this archived one — could the filament read cooler-toned?';
-    await step('ask a NEW question on the archived thread — it records + echoes back in place', async () => {
+    const answer = 'Cooler works: swap the amber filament for #60a5fa and the warmth reads as focus.';
+    await step('ask a NEW question on the archived thread — it records, echoes, and reaches the orchestrator', async () => {
       await typeInto(
         'the archived chat composer',
         `document.querySelector('input[placeholder="Ask or ask for a change…"]')`,
@@ -201,13 +214,42 @@ await runHumanSim('ARCHIVED', {
         8_000,
       );
       // It also persisted to the archived thread's own chat.jsonl on disk.
-      const reloaded = SessionStore.open(archivedStore.info.dir);
-      assert.ok(
-        reloaded.artifactChat.some((m) => m.role === 'user' && m.text === followUp),
-        'the new question persisted to the archived thread chat.jsonl (answer-in-place)',
+      await waitForDisk('the new question in the archived thread chat.jsonl (answer-in-place)', () =>
+        SessionStore.open(archivedStore.info.dir).artifactChat.some((m) => m.role === 'user' && m.text === followUp),
       );
+      // THE REAL COMMAND CHANNEL: the question resolves the blocked open_studio —
+      // exactly how a live session learns about an archived-thread chat.
+      const submitted = await openStudioWait;
+      assert.equal(submitted.status, 'submitted', 'open_studio resolved with the queued command');
+      assert.equal(submitted.command, 'artifact-chat', 'the command is an artifact-chat');
+      assert.equal(submitted.prompt, followUp, 'the command carries the question verbatim');
+      assert.ok(
+        submitted.seedNote && submitted.seedNote.includes(archivedStore.info.id),
+        'the seedNote routes the reply to the ARCHIVED thread (discussionId)',
+      );
+    });
+
+    await step("reply via the REAL reply_artifact_chat — Claude's answer renders in the archived dialog", async () => {
+      const replied = await mcp.call('reply_artifact_chat', {
+        artifactSlug: artifact.slug,
+        text: answer,
+        discussionId: archivedStore.info.id,
+      });
+      assert.equal(replied.status, 'replied');
+      assert.equal(replied.discussionId, archivedStore.info.id, 'the reply recorded into the archived thread');
+      await waitInPage(
+        "Claude's reply bubble appears in the archived dialog",
+        `document.body.textContent.includes(${JSON.stringify(answer)})`,
+        8_000,
+      );
+      await waitForDisk("Claude's reply in the archived thread chat.jsonl", () =>
+        SessionStore.open(archivedStore.info.dir).artifactChat.some((m) => m.role === 'claude' && m.text === answer),
+      );
+      // The LIVE (placeholder) thread received nothing — the dialog is addressed
+      // to the archived thread only.
+      const liveState = await (await fetch(`${base}/api/state`)).json();
       assert.equal(
-        store.artifactChat.length,
+        (liveState.artifactChat ?? []).length,
         0,
         'the live thread received nothing — the dialog is addressed to the archived thread only',
       );
@@ -218,8 +260,10 @@ await runHumanSim('ARCHIVED', {
       '_completed/ thread from the left nav (Completed thread banner, WayfinderStrip keep, reopen controls ' +
       'present), clicked the keep into the unified ArtifactFullscreen viewer, confirmed the PERSISTED ' +
       'artifact chat (user + claude) replays with a LIVE composer (no Save notes, no pin toggle), then ' +
-      'asked a NEW question that recorded into the archived thread + echoed back in place (never the live thread), ' +
-      'zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout'
+      'asked a NEW question that recorded + echoed in place, resolved the blocked open_studio as the ' +
+      "artifact-chat command (discussionId in the seedNote), and rendered Claude's real reply_artifact_chat " +
+      'answer into the archived dialog (never the live thread); zero exceptions, zero STUDIO CLIENT ERROR ' +
+      'lines, root mounted throughout'
     );
   },
 });

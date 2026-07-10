@@ -1,5 +1,26 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — deleting a fake harness is not the same as taking the real route: audit the PATHWAY, not just the fixtures
+
+- **The trap:** after the preview harness was excised (2026-07-07), every "real path"
+  human-sim still constructed `Bridge` IN-PROCESS and called its producers directly
+  (`bridge.presentGallery` — the exact anti-pattern rule 10 names). The entire MCP tool
+  layer (`apps/mcp/src/index.ts`: intake lock, option/axes validation, digest construction,
+  park→reply→rearm, command routing) had ZERO journey coverage — and the canonical diverge
+  board carried only 2 axes when the real `present_board` refuses fewer than 5: the fixture
+  itself violated the product's contract and no test could tell, because no test walked the
+  contract. Green everywhere, ambiguous in the real world.
+- **How to apply:** when told "no fake harness", ask three questions of every journey test:
+  (1) does this code path exist only for tests? (2) does it pass only because fixtures skip
+  a validation the product performs? (3) who CALLS the surface's producer — the product's
+  own entry point, or the test? The sims now spawn the BUILT stdio MCP server
+  (`scripts/lib/mcp-client.mjs` + `sim-runner.mjs`, cwd=scratch, `VIBR_HOME`+`VIBR_PORT=0`)
+  and orchestrate with real `tools/call`. Canonical fixtures must SATISFY the tool-boundary
+  contract, not just the loose protocol schema. Cross-process note: a WS echo can render
+  before the server's disk write lands — poll disk asserts briefly, never read once.
+  Layer honestly: `smoke.mjs`/`api-status-matrix`/`ui-break-sweep`/`latency-profile`
+  construct the Bridge because the Bridge IS their subject; journeys never may.
+
 ## 2026-07-09 — `path.win32.isAbsolute` calls rooted POSIX paths absolute; guards built on it null EVERYTHING on Linux
 
 - **The trap:** `path.win32.isAbsolute('/home/runner/x')` is `true` (a rooted path is

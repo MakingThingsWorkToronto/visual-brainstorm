@@ -41,7 +41,10 @@
     "allowRemix": true,
     "axes": [
       { "id": "tone", "label": "Tone", "leftLabel": "Playful", "rightLabel": "Serious", "defaultValue": 40 },
-      { "id": "glow", "label": "Glow", "leftLabel": "Flat", "rightLabel": "Neon", "defaultValue": 50 }
+      { "id": "glow", "label": "Glow", "leftLabel": "Flat", "rightLabel": "Neon", "defaultValue": 50 },
+      { "id": "form", "label": "Form", "leftLabel": "Geometric", "rightLabel": "Organic", "defaultValue": 50 },
+      { "id": "detail", "label": "Detail", "leftLabel": "Minimal", "rightLabel": "Ornate", "defaultValue": 35 },
+      { "id": "motion", "label": "Motion", "leftLabel": "Still", "rightLabel": "Kinetic", "defaultValue": 60 }
     ]
   },
   "createdAt": "2026-07-07T09:02:00.000Z"

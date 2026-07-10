@@ -1,17 +1,17 @@
 /**
  * Human-simulation harness — the MIND-MAP maximize→chat journey (rule 10). Sibling to the
  * other human-sim harnesses (shared scaffold: scripts/lib/sim-runner.mjs — browser
- * discovery/SKIP, bridge boot, raw CDP, checkpoints, teardown).
+ * discovery/SKIP, real MCP server spawn, raw CDP, checkpoints, teardown).
  *
- * Proves the operator's mind-map asks on the REAL path: the live mind map renders with a
- * MAXIMIZE control; clicking it opens the SAME fullscreen viewer as any artifact (SVG left,
- * chat right); a question typed there records under the mindmap's snapshot artifact (the
- * iterative-improvement channel) while the board stays live (non-destructive); and the tree
- * is persisted MODEL-LEGIBLY to round-NN/tree.md (the traversable outline read-mindmap reads).
- *
- * The mindmap board is presented via the REAL bridge.presentAndWait (fire-and-forget); the
- * studio renders the real mind-elixir canvas; chat + persistence round-trip through the real
- * endpoints. No mocks; only the model that authors a REPLY / improves the tree is out of loop.
+ * REAL ROUTE: the mindmap board is presented through the real `present_board` MCP tool
+ * (kind="mindmap" + tree, blocked exactly like a live session). Proves the operator's
+ * mind-map asks end to end: the live mind map renders with a MAXIMIZE control; clicking it
+ * opens the SAME fullscreen viewer as any artifact (SVG left, chat right); a question typed
+ * there PARKS the blocked tool call (the documented non-destructive detour), the
+ * sim-as-orchestrator answers via the real `reply_artifact_chat` under the mindmap's
+ * snapshot artifact (Claude's bubble renders in frame) while the board stays live; and the
+ * tree is persisted MODEL-LEGIBLY to round-NN/tree.md (the traversable outline
+ * read-mindmap reads). Canonical tree content only — the pathway is the product's.
  */
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -24,16 +24,29 @@ import { runHumanSim } from './lib/sim-runner.mjs';
 await runHumanSim('MINDCHAT', {
   prepare: ({ scratch }) => {
     const store = new SessionStore('Glow mark — a live mind map', scratch);
-    const board = { ...loadCanonical('boards/mindmap-tree.json', BoardSchema), sessionId: store.info.id };
+    const board = loadCanonical('boards/mindmap-tree.json', BoardSchema);
     const rootTopic = board.tree.nodeData.topic;
-    const roundDir = path.join(store.info.dir, `round-${String(board.round).padStart(2, '0')}`);
+    // The server mints this thread's FIRST round → round-01.
+    const roundDir = path.join(store.info.dir, 'round-01');
     return { store, board, rootTopic, roundDir };
   },
-  run: async ({ bridge, base, board, rootTopic, roundDir, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
-    bridge.presentAndWait(board, 120_000, /* openBrowser */ false).catch(() => {});
-    console.log(`human-sim-mindchat: mindmap board ${board.id} live (root "${rootTopic}")`);
+  run: async ({ mcp, awaitBase, store, board, rootTopic, roundDir, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
+    const parkWait = mcp.call('present_board', {
+      discussionId: store.info.id, // the documented resume path binds the seeded thread
+      title: board.title,
+      prompt: board.prompt,
+      kind: 'mindmap',
+      tree: board.tree,
+      options: [],
+      axes: [],
+      timeoutSeconds: 600,
+      openBrowser: false,
+    }, 660_000);
+    const base = await awaitBase();
+    console.log(`human-sim-mindchat: mindmap board presented via the real tool (root "${rootTopic}")`);
 
     // =========================================================================
+    let liveBoardId;
     await step('studio loads the live mind map with a maximize control', async () => {
       await cdp.send('Page.navigate', { url: `${base}/` });
       await waitInPage(
@@ -42,6 +55,9 @@ await runHumanSim('MINDCHAT', {
          !!document.querySelector('[data-testid="mindmap-maximize"]')`,
         30_000,
       );
+      const st = await (await fetch(`${base}/api/state`)).json();
+      liveBoardId = st.activeBoard?.id;
+      assert.ok(liveBoardId, 'the live board id is readable from /api/state');
     });
 
     await step('the tree persisted MODEL-LEGIBLY to round-NN/tree.md (traversable outline)', async () => {
@@ -116,7 +132,8 @@ await runHumanSim('MINDCHAT', {
     });
 
     const mindQ = 'Can the “Motion” branch lean more kinetic?';
-    await step('ask about the mind map — bubble shows + persists under the mindmap artifact', async () => {
+    const mindA = 'Leaning Motion kinetic: streak, orbit, and afterimage children would push it.';
+    await step('ask about the mind map — the tool PARKS; the real reply renders under the snapshot artifact', async () => {
       await typeInto(
         'the mind-map chat composer',
         `document.querySelector('input[placeholder="Ask or ask for a change…"]')`,
@@ -131,27 +148,45 @@ await runHumanSim('MINDCHAT', {
         `document.body.textContent.includes(${JSON.stringify(mindQ)})`,
         8_000,
       );
+      // THE DETOUR CONTRACT, live: the blocked present_board resolves with the
+      // synthetic park response carrying the question.
+      const parked = await parkWait;
+      assert.equal(parked.status, 'responded', 'the blocked present_board resolved on the chat');
+      assert.equal(parked.response.action, 'park', 'the detour rides a synthetic park response');
+      assert.deepEqual(parked.response.commands, ['artifact-chat'], 'the park carries the artifact-chat command');
+      assert.ok(parked.response.elaboration.includes(mindQ), 'the park carries the user question verbatim');
       // Persisted under the mindmap SNAPSHOT artifact (boardId provenance, no optionIds).
       const st = await (await fetch(`${base}/api/state`)).json();
       const mindmapArtifact = st.artifacts.find(
-        (a) => a.provenance.boardId === board.id && a.provenance.optionIds.length === 0,
+        (a) => a.provenance.boardId === liveBoardId && a.provenance.optionIds.length === 0,
       );
       assert.ok(mindmapArtifact, 'the mind-map snapshot artifact exists');
       assert.ok(
         (st.artifactChat ?? []).some((m) => m.role === 'user' && m.text === mindQ && m.artifactSlug === mindmapArtifact.slug),
         'the mind-map chat persisted under the snapshot artifact slug',
       );
+      // Sim-as-orchestrator answers through the REAL tool; Claude's bubble must
+      // render back in the open dialog.
+      const replied = await mcp.call('reply_artifact_chat', { artifactSlug: mindmapArtifact.slug, text: mindA });
+      assert.equal(replied.status, 'replied');
+      await waitInPage(
+        "Claude's reply bubble appears in the mind-map dialog",
+        `document.body.textContent.includes(${JSON.stringify(mindA)})`,
+        8_000,
+      );
       // The board stayed live through the chat (non-destructive detour).
       const health = await (await fetch(`${base}/api/health`)).json();
-      assert.equal(health.activeBoard?.id, board.id, 'the mind-map board stayed live through the chat');
+      assert.equal(health.activeBoard?.id, liveBoardId, 'the mind-map board stayed live through the chat');
     });
 
     return (
-      `${stepCount()} steps: real ${browserName} over raw CDP rendered a live mind map, ` +
-      'confirmed round-NN/tree.md (model-legible outline), made a REAL engine edit, maximized into the unified ' +
-      'fullscreen viewer (mindmap-aware hint) and confirmed the flush persisted the LIVE tree (draft.json + tree.md ' +
-      'Live heading with the edit — what read-mindmap reads), then asked a question that persisted under the mindmap ' +
-      'snapshot artifact while the board stayed live; zero exceptions, zero STUDIO CLIENT ERROR lines'
+      `${stepCount()} steps: real ${browserName} over raw CDP rendered a mind map presented by the REAL ` +
+      'present_board tool, confirmed round-NN/tree.md (model-legible outline), made a REAL engine edit, maximized ' +
+      'into the unified fullscreen viewer (mindmap-aware hint) and confirmed the flush persisted the LIVE tree ' +
+      '(draft.json + tree.md Live heading with the edit — what read-mindmap reads), then asked a question that ' +
+      "PARKED the blocked tool call and was answered via the real reply_artifact_chat (Claude's bubble rendered, " +
+      'chat persisted under the snapshot artifact) while the board stayed live; zero exceptions, zero STUDIO ' +
+      'CLIENT ERROR lines'
     );
   },
 });

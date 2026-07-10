@@ -8,7 +8,7 @@
 | Unit (geometry) | `tests/*.test.ts` (node:test **via `tsx`**) | `npm run test:ts` | pure, DOM-free logic that jsdom/browser layers can't reach — the wayfinding-pulse geometry in `apps/studio/src/lib/guidePath.ts` (`tests/guide-path.test.ts`): rounded-rect perimeter length (sharp + rounded corners), `atLength` wrap, `nearestLength` closest-point, and `buildTimeline` nav→step→input sequencing + link continuity + 2-lap loop closure + `busy`→hub-only. This is how an animation's MATH is proven where its pixels can't be (no rAF/`getBoundingClientRect` in jsdom) |
 | Integration | `scripts/smoke.mjs` | `npm run smoke` | real Bridge on ephemeral port: WS hello/board push, HTTP respond, phase-field round-trip, disk cache, thread list/reload/resume, themes, model routing, UI command dispatch (queued + via-board, incl. reopen), artifacts (capture + `GET /api/artifact-svg` 200/404, serves live AND `_completed` threads), pins (`POST /api/pinned` toggle on/off, state reflects it, honest 404, survives disk reload), seed intake (sketch → `.seeds/`, bad image data URI → honest failure note), attachment persistence (valid data URI → savedPath + file on disk; malformed → no savedPath), paletteColors round-trip, new-brainstorm with attachments/model/palette seed notes, waitForCommand landing flow, `POST /api/themes` (writes the styles drop-in JSON; state palette reflects renamed + added colors), `POST /api/session-theme` (persists to session.json; unknown name → 400) |
 | UI render | `scripts/ui-smoke.ts` (tsx + jsdom) | `npm run smoke:ui` | all six phase surfaces server-render with signature markers; JudgeDeck, WayfinderStrip (proposal pill), NewDiscussionPanel (chip "other", audience + constraints groups, Colors card, theme palette, "Add a color" affordance, "Scribble a seed" section, full composer), TriageGate sudden-death, TargetRepoPicker (unset + set), ArtifactFullscreen (the ONE unified viewer — option/artifact/live-board-onChange/read-only variants + pin toggle), WayfinderStrip pinned row; BoardSurvey exposes the wayfinding-pulse `data-guide` tags (`step` phase mechanic + `input` composer) so the guide targets are proven on the REAL render path; pure helpers `lib/deck` (applyDuel/adjacentDuels) + `lib/wayfinder` (proposeNextPhase) |
-| Human sim | `scripts/human-sim.mjs` + shared `scripts/lib/cdp.mjs` (raw CDP, headless browser, frameworkless — repo's own `ws`, NO Playwright) | `npm run test:human` | the REAL built studio (`apps/studio/dist`) driven against a REAL Bridge on an ephemeral port through an 8-step user goal (load → compose brief → send → canonical board renders as survey → select option → elaborate → submit → captured artifact in wayfinder keeps → open it in the unified ArtifactFullscreen → 📌 pin it to the filmstrip row); crash-checked after EVERY step (root mounted + zero `Runtime.exceptionThrown` + zero page console errors + zero `STUDIO CLIENT ERROR` in `GET /api/logs`); honest SKIP (exit 0, loud `HUMAN SIM SKIP`, never a pass) when no chromium-family browser exists |
+| Human sim | `scripts/human-sim.mjs` (+ `*-archived`, `-livechat`, `-boardchat`, `-mindchat`) + shared `scripts/lib/sim-runner.mjs` (spawns built stdio MCP server `apps/mcp/dist/index.js` with scratch VIBR_HOME + ephemeral VIBR_PORT) + `scripts/lib/mcp-client.mjs` (newline-delimited JSON-RPC tool caller; studio URL discovered from bridge `.logs/bridge-port.json`) | `npm run test:human` | FIVE gated journeys under real MCP stdio layer: (1) primary 8-step goal (load → compose brief → send → canonical board renders as survey → select option → elaborate → submit → captured artifact in wayfinder keeps → open ArtifactFullscreen → 📌 pin to filmstrip); (2) `test:human:archived` — seeds `_completed/` thread, resumes from Completed nav, proves artifact-chat on archived; (3) `test:human:livechat` — live artifact-chat round-trip; (4) `test:human:boardchat` — live-board option chat non-destructive (dials + selections persist); (5) `test:human:mindchat` — live mind map (tree.md edit, maximize flush to draft.json + "Live tree" heading, chat under mindmap snapshot). MCP tools proven LIVE under test: intake lock (present_board refuses "Intake incomplete" before gallery pick), option/axes validation (present_board refuses boards with <5 axes per tool boundary), feedbackDigest assertion, park→reply_artifact_chat→rearmBoardId artifact-chat contract. Crash-checked after every step (root mounted + zero exceptionThrown + zero page console errors + zero STUDIO CLIENT ERROR); honest SKIP when no chromium-family browser. Canonical board fixture satisfies tool contract (now 5 axes, was 2) |
 
 `npm test` = `test:unit && test:ts && smoke && smoke:ui && test:human && test:human:archived && test:human:livechat && test:human:boardchat && test:human:mindchat` — `test:ts` is the tsx-run geometry layer (above); human-sim is now FIVE gated journeys: `test:human` (the live 8-step goal), `test:human:archived` (`scripts/human-sim-archived.mjs` — seeds a `_completed/` thread on disk, opens it from the Completed nav, and proves the interactive artifact chat works on archived threads: a question records into the thread in place, answered live without reopen), `test:human:livechat` (live artifact-chat round-trip on a running thread), `test:human:boardchat` (proves live-board option chat is non-destructive: dials and selections persist while Claude answers questions about the board), and `test:human:mindchat` (proves live mind map: model-legible `round-NN/tree.md`, a REAL mind-elixir edit before maximizing — waiting for the LAZY engine instance, never sampling once — maximize flushing the live tree to `draft.json` + the `tree.md` "Live tree" heading, the mindmap-aware chat hint in-page, and chat persisting under the mindmap snapshot artifact).
 Conventions:
@@ -55,9 +55,15 @@ Conventions:
   finding. Proven run: 7 surfaces, 404 controls, 486 gestures, 0 findings. Ends
   `BREAK SWEEP PASS`.
 - **Shared harness infrastructure**: the five human-sim scripts share `scripts/lib/sim-runner.mjs`
-  (scaffold: browser discovery/SKIP, bridge boot, CDP wiring, checkpoint/step, failure screenshot,
-  teardown, launch retry — hardening lands once); the unit layer shares `tests/lib/bridge-harness.mjs`
-  (startBridge/postJson/getState/getHealth/tmp — one bridge-boot spelling).
+  (scaffold: spawn built stdio MCP server with scratch VIBR_HOME + ephemeral VIBR_PORT + discover
+  studio URL from bridge `.logs/bridge-port.json`; browser discovery/SKIP, checkpoint/step,
+  failure screenshot, teardown, launch retry); `scripts/lib/mcp-client.mjs` handles newline-delimited
+  JSON-RPC initialization/tool-calling/notifications (hardening lands once). The unit layer shares
+  `tests/lib/bridge-harness.mjs` (startBridge/postJson/getState/getHealth/tmp — one bridge-boot
+  spelling).  **Layering doctrine**: `scripts/smoke.mjs`, `tests/api-status-matrix.test.mjs`,
+  `scripts/ui-break-sweep.mjs`, and `scripts/latency-profile.mjs` legitimately construct the Bridge
+  in-process — the Bridge is their SUBJECT (testing its HTTP routes, response bodies, WS envelopes,
+  and performance); journey proofs never may (rule 10).
 
 ## Comprehensive human testing (operator mandate 2026-07-07)
 
@@ -82,9 +88,12 @@ new test work — now MET by the landed harness:
 The harness has LANDED (plan `discussion/comprehensive-human-testing-2026-07-07/plan.md`,
 phases canonical-data → api-status-matrix → human-sim-harness → ui-break-sweep →
 gate-and-docs, all done; dispatcher `/dispatch-comprehensive-human-testing-next-phase`).
-`npm run test:human` is the fourth gated layer (raw CDP, headless browser, frameworkless —
-no mocks); `npm run test:human:sweep` is the on-demand deeper break-sweep audit. Both are
-detailed in the layer table and conventions above.
+`npm run test:human` is the fourth gated layer (spawns real stdio MCP server, plays orchestrator
+with real MCP tool calls via newline-delimited JSON-RPC, headless browser, frameworkless —
+no mocks, no in-process Bridge construction); the MCP tool layer is now under journey test,
+proving live intake locks, option/axes validation, and the artifact-chat contract end-to-end.
+`npm run test:human:sweep` is the on-demand deeper break-sweep audit. Both are detailed in the
+layer table and conventions above.
 
 Every scaffolded plan carries a mandatory human-verification phase —
 `.claude/commands/create-dispatch-command.md` emits it; enforcement rules live in

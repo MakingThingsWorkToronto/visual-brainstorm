@@ -19,10 +19,12 @@ verdict. Most reports are a port-conflict ghost, not a failure.
      or find it in the log (step 3). The progress pipe reads this same file, so a stale or
      missing one is also why "token/progress events never reached the studio".
 2. **How many instances exist?**
-   `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'preview\.js|apps/mcp/dist/index.js' } | Select-Object ProcessId, CommandLine`
+   `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'apps/mcp/dist/index.js' } | Select-Object ProcessId, CommandLine`
    - More than one instance → kill the stale ones: `Stop-Process -Id <pid> -Force`. Killing an
      `npm run` wrapper orphans its node child — always kill the node.exe pid itself.
-3. **Read the log.** `discussion/.logs/preview-<yyyy-mm-dd>.log` (real engine: `mcp-<date>.log`).
+   - Human-sim runs spawn their OWN servers with `VIBR_HOME` under a `vibr-*` temp dir — those
+     are concurrency-safe siblings, not stale instances of yours.
+3. **Read the log.** `discussion/.logs/mcp-<yyyy-mm-dd>.log`.
    Every line is pid-tagged. Look for:
    - `PORT CONFLICT` lines — they name the holder's pid and the real URL of this instance.
    - `presenting board-…` with `0 client(s) connected` — no browser tab is on THIS instance.
@@ -80,6 +82,9 @@ verdict. Most reports are a port-conflict ghost, not a failure.
 | a control appears in one session state but not another | a `viewingLive`/live-state render gate, NOT a bug — controls key off `viewingLive &&` (or live-state) conditions | check the `viewingLive &&` (or live-state) condition on the control before hunting elsewhere |
 
 ## Changelog
+- 2026-07-09 — steps 2–3 de-staled: the deleted preview harness's `preview.js` process filter and
+  `preview-<date>.log` are gone (only `mcp-<date>.log` exists); noted human-sim runs spawn their
+  own `vibr-*`-temp servers — siblings, not strays (from real-routes-human-sim-2026-07-09)
 - 2026-07-09 — step 6: leaked test-browser recovery sweep (all-`--headless` `vibr|Temp` census →
   Stop-Process the tree; single-owner only) — harvested from the leaked-headless-drain +
   ui-break-sweep learnings via /compress-learnings

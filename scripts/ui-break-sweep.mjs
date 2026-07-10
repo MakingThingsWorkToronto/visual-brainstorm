@@ -1,10 +1,18 @@
 /**
  * UI break sweep (comprehensive-human-testing phase 4, CLAUDE.md rule 10).
  *
- * Extends the human-sim harness (scripts/human-sim.mjs, shared plumbing in
- * scripts/lib/cdp.mjs): a real headless chromium browser over raw CDP drives
- * the REAL built studio against a REAL Bridge, and per surface (New Discussion
- * landing + the six phase mechanics on their canonical boards) it:
+ * LAYER NOTE: this is a UI-robustness FUZZER, not a journey proof — journeys
+ * run on the real MCP tool route (scripts/human-sim*.mjs via sim-runner). The
+ * sweep constructs the Bridge in-process as content-injection scaffolding
+ * because its subject is how the STUDIO survives hostile gestures on every
+ * surface; the studio cannot tell (and does not care) who called present —
+ * the finding set is identical on either route, and the in-process handle is
+ * what lets restore() re-present surfaces chaotic gestures resolve.
+ *
+ * Shares plumbing with the human sims (scripts/lib/cdp.mjs): a real headless
+ * chromium browser over raw CDP drives the REAL built studio against a REAL
+ * Bridge, and per surface (New Discussion landing + the six phase mechanics on
+ * their canonical boards) it:
  *
  *   1. empty-submits every submit-shaped button at pristine state,
  *   2. enumerates EVERY interactive control from the LIVE DOM

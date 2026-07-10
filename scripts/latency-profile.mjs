@@ -1,8 +1,12 @@
 /**
- * Real-path response-latency profiler (NOT the preview harness — real Bridge,
- * real WS + HTTP, the exact transport the studio uses). Drives a generic
- * brainstorm of present_board → respond round-trips and reports where the
- * milliseconds go, so "make the responses faster" is data, not a guess.
+ * Response-latency profiler — a DIAGNOSTIC on the bridge-integration layer
+ * (like scripts/smoke.mjs, it constructs the Bridge in-process because the
+ * Bridge itself is the subject: the hops below need the SAME event loop the
+ * bridge flushes WS frames on; it proves no journey — those run on the real
+ * MCP tool route in scripts/human-sim*.mjs). Real WS + HTTP, the exact
+ * transport the studio uses. Drives a generic brainstorm of present → respond
+ * round-trips and reports where the milliseconds go, so "make the responses
+ * faster" is data, not a guess.
  *
  * Hops measured per round (performance.now(), same process so the shared event
  * loop is the real one the bridge flushes WS frames on):

@@ -12,13 +12,17 @@
  *
  *   default live view (seeded thread, rounds + a keep) → click the keep → the unified
  *   ArtifactFullscreen viewer with its composer → TYPE a question + Send → the user's OWN
- *   bubble must render in the dialog AND persist to the live thread's artifacts/chat.jsonl.
+ *   bubble must render in the dialog AND persist to the live thread's artifacts/chat.jsonl
+ *   → the queued artifact-chat command surfaces in session_status and the REAL
+ *   reply_artifact_chat renders Claude's answer back in the dialog.
  *
- * The live thread is seeded PHYSICALLY on disk under discussionRoot/ using the real
- * SessionStore write helpers against canonical fixtures (tests/canonical/boards/diverge.json,
- * responses/iterate.json) — never a hand-built object literal (rule 5/canonical-data
- * convention). Nothing is faked: the studio renders from the real bridge `hello` state and
- * the chat round-trips through the real POST /api/artifact-chat → WS `artifact-chat` envelope.
+ * REAL ROUTE: the live thread is seeded PHYSICALLY on disk under discussionRoot/ using
+ * the real SessionStore write helpers against canonical fixtures (rule 11: harness data
+ * stays dumb), then BOUND through the real `present_board` tool with discussionId +
+ * rearmBoardId — the documented post-detour/crash-recovery resume, which returns the
+ * already-recorded response instantly and leaves the thread live with NO board waiting.
+ * The chat then round-trips through the real POST /api/artifact-chat → WS envelope →
+ * session_status queue → reply_artifact_chat. Nothing is faked.
  */
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -26,11 +30,25 @@ import path from 'node:path';
 import { SessionStore } from '../apps/mcp/dist/session-store.js';
 import { loadCanonical } from '../tests/canonical/load.mjs';
 import { BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
+import { sleep } from './lib/cdp.mjs';
 import { runHumanSim } from './lib/sim-runner.mjs';
+
+/**
+ * The bridge runs in its OWN process on the real route, so a disk write can
+ * land a beat after its WS echo renders — poll briefly instead of reading once.
+ */
+async function waitForDisk(what, predicate, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (predicate()) return;
+    if (Date.now() > deadline) throw new Error(`never persisted to disk: ${what}`);
+    await sleep(150);
+  }
+}
 
 await runHumanSim('LIVECHAT', {
   prepare: ({ scratch }) => {
-    // --- seed the LIVE thread (the bridge's bound store) with rounds + a keep ---
+    // --- seed the LIVE thread on disk with rounds + a keep (canonical data) ---
     const store = new SessionStore('Glow mark — a live logo brainstorm', scratch);
     const board = { ...loadCanonical('boards/diverge.json', BoardSchema), sessionId: store.info.id };
     store.recordBoard(board);
@@ -42,7 +60,22 @@ await runHumanSim('LIVECHAT', {
     assert.ok(fs.existsSync(path.join(store.info.dir, 'artifacts', `${artifact.slug}.svg`)), 'artifact svg seeded on disk');
     return { store, board, artifact };
   },
-  run: async ({ base, store, artifact, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
+  run: async ({ mcp, awaitBase, store, board, artifact, cdp, evaluate, waitInPage, click, typeInto, step, stepCount, browserName }) => {
+    // Bind the seeded thread through the REAL tool route: rearmBoardId on the
+    // already-answered round is the documented recovery resume — it returns the
+    // recorded response instantly and arms the bridge on THIS thread.
+    const bound = await mcp.call('present_board', {
+      discussionId: store.info.id,
+      rearmBoardId: board.id,
+      title: board.title,
+      prompt: 'bind the seeded live thread',
+      timeoutSeconds: 60,
+      openBrowser: false,
+    });
+    assert.equal(bound.status, 'responded', 'the rearm bind returned the recorded response');
+    assert.equal(bound.response.boardId, board.id, 'the recovered response answers the seeded board');
+    const base = await awaitBase();
+
     // =========================================================================
     await step('studio loads over the real bridge on the LIVE view (root mounted)', async () => {
       await cdp.send('Page.navigate', { url: `${base}/` });
@@ -81,6 +114,7 @@ await runHumanSim('LIVECHAT', {
 
     // THE reproduction of the operator's report: type + Send, the user's OWN bubble must show.
     const liveChatQ = 'Does this read at 16px on a dark bar?';
+    const liveChatA = 'At 16px the mark holds — its stroke stays above 2px rendered.';
     await step('type a chat message on the LIVE artifact — the user bubble appears + persists', async () => {
       await typeInto(
         'the live chat composer',
@@ -103,10 +137,32 @@ await runHumanSim('LIVECHAT', {
         (chatState.artifactChat ?? []).some((m) => m.role === 'user' && m.text === liveChatQ),
         '/api/state carries the user message on the live thread',
       );
-      const reloaded = SessionStore.open(store.info.dir);
-      assert.ok(
-        reloaded.artifactChat.some((m) => m.role === 'user' && m.text === liveChatQ),
-        'the user message persisted to the live thread chat.jsonl',
+      await waitForDisk('the user message in the live thread chat.jsonl', () =>
+        SessionStore.open(store.info.dir).artifactChat.some((m) => m.role === 'user' && m.text === liveChatQ),
+      );
+    });
+
+    await step('the queued chat reaches session_status; the REAL reply renders in the dialog', async () => {
+      // No board is waiting, so the chat QUEUED for the orchestrator's next
+      // check-in — exactly what session_status.pendingUiCommands is for.
+      let pending = [];
+      const deadline = Date.now() + 10_000;
+      for (;;) {
+        const status = await mcp.call('session_status', {});
+        pending = status.pendingUiCommands ?? [];
+        if (pending.some((c) => c.command === 'artifact-chat' && c.prompt === liveChatQ)) break;
+        if (Date.now() > deadline) throw new Error('the artifact-chat command never reached session_status');
+        await sleep(200);
+      }
+      const replied = await mcp.call('reply_artifact_chat', { artifactSlug: artifact.slug, text: liveChatA });
+      assert.equal(replied.status, 'replied');
+      await waitInPage(
+        "Claude's reply bubble appears in the artifact dialog",
+        `document.body.textContent.includes(${JSON.stringify(liveChatA)})`,
+        8_000,
+      );
+      await waitForDisk("Claude's reply in the live thread chat.jsonl", () =>
+        SessionStore.open(store.info.dir).artifactChat.some((m) => m.role === 'claude' && m.text === liveChatA),
       );
     });
 
@@ -149,9 +205,11 @@ await runHumanSim('LIVECHAT', {
 
     return (
       `${stepCount()} steps: real ${browserName} over raw CDP opened a seeded ` +
-      'LIVE thread on the default view, clicked its keep into the unified ArtifactFullscreen viewer, TYPED a ' +
-      'chat message and confirmed the user bubble renders in the dialog AND persists to chat.jsonl, ' +
-      'zero exceptions, zero STUDIO CLIENT ERROR lines, root mounted throughout'
+      'LIVE thread bound through the real present_board rearm route, clicked its keep into the unified ' +
+      'ArtifactFullscreen viewer, TYPED a chat message and confirmed the user bubble renders AND persists to ' +
+      "chat.jsonl, collected the queued command via session_status and rendered Claude's real reply_artifact_chat " +
+      'answer in the dialog, then proved the option-slug chat path; zero exceptions, zero STUDIO CLIENT ERROR ' +
+      'lines, root mounted throughout'
     );
   },
 });
