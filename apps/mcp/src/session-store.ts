@@ -448,7 +448,7 @@ export class SessionStore {
       [
         '',
         `### User response (${response.respondedAt})`,
-        ...buildFeedbackDigest(round.board, response, this.defaultModel).map((line) => `- ${line}`),
+        ...buildFeedbackDigest(round.board, response, this.defaultModel, this.artifacts).map((line) => `- ${line}`),
       ].join('\n'),
     );
     // The decision tree is a derived index over every round — rebuild + persist it

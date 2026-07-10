@@ -7,7 +7,10 @@
     "vscodeManifest": "../.vscode/mcp.json",
     "githubManifest": "mcp.json",
     "cloudSetupWorkflow": "workflows/copilot-setup-steps.yml",
-    "servers": ["visual-brainstorm", "visual-brainstorm-wiki"],
+    "servers": [
+      "visual-brainstorm",
+      "visual-brainstorm-wiki"
+    ],
     "rule": "VS Code Copilot starts the workspace manifest locally. GitHub-hosted Copilot uses the agent-scoped declarations or repository MCP settings; mcp.json is the versioned payload, not an auto-discovery file. The hosted runner cannot expose the loopback studio to the human."
   },
   "commands": [
@@ -34,6 +37,11 @@
     {
       "name": "artifact-chat",
       "copilotPrompt": ".github/prompts/artifact-chat.prompt.md",
+      "copilotAgent": "brainstorm-orchestrator"
+    },
+    {
+      "name": "replace-artifact",
+      "copilotPrompt": ".github/prompts/replace-artifact.prompt.md",
       "copilotAgent": "brainstorm-orchestrator"
     },
     {

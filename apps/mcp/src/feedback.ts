@@ -1,4 +1,4 @@
-import type { Board, BoardResponse } from '@visual-brainstorm/protocol';
+import type { Artifact, Board, BoardResponse } from '@visual-brainstorm/protocol';
 import { treeToOutline } from './tree-outline.js';
 
 /**
@@ -6,11 +6,14 @@ import { treeToOutline } from './tree-outline.js';
  * This is the iterative-cycle contract: EVERY UI gesture reaches the model in
  * a form any model (including a delegated subagent that never saw the board)
  * can act on — labels instead of ids, deltas instead of raw values.
+ * `artifacts` (when the caller has them) folds the fullscreen keep/kill
+ * verdicts + their notes in — standing judgements that steer every next round.
  */
 export function buildFeedbackDigest(
   board: Board,
   response: BoardResponse,
   defaultModel?: string,
+  artifacts?: Artifact[],
 ): string[] {
   const label = (id: string) => board.options.find((o) => o.id === id)?.label ?? id;
   const digest: string[] = [];
@@ -150,6 +153,26 @@ export function buildFeedbackDigest(
     digest.push(
       `Gap between cluster ${gap.between[0] + 1} and ${gap.between[1] + 1}: "${gap.note}" — generate the hybrid living there (highest-value signal).`,
     );
+  }
+
+  // Fullscreen artifact verdicts (keep/kill on CAPTURES, distinct from board
+  // triage) — standing judgements: a kept artifact's qualities carry forward,
+  // a killed one's direction is never regenerated. The verdict note is the
+  // user's own steering text; artifact notes ride along on keeps.
+  for (const artifact of artifacts ?? []) {
+    if (artifact.verdict === 'keep') {
+      const extra = [artifact.verdictNote, artifact.notes].filter(Boolean).join(' — ');
+      digest.push(
+        `Artifact KEPT "${artifact.name}"${extra ? `: ${extra}` : ''} — this captured direction resonates; carry its qualities into the next round.`,
+      );
+    } else if (artifact.verdict === 'kill') {
+      digest.push(
+        `Artifact KILLED "${artifact.name}"${artifact.verdictNote ? `: "${artifact.verdictNote}"` : ''} — direction rejected at capture; never regenerate it` +
+          (artifact.replacedBy
+            ? ` (its slot is filled by "${artifact.replacedBy}").`
+            : ' (its replacement is still pending — /replace-artifact owns that slot).'),
+      );
+    }
   }
 
   const triageGroups: Record<string, string[]> = { keep: [], kill: [], merge: [] };

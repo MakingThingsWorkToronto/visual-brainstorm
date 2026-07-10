@@ -1,0 +1,8 @@
+{
+  "slug": "gamma-cut",
+  "name": "Gamma Cut",
+  "svgPath": "C:/t/artifacts/gamma-cut.svg",
+  "notes": "captured, no verdict yet",
+  "provenance": { "boardId": "board-diverge-1", "optionIds": ["c"] },
+  "capturedAt": "2026-07-09T00:00:00.000Z"
+}

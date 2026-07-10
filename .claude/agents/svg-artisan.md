@@ -49,6 +49,15 @@ to the source option id. The full checklist still applies to what you changed.
   instructions, mark colors are palette color names. The structured coordinates live in
   that round's `response.json` under `optionAnnotations["<id>"]`.
 
+## Structured status (the studio's live "generating 3 of 6" line)
+
+Between finishing one option and starting the next, emit the deterministic status pipe
+(silent no-op if no bridge; never blocks you):
+`node scripts/pipe-progress.mjs --source svg-artisan --stage generating --step <n> --of <total> --note "drawing <label>"`
+On a mutation round use `--stage revising`; on a kill-replacement brief
+(/replace-artifact) use `--stage replacing --artifact <killed slug>`. One line per option —
+this is what makes the studio's activity strip narrate the round as it streams.
+
 ## Output contract
 
 Return ONLY a JSON array (no markdown fences):

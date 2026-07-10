@@ -25,7 +25,8 @@
 | Studio/bridge/MCP "seems broken" | **agent `devops-diagnostician`** or `.claude/commands/diagnose-studio.md`; evidence: `GET /api/health`, `GET /api/logs`, `discussion/.logs/` |
 | Verify work | `.claude/commands/build-check.md` → `npm run build` + `npm test` (unit / smoke / ui-smoke — `wiki/System/testing-observability.md`) |
 | Answer/revise a captured artifact (studio artifact chat) | `.claude/commands/artifact-chat.md` — ALWAYS subagents: questions → general, revisions → **`svg-artisan`** (`capture_artifact` with `revises`, reply via `reply_artifact_chat`) |
-| Pipe session progress/tokens to the studio | `scripts/pipe-progress.mjs` (deterministic; wired via `.claude/settings.json` hooks — no model in the pipe) |
+| Regenerate a killed artifact's slot (studio ✕ Kill verdict) | `.claude/commands/replace-artifact.md` — **`svg-artisan`** draws the replacement (characteristic + kill note as brief), `capture_artifact` with `replaces` fills the placeholder slot |
+| Pipe session progress/tokens to the studio | `scripts/pipe-progress.mjs` (deterministic; wired via `.claude/settings.json` hooks — no model in the pipe; structured status via `--stage/--artifact/--step/--of`) |
 | Write/extend tests | **agent `test-engineer`** (three layers, frameworkless, no mocks) |
 | Close a plan or thread | `.claude/commands/plan-closeout.md` (also Plan closeout in the studio composer's More Tools (+) menu, and Finalize & close out) |
 | Turn an accepted idea/brainstorm into a loopable build plan | `.claude/commands/create-dispatch-command.md` — plan.md carries phases + progress; run via `/loop /dispatch-<slug>-next-phase` |

@@ -14,6 +14,7 @@
     { "name": "discover-skills", "cursorCommand": ".cursor/commands/discover-skills.md", "subagent": "brainstorm-orchestrator" },
     { "name": "diagnose-studio", "cursorCommand": ".cursor/commands/diagnose-studio.md", "subagent": "devops-diagnostician" },
     { "name": "artifact-chat", "cursorCommand": ".cursor/commands/artifact-chat.md", "subagent": "brainstorm-orchestrator" },
+    { "name": "replace-artifact", "cursorCommand": ".cursor/commands/replace-artifact.md", "subagent": "brainstorm-orchestrator" },
     { "name": "read-mindmap", "cursorCommand": ".cursor/commands/read-mindmap.md", "subagent": "brainstorm-orchestrator" },
     { "name": "read-scribble", "cursorCommand": ".cursor/commands/read-scribble.md", "subagent": "brainstorm-orchestrator" },
     { "name": "reopen", "cursorCommand": ".cursor/commands/reopen.md", "subagent": "brainstorm-orchestrator" },

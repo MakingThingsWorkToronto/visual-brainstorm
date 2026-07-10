@@ -9,14 +9,24 @@
   },
   "exclusions": {
     "note": "Durable .claude files intentionally NOT listed in `surfaces`, matched by glob on name. The agentic-surface guard (scripts/check-agentic-surface.mjs) skips these. `copilot` lists surfaces that need no GitHub Copilot adapter (suppresses the parity warning).",
-    "commands": ["dispatch-*-next-phase"],
+    "commands": [
+      "dispatch-*-next-phase"
+    ],
     "skills": [],
     "agents": [],
     "copilot": {
-      "commands": ["dispatch-*-next-phase", "add-theme", "revisit-round"]
+      "commands": [
+        "dispatch-*-next-phase",
+        "add-theme",
+        "revisit-round"
+      ]
     },
     "cursor": {
-      "commands": ["dispatch-*-next-phase", "add-theme", "revisit-round"]
+      "commands": [
+        "dispatch-*-next-phase",
+        "add-theme",
+        "revisit-round"
+      ]
     }
   },
   "surfaces": [
@@ -59,6 +69,14 @@
       "model": "haiku",
       "purpose": "Route artifact questions and revisions through subagents",
       "workflow": "artifact-chat"
+    },
+    {
+      "kind": "command",
+      "name": "replace-artifact",
+      "path": ".claude/commands/replace-artifact.md",
+      "model": "haiku",
+      "purpose": "Regenerate a killed artifact's slot: svg-artisan replacement guided by characteristic + kill note, captured with replaces lineage",
+      "workflow": "artifact-verdict"
     },
     {
       "kind": "command",

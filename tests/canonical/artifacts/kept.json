@@ -1,0 +1,11 @@
+{
+  "slug": "glow-mark",
+  "name": "Glow Mark",
+  "svgPath": "C:/t/artifacts/glow-mark.svg",
+  "notes": "rounder edges bring warmth",
+  "verdict": "keep",
+  "verdictNote": "love this direction",
+  "verdictAt": "2026-07-09T00:00:00.000Z",
+  "provenance": { "boardId": "board-diverge-1", "optionIds": ["a"] },
+  "capturedAt": "2026-07-09T00:00:00.000Z"
+}

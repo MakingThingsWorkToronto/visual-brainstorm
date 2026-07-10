@@ -180,7 +180,12 @@ top to bottom; each numbered step below dispatches the next UI stage.
 7. **Honor commands**: if `response.commands` or `orchestration` mentions plan-closeout or
    discover-skills, stop brainstorming and run that command file immediately. An
    `artifact-chat` command is a DETOUR, not a stop: run `.claude/commands/artifact-chat.md`
-   (always a subagent), then resume the funnel where it was.
+   (always a subagent), then resume the funnel where it was. A **`replace-artifact`**
+   command (the user KILLED a captured artifact fullscreen) is the same detour contract:
+   run `.claude/commands/replace-artifact.md` — svg-artisan draws a replacement guided by
+   the killed option's characteristic + the user's note, captured with
+   `replaces: <killed slug>` so the studio's placeholder slot fills — then resume. Drain
+   queued `replace-artifact` commands exactly like artifact-chats (both paths below).
    **Real chats reach you two ways — handle BOTH:** (a) while you BLOCK in `present_board`, a
    chat parks the board and returns it to you as a response carrying `commands:['artifact-chat']`
    (the question in `elaboration`/`seedNote`); (b) when NO board is live, the chat QUEUES —
@@ -205,6 +210,10 @@ top to bottom; each numbered step below dispatches the next UI stage.
    `session_status`) so the store is attached, then peek.
 
 ## Changelog
+- 2026-07-09 — step 7: replace-artifact (fullscreen kill verdict) is a detour-and-resume
+  like artifact-chat — regenerate the killed slot via /replace-artifact, drain its queue
+  the same two ways; digest now carries standing artifact KEPT/KILLED lines
+  (from in-progress-feedback-2026-07-09)
 - 2026-07-09 — step 0c: stale-cache escape hatch (materially changed brief/answers →
   regenerate + re-cache; `cacheNote` flags divergence) + step 2: the rolling-digest resume
   rule now lives in the command BODY, not only the orchestrator persona (fresh-eyes review

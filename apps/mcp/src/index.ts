@@ -289,7 +289,7 @@ server.tool(
       response.boardId === board.id
         ? board
         : (store.rounds.find((r) => r.board.id === response.boardId)?.board ?? board);
-    const digest = buildFeedbackDigest(digestBoard, response, config.defaultModel);
+    const digest = buildFeedbackDigest(digestBoard, response, config.defaultModel, store.artifacts);
     if (digestBoard.id !== board.id) {
       digest.unshift(
         `REWIND: the user returned to round ${digestBoard.round} ("${digestBoard.title}") and re-answered ` +
@@ -574,7 +574,7 @@ server.tool(
     // the orchestrator re-derives them (and plausibly re-authors a nudge-only
     // round from scratch — the token cost the mutation doctrine exists to avoid).
     const board = store?.rounds.find((r) => r.board.id === response.boardId)?.board;
-    const digest = board ? buildFeedbackDigest(board, response, config.defaultModel) : undefined;
+    const digest = board ? buildFeedbackDigest(board, response, config.defaultModel, store?.artifacts) : undefined;
     return text({ status: 'responded', boardId, response, ...(digest ? { digest } : {}) });
   },
 );

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CANONICAL_DIR, loadCanonical } from './canonical/load.mjs';
 import {
+  ArtifactSchema,
   BoardResponseSchema,
   BoardSchema,
   DiscussionSummarySchema,
@@ -41,6 +42,10 @@ const CANONICAL_FILES = {
   'responses/edited-tree.json': BoardResponseSchema,
   'themes/theme.json': ThemeSchema,
   'gallery/gallery.json': LivingGallerySchema,
+  'artifacts/kept.json': ArtifactSchema,
+  'artifacts/killed-with-replacement.json': ArtifactSchema,
+  'artifacts/killed-pending.json': ArtifactSchema,
+  'artifacts/unjudged.json': ArtifactSchema,
 };
 
 test('every canonical file parses through its protocol schema', () => {

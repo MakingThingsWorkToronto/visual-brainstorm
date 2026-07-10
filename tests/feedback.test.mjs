@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { buildFeedbackDigest } from '../apps/mcp/dist/feedback.js';
-import { BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
+import { ArtifactSchema, BoardResponseSchema, BoardSchema } from '../packages/protocol/dist/index.js';
 import { loadCanonical } from './canonical/load.mjs';
 
 // The canonical diverge board (Alpha/Beta/Gamma; tone 40, glow 50 axes) anchors
@@ -389,3 +389,58 @@ for (const { name, extra, expectTweak } of tweakMatrix) {
     }
   });
 }
+
+// ---------------------------------------------------------------------------
+// Artifact verdicts (in-progress-feedback 2026-07-09, phase 4): fullscreen
+// keep/kill judgements on CAPTURES fold into the digest as standing
+// steering — distinct from board-level triage. `artifacts` is an optional
+// 4th param; omitting it must change nothing (backward compat).
+// ---------------------------------------------------------------------------
+
+const keptArtifact = loadCanonical('artifacts/kept.json', ArtifactSchema);
+const killedWithReplacement = loadCanonical('artifacts/killed-with-replacement.json', ArtifactSchema);
+const killedPending = loadCanonical('artifacts/killed-pending.json', ArtifactSchema);
+const unjudgedArtifact = loadCanonical('artifacts/unjudged.json', ArtifactSchema);
+
+test('a kept artifact carries its verdictNote and notes forward, joined', () => {
+  const text = buildFeedbackDigest(board, iterateResponse, undefined, [keptArtifact]).join('\n');
+  assert.ok(
+    text.includes(
+      'Artifact KEPT "Glow Mark": love this direction — rounder edges bring warmth — ' +
+        'this captured direction resonates; carry its qualities into the next round.',
+    ),
+  );
+});
+
+test('a killed artifact with a replacement names the replacement slot', () => {
+  const text = buildFeedbackDigest(board, iterateResponse, undefined, [killedWithReplacement]).join('\n');
+  assert.ok(
+    text.includes(
+      'Artifact KILLED "Ember Badge": "too gimmicky" — direction rejected at capture; ' +
+        'never regenerate it (its slot is filled by "cool-badge").',
+    ),
+  );
+});
+
+test('a killed artifact with no replacement yet says the slot is pending /replace-artifact', () => {
+  const text = buildFeedbackDigest(board, iterateResponse, undefined, [killedPending]).join('\n');
+  assert.ok(
+    text.includes(
+      'Artifact KILLED "Ember Badge": "too gimmicky" — direction rejected at capture; ' +
+        'never regenerate it (its replacement is still pending — /replace-artifact owns that slot).',
+    ),
+  );
+});
+
+test('an unjudged artifact contributes no artifact line at all', () => {
+  const text = buildFeedbackDigest(board, iterateResponse, undefined, [unjudgedArtifact]).join('\n');
+  assert.ok(!text.includes('Artifact KEPT'));
+  assert.ok(!text.includes('Artifact KILLED'));
+  assert.ok(!text.includes('Gamma Cut'));
+});
+
+test('omitting the artifacts param changes nothing vs an explicit empty array', () => {
+  const withoutParam = buildFeedbackDigest(board, iterateResponse).join('\n');
+  const withEmptyArray = buildFeedbackDigest(board, iterateResponse, undefined, []).join('\n');
+  assert.strictEqual(withoutParam, withEmptyArray);
+});

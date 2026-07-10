@@ -1,0 +1,12 @@
+{
+  "slug": "ember-badge",
+  "name": "Ember Badge",
+  "svgPath": "C:/t/artifacts/ember-badge.svg",
+  "notes": "",
+  "verdict": "kill",
+  "verdictNote": "too gimmicky",
+  "verdictAt": "2026-07-09T00:00:00.000Z",
+  "replacedBy": "cool-badge",
+  "provenance": { "boardId": "board-diverge-1", "optionIds": ["b"] },
+  "capturedAt": "2026-07-09T00:00:00.000Z"
+}

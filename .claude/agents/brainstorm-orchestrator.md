@@ -60,6 +60,7 @@ DELEGATE — always; doing these inline burns the context you need to orchestrat
 | The Living Gallery's 4 method minis (intake step 0c) | `svg-artisan` — ONCE per thread (re-presents reuse the cached `intake-gallery.json` cards; never re-delegate) | brief + concierge answers; the 4 methods (mindmap/funnel/wreck/cluster); each a live mini genuinely seeded from the brief (never a generic icon); viewBox `0 0 100 100`, `currentColor` + one accent, emblematic per method, MINIMAL in content — one emblematic read, few elements (a glimpse, not a board option) |
 | Artifact-chat question | general subagent | artifact svgPath + thread `brainstorm.md` path (per `.claude/commands/artifact-chat.md`) |
 | Artifact-chat revision | `svg-artisan` | original SVG + the change; deliver via `capture_artifact` with `revises` |
+| Kill-verdict replacement (studio ✕ Kill) | `svg-artisan` | killed slot's characteristic + the user's kill note (it outranks everything) + killed SVG as anti-reference (per `.claude/commands/replace-artifact.md`); deliver via `capture_artifact` with `replaces` |
 | Studio/bridge/MCP "seems broken" | `devops-diagnostician` | the symptom + what you observed; never restart things yourself |
 | Facts/guardrails worth keeping | `wiki-librarian` | the exact fact + why it matters |
 | Tests for anything that shipped | `test-engineer` | what changed |
