@@ -92,7 +92,14 @@ straggler browser (see the leaked-browser rule below).
   `renderToString`/ui-smoke** — its mount happens in a `useEffect` the server renderer never runs.
   ui-smoke proves the static wrapper markers; the human-sim asserts the engine actually mounted
   (`[data-testid="…-engine"].childElementCount > 0`) and drives a real edit through the exposed
-  instance handle (never a fabricated response).
+  instance handle (never a fabricated response). **The instance is LAZY**: the engine ships as a
+  lazy Vite chunk, so the container (and controls around it) render before `(container).mind`
+  exists — a step that samples the handle ONCE flakes under concurrent-session load. WAIT for the
+  instance (`waitInPage("!!el?.mind")`), never just the container/testids (bit us 2026-07-09).
+- **A gated sim's `tests/journeys.md` row updates in the SAME change as the sim.** When a journey
+  sim gains or changes steps, its registry row's step count and asserted-data list are part of the
+  change — a stale DONE row mis-states what is actually proven, which is exactly the false-claim
+  class the registry exists to prevent (found stale in mindmap-chat-hardening's fresh-eyes review).
 - **Re-running the CDP human-sim many times while iterating LEAKS headless browsers and
   silently burns tokens+time.** The per-run cleanup sits in a `finally` a SIGINT/kill skips, so
   interrupted iterations orphan `msedge`/`chrome` trees (Windows keeps renderer/GPU children);
@@ -127,6 +134,10 @@ A test-honesty gap once let a whole methodology ship unproven — encode these s
    at each, and the runnable real-path command — and carries a nav-discoverability check: the
    surface must be reachable by REAL navigation, not just direct state injection. Mark each
    journey's canonical-data assertion DONE or OWED; an OWED row is a known coverage debt, not a pass.
+   **Journey rows are part of a feature's definition of done**: a new user-visible affordance lands
+   WITH its predicted row(s) in the same change, honestly split DONE (machine-proven parts) vs OWED
+   (the live-model/human walk). Six handoff-fidelity affordances once shipped fully unit-tested but
+   with ZERO journey rows — "ready for human testing" with no registry of what the human must walk.
 5. **Two concrete false-greens seen live (2026-07-08) — recognize the pattern:**
    - **`!!container.querySelector('svg')` passes on the ERROR-FALLBACK and the LOADING state.** A
      surface that renders a "…unavailable" fallback `<svg>` (or shows a "building…" spinner with no
@@ -141,6 +152,13 @@ A test-honesty gap once let a whole methodology ship unproven — encode these s
      assertion.
 
 ## Changelog
+- 2026-07-09 — point 4 extended: journey rows are part of a feature's definition of done —
+  a new user-visible affordance lands WITH its predicted DONE/OWED rows in the same change
+  (from handoff-fidelity-2026-07-09)
+- 2026-07-09 — live-DOM engine rule extended: the instance is a LAZY chunk — wait for
+  `(container).mind`, never sample once (flaked under concurrent sessions); new rule: a gated
+  sim's `tests/journeys.md` row updates in the SAME change as the sim (found stale in the
+  fresh-eyes review) (from mindmap-chat-hardening-2026-07-09)
 - 2026-07-09 — added the "unit-test the MATH, not the pixels" rule for animation/rAF features:
   DOM-free geometry module → `test:ts` layer (`tsx --test`), tags in ui-smoke, motion on the
   real path; loop lifecycle is a review concern no layer catches (from guided-pulse-wayfinder)

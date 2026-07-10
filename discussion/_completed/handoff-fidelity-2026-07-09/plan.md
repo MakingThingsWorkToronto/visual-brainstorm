@@ -1,6 +1,9 @@
 # Plan — Handoff fidelity: perfect the two-way Claude ⇄ studio data exchange (2026-07-09)
 
-**Status:** in progress
+**Status:** closed 2026-07-09 — all six phases complete + fresh-eyes review round fixed and
+committed. The nine-step human testing script below remains FUTURE verification (operator
+accepted at closeout): run it during the next real brainstorm; failures become fix-items in a
+new plan/chat, and passing steps flip journeys #10–#15's OWED entries to DONE.
 **Authority:** operator directive — "audit and code review the agentic-to-UI handoff and the MCP … if sufficient data is not passed (either direction), fix it; add MCP data where needed; persist the two-way exchange to disk so it works through crashes; update wiki, agentic layer, code everywhere."
 **Grounding:** wiki/Requirements/interaction-protocol.md (§Feedback packaging: "Nothing is dropped"), wiki/System/interface-coverage.md (Known gaps), wiki/Product/phase-funnel.md, three deep audits (protocol/MCP, studio UI, tests/agentic layer) run 2026-07-09.
 **Respected in-flight plans:** mindmap-model-legible-2026-07-09 (tree.md legibility — this plan only adds rename/move op emission + TreeOp fields), scribble-legibility-2026-07-09 (seed folder — untouched), token-economy-2026-07-07 (no model-tier changes).

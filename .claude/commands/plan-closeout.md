@@ -98,7 +98,12 @@ done/skipped-with-reason.
     `--only` is file-level and cannot split hunks: if a file this plan touched ALSO
     carries another session's uncommitted edits, either wait for their loop to converge
     or commit it with the riders declared in the commit body — never present a mixed
-    diff as single-plan. **Inspect the STAGED index before committing**
+    diff as single-plan. **Never `git commit --amend` in this shared tree**: peers sweep
+    and push on their own cadence, so a just-made local commit may ALREADY be on origin —
+    the amend then creates a divergent duplicate whose rebase drops YOUR version (the
+    wrong message wins, permanently; bit us 2026-07-09). Fix a bad commit with a
+    follow-up, or amend only after `git log origin/main..HEAD` proves it is still
+    local-only AND no peer session is alive. **Inspect the STAGED index before committing**
     (`git diff --cached --name-status`), not just `git status`'s working-tree view: a
     concurrent session's STAGED changes — most dangerously deletions (`D ` in column 1) —
     ride a plain `git commit` even when you only `git add` your own paths, contaminating the
@@ -117,6 +122,9 @@ done/skipped-with-reason.
     declined), folders archived, commit hash + pushed.
 
 ## Changelog
+- 2026-07-09 — step 10: never `--amend` in the shared tree — a peer may have pushed the
+  original within seconds; the rebase drops the amended duplicate (from
+  handoff-fidelity-2026-07-09)
 - 2026-07-09 — step 2: crash-resume closeouts run /code-review (high) over the plan's diff
   before archiving — a dead session's "verified" status line is a claim, not proof (from
   photo-scribble-annotation-2026-07-09 + scribble-legibility-2026-07-09)

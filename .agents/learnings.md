@@ -1,5 +1,63 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — a delegated multi-part contract completes PARTIALLY on crash; resume verifies every part, not the headline
+
+- **The trap:** handoff-fidelity Phase 5 delegated "edit 5 wiki pages + log each + wiki_reload"
+  and "update reopen.md" to subagents that died mid-contract. The HEADLINE work landed (pages
+  edited, reopen.md header rewritten) so every spot-check looked done — but zero rule-2 log
+  lines existed, the grounding index was stale, and reopen.md's PROCEDURE step still commanded
+  the manual `git mv` its own header said the bridge now performs. Partial completion reads as
+  completion unless each contractual part is checked separately.
+- **How to apply:** on resume, enumerate the delegation brief's parts and verify each one
+  (page content ∧ log line ∧ reload; header ∧ every procedure step it contradicts). For doc
+  edits, grep the WHOLE file for statements the change obsoletes — a crashed editor updates
+  prose top-down and dies mid-file.
+
+## 2026-07-09 — never `git commit --amend` in a shared live tree — a peer can push your original within seconds
+
+- **The trap:** amended a just-made local commit (message fix only) — but a concurrent session
+  had ALREADY pushed the original to origin in the ~3 minutes between commit and amend. Local
+  and remote then held two commits with identical trees and different messages; the rebase
+  dropped the amended one, so the WRONG (pre-amend) message is permanent history.
+- **How to apply:** in this multi-session tree, treat every commit as published the moment it
+  exists — peers sweep and push on their own cadence. Message wrong? Let it stand or add a
+  follow-up commit; only amend after `git log origin/main..HEAD` proves the commit is still
+  local-only AND no peer session is alive.
+
+## 2026-07-09 — a feature isn't shippable until its journey rows exist; six affordances shipped with zero
+
+- **The trap:** handoff-fidelity shipped six user-visible affordances (Claude-asks, unsure,
+  remix recipes, annotate-on-option, rationale+lineage, crash recovery) with full unit/digest
+  coverage but NOT ONE predicted row in tests/journeys.md — rule 10's "predict EVERY human
+  journey before you test it" was silently skipped, and the plan was declared ready for human
+  testing with no registry of what the human must walk.
+- **How to apply:** journey rows are part of the feature's definition of done, authored with
+  the honest DONE/OWED split (backend proofs vs the live-model walk). A closeout that claims
+  "ready for human testing" must name the journeys the human will execute.
+
+## 2026-07-09 — SVG→canvas rasterization: explicit root width/height, and any size cap must preserve box-aspect == viewBox-aspect
+
+- **The trap (second occurrence of the same class):** board options carry viewBox but no
+  width/height (svg-authoring craft) — Firefox/Safari draw an intrinsically-unsized SVG BLANK
+  through canvas drawImage. composeSeedSvg carried the guard; the new annotate-on-option path
+  did not. Separately, the scribble pad clamped viewH and height-capped a
+  `preserveAspectRatio="none"` svg while width stayed `w-full` — shearing box-aspect away from
+  viewBox-aspect, distorting the image, EVERY stored mark coordinate, and the composite the
+  model sees.
+- **How to apply:** any new `renderCompositePng(...)` caller injects explicit dims first
+  (`withExplicitSize`, unit-guarded in ui-smoke "annotate guards"); grep existing callers when
+  adding one. With `preserveAspectRatio="none"`, the box MUST keep the viewBox ratio — cap
+  size via the wrapper's max-width (maxH × aspect), never the element's height alone.
+
+## 2026-07-09 — in-place engine edits fire no select event; selection-derived UI must refresh from the op diff
+
+- **The trap:** mind-elixir's double-click rename commits via an `operation` event only — the
+  action bar's `selected.topic` (set on select events) went stale, so rename→Explode fanned
+  children named after the OLD topic, and every op payload carried it too.
+- **How to apply:** any state derived from "the selected node" refreshes inside the same diff
+  that emits ops (`emitEdit`: rename updates the binding, a vanished id clears it). Don't trust
+  engines to announce selection changes for in-place edits.
+
 ## 2026-07-09 — a shared MCP server needs host-specific launch files AND an enforced capability boundary
 
 - **The trap:** one root `.mcp.json` is not portable configuration. VS Code Copilot discovers
@@ -56,7 +114,9 @@
 - **How to apply:** any journey step that drives a lazily-mounted engine waits for the
   INSTANCE (`waitInPage('...', "!!el?.mind")`), never just the container/testids around it.
   Also: `npm test 2>&1 | tail` reports TAIL's exit code — check `PIPESTATUS[0]` (or don't
-  pipe) before believing a green.
+  pipe) before believing a green. And when a gated sim gains/changes steps, its
+  `tests/journeys.md` row updates in the SAME change — the fresh-eyes review found row 3d
+  still claiming "4 steps" after the sim grew to 5 (a stale DONE row mis-states the proof).
 
 ## 2026-07-09 — a NEW artifact KIND must be routed in every command that handles artifacts generically
 

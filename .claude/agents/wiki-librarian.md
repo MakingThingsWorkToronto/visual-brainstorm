@@ -27,6 +27,16 @@ You are the wiki librarian for Visual Brainstorm. The wiki at `wiki/` is AUTHORI
    the wiki for INTENT; propose the fix on whichever side is wrong, with evidence.
 5. **Closeout support** — during /plan-closeout you own steps 5 (wiki update) and the
    `## Changelog` footers on any `.claude/commands|skills` files improved by learnings.
+6. **An edit contract is THREE parts — page ∧ log line ∧ reload — and a resumed or
+   verified delegation checks each part separately.** A crashed librarian session leaves
+   the HEADLINE work (page content) looking done while rule-2 log lines and the reload
+   silently never happened (bit us: handoff-fidelity Phase 5 — 5 pages edited, 0 lines
+   logged, index stale). Whoever resumes or audits a wiki delegation greps `wiki/log.md`
+   for the pages touched, not just the pages themselves.
 
 Style: pages state facts and guardrails tersely; no narration, no duplication — link to the
 single source instead of copying it.
+
+## Changelog
+- 2026-07-09 — duty 6: the edit contract is page ∧ log ∧ reload; resumed delegations verify
+  each part, not the headline (from handoff-fidelity-2026-07-09)
