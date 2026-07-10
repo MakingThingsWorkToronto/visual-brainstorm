@@ -1,5 +1,19 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-09 — adding a ProgressEvent/BoardResponse field: the bridge's INBOUND zod whitelist strips it silently despite rule 5
+
+- **The trap:** protocol schemas are the single source of truth, but the bridge's POST
+  handlers (`/api/progress`, and the same pattern elsewhere) validate the inbound body with
+  a LOCAL `z.object({...})` whitelist BEFORE re-parsing with the shared schema — zod strips
+  unknown keys, so a field added only to `packages/protocol` vanishes on the wire with a
+  200 OK and no error anywhere. The shared-schema parse succeeding is a false comfort: it
+  never sees the stripped field.
+- **How to apply:** a protocol field addition is a THREE-point change: the protocol schema,
+  the bridge's inbound validator for every endpoint that accepts that shape, and the pipe/
+  sender emission. Prove it with a wire test that POSTs the new field and asserts it
+  survives into `/api/state` (tests/api-status-matrix.test.mjs pattern), not just a schema
+  round-trip.
+
 ## 2026-07-09 — a delegated multi-part contract completes PARTIALLY on crash; resume verifies every part, not the headline
 
 - **The trap:** handoff-fidelity Phase 5 delegated "edit 5 wiki pages + log each + wiki_reload"
