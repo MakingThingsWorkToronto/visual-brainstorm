@@ -746,6 +746,23 @@ export const ProgressEventSchema = z.object({
     .object({ input: z.number().min(0).default(0), output: z.number().min(0).default(0) })
     .optional(),
   /**
+   * Idempotency claim for `tokens` (pipe-progress deltas): `id` names the
+   * sender's cursor (the Claude session), `gen` its generation (bumped when the
+   * transcript shrinks — compaction — so the high-water mark resets), and
+   * `input`/`output` are the CUMULATIVE transcript totals the delta ran up to.
+   * The store keeps a per-(id, gen) high-water mark and clamps any overlap a
+   * concurrent hook race or a slow-accept re-post would double-count. Absent on
+   * CLI --in/--out events and legacy events (those record as posted).
+   */
+  tokenCursor: z
+    .object({
+      id: z.string(),
+      gen: z.number().int().min(0).default(0),
+      input: z.number().min(0),
+      output: z.number().min(0),
+    })
+    .optional(),
+  /**
    * The sink these tokens are attributed to. A boundary event (a tool label)
    * DECLARES the current sink; a token-bearing turn-end event without its own
    * category is stamped by the bridge with the sink in progress when it landed.

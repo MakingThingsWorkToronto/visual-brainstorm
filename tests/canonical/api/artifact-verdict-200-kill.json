@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "artifact": {
+    "slug": "glow-mark",
+    "name": "Glow Mark",
+    "svgPath": "<<abs-path>>",
+    "notes": "canonical capture",
+    "verdict": "kill",
+    "verdictNote": "too gimmicky",
+    "verdictAt": "<<iso-date>>",
+    "provenance": { "boardId": "board-diverge-1", "optionIds": ["a"] },
+    "capturedAt": "<<iso-date>>"
+  },
+  "pending": {
+    "replacesSlug": "glow-mark",
+    "characteristic": "\"Alpha\" — A filament bulb — warm, literal glow.",
+    "note": "too gimmicky",
+    "at": "<<iso-date>>"
+  },
+  "delivered": "queued"
+}

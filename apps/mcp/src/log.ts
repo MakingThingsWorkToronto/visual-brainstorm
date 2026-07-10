@@ -4,7 +4,7 @@ import path from 'node:path';
 /**
  * Tee logger: every line goes to stderr (stdout is the MCP channel) AND to a
  * dated file under <discussionRoot>/.logs/ so failures are self-diagnosable
- * after the process is gone. See .claude/commands/diagnose-demo.md.
+ * after the process is gone. See .claude/commands/diagnose-studio.md.
  */
 const RING_SIZE = 500;
 

@@ -5,6 +5,7 @@ import type {
   ServerToStudio,
   StudioState,
 } from '@visual-brainstorm/protocol';
+import { reduceProgressTokens } from './progressTokens';
 
 /** Called for every artifact-chat envelope (any thread) with its owning discussionId. */
 export type ChatHandler = (message: ArtifactChatMessage, discussionId?: string) => void;
@@ -158,28 +159,15 @@ export function useBridge() {
               return { ...prev, concierge: msg.exchange };
             case 'gallery':
               return { ...prev, gallery: msg.gallery };
-            case 'progress': {
-              const tok = msg.event.tokens;
-              // The bridge stamps `category` onto the broadcast event, so the
-              // per-sink meter mirrors the server's attribution exactly.
-              const sink = msg.event.category ?? 'orchestration';
+            case 'progress':
+              // The bridge stamps `category` (and dedupes overlapping deltas)
+              // onto the broadcast event, so the per-sink meter mirrors the
+              // server's attribution exactly (reducer proven in the unit layer).
               return {
                 ...prev,
                 progress: [...prev.progress, msg.event].slice(-200),
-                tokens: tok
-                  ? {
-                      input: prev.tokens.input + tok.input,
-                      output: prev.tokens.output + tok.output,
-                    }
-                  : prev.tokens,
-                tokensBySink: tok
-                  ? {
-                      ...prev.tokensBySink,
-                      [sink]: (prev.tokensBySink[sink] ?? 0) + tok.input + tok.output,
-                    }
-                  : prev.tokensBySink,
+                ...reduceProgressTokens(prev, msg.event),
               };
-            }
           }
         });
       };

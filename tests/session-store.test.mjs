@@ -8,6 +8,7 @@ import {
   ArtifactChatMessageSchema,
   ArtifactSchema,
   BoardResponseSchema,
+  PendingReplacementSchema,
   ProgressEventSchema,
   SessionInfoSchema,
 } from '../packages/protocol/dist/index.js';
@@ -418,4 +419,333 @@ test('list() spans live + _completed with archived flags; resolveDir falls back'
   // Plan folders (no session.json) are not threads.
   fs.mkdirSync(path.join(root, 'some-plan-2026-07-06'));
   assert.equal(SessionStore.list(root).length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// Fullscreen keep/kill verdicts + kill-replacement pipeline
+// (in-progress-feedback phase 2)
+// ---------------------------------------------------------------------------
+
+test('updateArtifactVerdict stamps verdict/verdictNote/verdictAt, rewrites the sidecar, and survives reload', () => {
+  const root = tmp();
+  const store = new SessionStore('Verdict test', root);
+  const artifact = store.captureArtifact('Winner', '<svg/>', 'n', { optionIds: ['a'] });
+
+  const updated = store.updateArtifactVerdict(artifact.slug, 'keep', 'love this one');
+  assert.equal(updated.slug, artifact.slug);
+  assert.equal(updated.verdict, 'keep');
+  assert.equal(updated.verdictNote, 'love this one');
+  assert.ok(updated.verdictAt, 'verdictAt stamped');
+
+  const md = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+  assert.ok(md.includes('Artifact verdict (`winner`): KEEP — love this one'), 'brainstorm.md gets a verdict line');
+
+  // Sidecar round-trips through the schema (rule 5), verdict fields intact.
+  const sidecar = ArtifactSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'artifacts', `${artifact.slug}.json`), 'utf8')),
+  );
+  assert.equal(sidecar.verdict, 'keep');
+  assert.equal(sidecar.verdictNote, 'love this one');
+  assert.ok(sidecar.verdictAt);
+
+  // Persist + reload round-trip: SessionStore.open re-reads the sidecar with
+  // the verdict fields intact — reload is not a memory-only concern.
+  const reopened = SessionStore.open(store.info.dir);
+  const reloaded = reopened.artifacts.find((a) => a.slug === artifact.slug);
+  assert.equal(reloaded.verdict, 'keep');
+  assert.equal(reloaded.verdictNote, 'love this one');
+  assert.equal(reloaded.verdictAt, updated.verdictAt);
+});
+
+test('updateArtifactVerdict on an unknown slug returns null and touches nothing', () => {
+  const root = tmp();
+  const store = new SessionStore('Unknown verdict test', root);
+  store.captureArtifact('Winner', '<svg/>', 'n', { optionIds: ['a'] });
+  assert.equal(store.updateArtifactVerdict('missing', 'kill'), null);
+  assert.equal(store.artifacts[0].verdict, undefined, 'the real artifact is untouched');
+});
+
+test('a note is optional on a verdict — omitting it leaves verdictNote unset', () => {
+  const root = tmp();
+  const store = new SessionStore('Verdict no-note test', root);
+  const artifact = store.captureArtifact('Winner', '<svg/>', 'n', { optionIds: ['a'] });
+  const updated = store.updateArtifactVerdict(artifact.slug, 'kill');
+  assert.equal(updated.verdict, 'kill');
+  assert.equal(updated.verdictNote, undefined);
+});
+
+test('captureArtifact with provenance.replaces stamps the killed artifact\'s replacedBy and survives reload', () => {
+  const root = tmp();
+  const store = new SessionStore('Replaces test', root);
+  const killed = store.captureArtifact('Winner', '<svg/>', 'n', { optionIds: ['a'] });
+  store.updateArtifactVerdict(killed.slug, 'kill', 'too gimmicky');
+  store.addPendingReplacement({ replacesSlug: killed.slug, characteristic: '"Alpha"', note: 'too gimmicky', at: 'now' });
+
+  const replacement = store.captureArtifact('Winner v2', '<svg/>', 'toned down', {
+    optionIds: ['a'],
+    replaces: killed.slug,
+  });
+
+  const killedInMemory = store.artifacts.find((a) => a.slug === killed.slug);
+  assert.equal(killedInMemory.replacedBy, replacement.slug, 'in-memory killed artifact stamped');
+  assert.equal(store.pendingReplacements.length, 0, 'the matching pending replacement is resolved');
+
+  const md = fs.readFileSync(path.join(store.info.dir, 'brainstorm.md'), 'utf8');
+  assert.ok(md.includes(`\`${killed.slug}\` (killed) replaced by \`${replacement.slug}\``));
+
+  // Sidecar round-trips through the schema.
+  const killedSidecar = ArtifactSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'artifacts', `${killed.slug}.json`), 'utf8')),
+  );
+  assert.equal(killedSidecar.replacedBy, replacement.slug);
+  const replacementSidecar = ArtifactSchema.parse(
+    JSON.parse(fs.readFileSync(path.join(store.info.dir, 'artifacts', `${replacement.slug}.json`), 'utf8')),
+  );
+  assert.equal(replacementSidecar.provenance.replaces, killed.slug);
+
+  // Reload: replacedBy and the resolved pending-replacements survive.
+  const reopened = SessionStore.open(store.info.dir);
+  assert.equal(
+    reopened.artifacts.find((a) => a.slug === killed.slug).replacedBy,
+    replacement.slug,
+    'replacedBy survives reload',
+  );
+  assert.equal(reopened.pendingReplacements.length, 0, 'resolved pending stays resolved after reload');
+});
+
+test('addPendingReplacement upserts by replacesSlug and persists to pending-replacements.json; resolvePendingReplacement removes + persists', () => {
+  const root = tmp();
+  const store = new SessionStore('Pending test', root);
+  const file = path.join(store.info.dir, 'pending-replacements.json');
+
+  store.addPendingReplacement({ replacesSlug: 'glow-mark', characteristic: '"Alpha"', at: '2026-07-09T10:00:00.000Z' });
+  assert.equal(store.pendingReplacements.length, 1);
+  let onDisk = JSON.parse(fs.readFileSync(file, 'utf8')).map((p) => PendingReplacementSchema.parse(p));
+  assert.equal(onDisk.length, 1);
+  assert.equal(onDisk[0].replacesSlug, 'glow-mark');
+
+  // Upsert: a second add for the SAME replacesSlug replaces, never duplicates.
+  store.addPendingReplacement({
+    replacesSlug: 'glow-mark',
+    characteristic: '"Alpha"',
+    note: 'too gimmicky',
+    at: '2026-07-09T10:05:00.000Z',
+  });
+  assert.equal(store.pendingReplacements.length, 1, 'upsert, not append');
+  assert.equal(store.pendingReplacements[0].note, 'too gimmicky');
+  onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(onDisk.length, 1);
+  assert.equal(onDisk[0].note, 'too gimmicky');
+
+  // A different replacesSlug is a separate entry.
+  store.addPendingReplacement({ replacesSlug: 'other-mark', at: '2026-07-09T10:10:00.000Z' });
+  assert.equal(store.pendingReplacements.length, 2);
+
+  // Reload: both persisted entries come back, schema-valid.
+  const reopened = SessionStore.open(store.info.dir);
+  assert.equal(reopened.pendingReplacements.length, 2);
+  assert.deepEqual(
+    reopened.pendingReplacements.map((p) => p.replacesSlug).sort(),
+    ['glow-mark', 'other-mark'],
+  );
+
+  reopened.resolvePendingReplacement('glow-mark');
+  assert.equal(reopened.pendingReplacements.length, 1);
+  assert.equal(reopened.pendingReplacements[0].replacesSlug, 'other-mark');
+  onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(onDisk.length, 1, 'removal persists to disk');
+  assert.equal(onDisk[0].replacesSlug, 'other-mark');
+
+  // Resolving an unknown slug is a harmless no-op.
+  reopened.resolvePendingReplacement('nope');
+  assert.equal(reopened.pendingReplacements.length, 1);
+});
+
+test('a corrupted pending-replacements.json is skipped on reload without throwing', () => {
+  const root = tmp();
+  const store = new SessionStore('Corrupt pending test', root);
+  store.addPendingReplacement({ replacesSlug: 'glow-mark', at: 'now' });
+  fs.writeFileSync(path.join(store.info.dir, 'pending-replacements.json'), 'this is { not json');
+
+  let reopened;
+  assert.doesNotThrow(() => {
+    reopened = SessionStore.open(store.info.dir);
+  }, 'malformed pending-replacements.json never throws');
+  assert.deepEqual(reopened.pendingReplacements, [], 'unreadable file skipped honestly, no throw');
+});
+
+test('a pending-replacements.json with one corrupt entry among valid JSON never throws — entries before the bad one are kept (single try/catch over the loop)', () => {
+  const root = tmp();
+  const store = new SessionStore('Partially corrupt pending test', root);
+  // A single malformed entry (fails PendingReplacementSchema) inside otherwise-
+  // valid JSON: the array parse + per-entry schema.parse is wrapped in ONE
+  // try/catch (mirrors the honest-skip contract of the other reload guards),
+  // so the loop aborts at the first bad entry — anything pushed before it
+  // survives, nothing after it is trusted, and reload never throws.
+  fs.writeFileSync(
+    path.join(store.info.dir, 'pending-replacements.json'),
+    JSON.stringify([{ replacesSlug: 'ok', at: 'now' }, { at: 'now' /* missing replacesSlug */ }]),
+  );
+  let reopened;
+  assert.doesNotThrow(() => {
+    reopened = SessionStore.open(store.info.dir);
+  }, 'malformed entry never throws');
+  assert.deepEqual(
+    reopened.pendingReplacements,
+    [{ replacesSlug: 'ok', at: 'now' }],
+    'the entry parsed before the corrupt one survives; the corrupt one and anything after it is dropped',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Token attribution edges + pipe-cursor idempotency (token-economy follow-ups,
+// 2026-07-09): last-label-wins pinned, sidebar/meter skip rules unified, and
+// the per-cursor high-water ledger that de-duplicates overlapping pipe deltas.
+// ---------------------------------------------------------------------------
+
+test('attribution: two boundaries before one delta — the LAST label wins (pinned heuristic)', () => {
+  const store = new SessionStore('Label test', tmp());
+  store.recordProgress(progressEvent('asked a concierge question', { category: 'intake' }));
+  store.recordProgress(progressEvent('presented a board to the studio', { category: 'generation' }));
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 100, output: 10 },
+    }),
+  );
+  assert.deepEqual(
+    store.tokensBySink(),
+    { generation: 110 },
+    'the delta attributes to the label armed LAST; the earlier label never leaks',
+  );
+});
+
+test('sidebar total equals the opened thread meter on a thread with a corrupt line', () => {
+  const root = tmp();
+  const store = new SessionStore('Skip-rule parity', root);
+  store.recordProgress(progressEvent('real usage', { tokens: { input: 100, output: 10 } }));
+  // A foreign/corrupt line: valid JSON carrying tokens but schema-invalid
+  // (unknown category) — open() drops it, so the sidebar sum must drop it too.
+  fs.appendFileSync(
+    path.join(store.info.dir, 'progress.jsonl'),
+    JSON.stringify({ at: 'x', note: 'foreign', category: 'bogus', tokens: { input: 999, output: 999 } }) + '\n' +
+      'not json at all\n',
+  );
+  const reopened = SessionStore.open(store.info.dir);
+  const meter = reopened.tokenTotals();
+  const sidebar = SessionStore.list(root).find((s) => s.id === store.info.id);
+  assert.deepEqual(meter, { input: 100, output: 10 }, 'open() drops the invalid line');
+  assert.equal(sidebar.tokens, meter.input + meter.output, 'sidebar sum uses the SAME skip rule');
+});
+
+// Two hooks racing one cursor both read the same base and post overlapping
+// windows — the ledger clamps the second to the un-accounted remainder.
+test('cursor idempotency: overlapping deltas from one cursor base never double-count', () => {
+  const store = new SessionStore('Race dedupe', tmp());
+  // Hook A read base 0, transcript at 250/25.
+  store.recordProgress(
+    progressEvent('a subagent finished', {
+      source: 'hook:SubagentStop',
+      tokens: { input: 250, output: 25 },
+      tokenCursor: { id: 'sess-1', gen: 0, input: 250, output: 25 },
+    }),
+  );
+  // Hook B also read base 0, transcript meanwhile at 300/30 — its window
+  // re-covers A's 250/25. Only the 50/5 remainder may land.
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 300, output: 30 },
+      tokenCursor: { id: 'sess-1', gen: 0, input: 300, output: 30 },
+    }),
+  );
+  assert.deepEqual(store.tokenTotals(), { input: 300, output: 30 }, 'sum equals the transcript, not 550/55');
+});
+
+test('cursor idempotency: a re-posted identical window records as token-less (slow-accept re-post)', () => {
+  const store = new SessionStore('Repost dedupe', tmp());
+  const event = () =>
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 250, output: 25 },
+      tokenCursor: { id: 'sess-2', gen: 0, input: 250, output: 25 },
+    });
+  store.recordProgress(event());
+  store.recordProgress(event());
+  assert.deepEqual(store.tokenTotals(), { input: 250, output: 25 }, 'the duplicate contributes nothing');
+  assert.equal(store.progress.length, 2, 'the duplicate event itself still lands (a real turn-end)');
+  assert.equal(store.progress[1].tokens, undefined, 'its usage was already counted — recorded token-less');
+});
+
+test('cursor idempotency: the ledger survives a reload (high-water marks rebuilt in open())', () => {
+  const store = new SessionStore('Reload dedupe', tmp());
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 250, output: 25 },
+      tokenCursor: { id: 'sess-3', gen: 0, input: 250, output: 25 },
+    }),
+  );
+  const reopened = SessionStore.open(store.info.dir);
+  reopened.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 300, output: 30 },
+      tokenCursor: { id: 'sess-3', gen: 0, input: 300, output: 30 },
+    }),
+  );
+  assert.deepEqual(reopened.tokenTotals(), { input: 300, output: 30 }, 'post-reload deltas still dedupe');
+});
+
+test('cursor idempotency: a generation bump resets the mark (compaction never eats real usage)', () => {
+  const store = new SessionStore('Gen reset', tmp());
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 250, output: 25 },
+      tokenCursor: { id: 'sess-4', gen: 0, input: 250, output: 25 },
+    }),
+  );
+  // Transcript compacted and regrew: totals now BELOW the gen-0 mark, but the
+  // pipe bumped gen — the fresh ledger accepts the delta in full.
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 40, output: 4 },
+      tokenCursor: { id: 'sess-4', gen: 1, input: 40, output: 4 },
+    }),
+  );
+  assert.deepEqual(store.tokenTotals(), { input: 290, output: 29 });
+});
+
+test('cursor idempotency: a fully-deduped event still consumes the armed sink label', () => {
+  const store = new SessionStore('Consume label', tmp());
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 100, output: 10 },
+      tokenCursor: { id: 'sess-5', gen: 0, input: 100, output: 10 },
+    }),
+  );
+  store.recordProgress(progressEvent('presented a board to the studio', { category: 'generation' }));
+  // The duplicate turn-end dedupes to zero but still ENDS the labeled turn.
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 100, output: 10 },
+      tokenCursor: { id: 'sess-5', gen: 0, input: 100, output: 10 },
+    }),
+  );
+  store.recordProgress(
+    progressEvent('Claude finished a turn', {
+      source: 'hook:Stop',
+      tokens: { input: 150, output: 15 },
+      tokenCursor: { id: 'sess-5', gen: 0, input: 150, output: 15 },
+    }),
+  );
+  assert.deepEqual(
+    store.tokensBySink(),
+    { orchestration: 165 },
+    'the label died with the deduped turn-end; the later delta folds into orchestration',
+  );
 });

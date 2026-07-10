@@ -5,14 +5,17 @@ import {
   ArtifactSchema,
   BoardResponseSchema,
   BoardSchema,
+  PendingReplacementSchema,
   ProgressEventSchema,
   SessionInfoSchema,
   type Artifact,
   type ArtifactChatMessage,
+  type ArtifactVerdict,
   type Board,
   type BoardResponse,
   type DiscussionSummary,
   type MindTree,
+  type PendingReplacement,
   type ProgressEvent,
   type RoundRecord,
   type SessionInfo,
@@ -33,7 +36,12 @@ export function slugify(text: string): string {
   );
 }
 
-/** Token-meter sum from a thread's progress.jsonl without loading the whole thread. */
+/**
+ * Token-meter sum from a thread's progress.jsonl without loading the whole
+ * thread. Skips exactly the lines open() skips (schema-invalid, not just
+ * unparseable) so the sidebar total always equals the opened thread's meter —
+ * a foreign/corrupt line must not count in one and not the other.
+ */
 function sumTokensFile(threadDir: string): number {
   const file = path.join(threadDir, 'progress.jsonl');
   if (!fs.existsSync(file)) return 0;
@@ -41,7 +49,9 @@ function sumTokensFile(threadDir: string): number {
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     if (!line.trim()) continue;
     try {
-      const tokens = (JSON.parse(line) as { tokens?: { input?: number; output?: number } }).tokens;
+      const parsed = ProgressEventSchema.safeParse(JSON.parse(line));
+      if (!parsed.success) continue; // same skip rule as open()
+      const tokens = parsed.data.tokens;
       total += (tokens?.input ?? 0) + (tokens?.output ?? 0);
     } catch {
       /* corrupt lines are skipped, same as reload */
@@ -87,6 +97,15 @@ export class SessionStore {
    */
   private currentSink: TokenSink | undefined;
   /**
+   * Per-cursor high-water marks (`"<id>#<gen>"` → the highest cumulative totals
+   * already accounted). The idempotency ledger for pipe token deltas: a delta
+   * whose `tokenCursor` claim overlaps an accounted window (concurrent hooks
+   * racing one cursor, or a slow bridge accept the pipe aborted and re-posts)
+   * is clamped to the un-accounted remainder before it is recorded. Rebuilt
+   * from persisted events in open() so live and reloaded ledgers agree.
+   */
+  private cursorHighWater = new Map<string, { input: number; output: number }>();
+  /**
    * Best-SVG default model for digest routing lines (decision 4: routing is
    * ALWAYS explicit, never by omission). Set by the live owner (MCP entry /
    * bridge) after construction; when unset, the persisted digest omits the
@@ -103,6 +122,12 @@ export class SessionStore {
    * BoardResponse (rule 5). Keyed in memory by boardId.
    */
   readonly drafts: BoardResponse[] = [];
+  /**
+   * Kill-verdict replacements still generating (one placeholder per killed
+   * slug), persisted to pending-replacements.json so a reload re-renders the
+   * in-flight placeholder instead of losing it.
+   */
+  readonly pendingReplacements: PendingReplacement[] = [];
 
   /** Create a NEW thread under the discussion root. */
   constructor(title: string, root: string) {
@@ -147,7 +172,19 @@ export class SessionStore {
       progress: [],
       artifactChat: [],
       drafts: [],
+      pendingReplacements: [],
+      cursorHighWater: new Map(),
     });
+    const pendingFile = path.join(dir, 'pending-replacements.json');
+    if (fs.existsSync(pendingFile)) {
+      try {
+        for (const raw of JSON.parse(fs.readFileSync(pendingFile, 'utf8'))) {
+          store.pendingReplacements.push(PendingReplacementSchema.parse(raw));
+        }
+      } catch (err) {
+        console.error(`[store] skipping pending-replacements.json: ${String(err)}`);
+      }
+    }
     const chatFile = path.join(dir, 'artifacts', 'chat.jsonl');
     if (fs.existsSync(chatFile)) {
       for (const line of fs.readFileSync(chatFile, 'utf8').split('\n')) {
@@ -172,6 +209,10 @@ export class SessionStore {
           if (event.category && !event.tokens) store.currentSink = event.category;
           else if (event.tokens || /^hook:(Stop|SubagentStop)$/.test(event.source))
             store.currentSink = undefined;
+          // Rebuild the idempotency ledger (persisted tokens are already
+          // clamped — only the high-water marks need reconstructing so a live
+          // delta arriving after reload still dedupes against history).
+          if (event.tokenCursor) store.raiseCursorHighWater(event.tokenCursor);
         } catch (err) {
           console.error(`[store] skipping progress line: ${String(err)}`);
         }
@@ -524,11 +565,50 @@ export class SessionStore {
     return bySink;
   }
 
+  /** Raise a cursor's high-water mark to cover the given cumulative totals. */
+  private raiseCursorHighWater(cursor: { id: string; gen: number; input: number; output: number }): void {
+    const key = `${cursor.id}#${cursor.gen}`;
+    const mark = this.cursorHighWater.get(key);
+    this.cursorHighWater.set(key, {
+      input: Math.max(mark?.input ?? 0, cursor.input),
+      output: Math.max(mark?.output ?? 0, cursor.output),
+    });
+  }
+
+  /**
+   * Clamp a token delta to the part of its cursor window not already accounted
+   * (idempotency for pipe deltas). The claim says "this delta ran the cursor up
+   * to `totals`"; whatever lies at or below the high-water mark was already
+   * recorded by an earlier event — a concurrent hook that raced the same cursor
+   * base, or an accept so slow the pipe aborted and re-covered the window on
+   * its next event. Only the overlap is dropped; the token counts stay real
+   * measured deltas (rule 6 — this removes double-counting, it never invents).
+   */
+  private dedupeTokens(event: ProgressEvent): void {
+    const cursor = event.tokenCursor;
+    if (!event.tokens || !cursor) return;
+    const mark = this.cursorHighWater.get(`${cursor.id}#${cursor.gen}`);
+    if (mark) {
+      event.tokens = {
+        input: Math.min(event.tokens.input, Math.max(0, cursor.input - mark.input)),
+        output: Math.min(event.tokens.output, Math.max(0, cursor.output - mark.output)),
+      };
+      // A fully-overlapped delta records as token-less (the event itself still
+      // lands — it is a real turn-end; only its usage was already counted).
+      if (!event.tokens.input && !event.tokens.output) delete event.tokens;
+    }
+    this.raiseCursorHighWater(cursor);
+  }
+
   /**
    * Session-progress event (rule 7 recall): kept in memory for the studio tail
    * and appended to progress.jsonl — never rewritten, reloads with the thread.
    */
   recordProgress(event: ProgressEvent): void {
+    // Idempotency first: clamp the delta BEFORE attribution so a fully-deduped
+    // event behaves exactly like a zero-delta turn-end (consumes the armed
+    // label, adds nothing to any meter).
+    this.dedupeTokens(event);
     // A boundary event (tool label) DECLARES the current sink; the NEXT
     // token-bearing turn-end event inherits it, then the label is consumed so it
     // attributes exactly that one turn — later uncategorized turns fold into
@@ -655,7 +735,13 @@ export class SessionStore {
     name: string,
     svg: string,
     notes: string,
-    provenance: { boardId?: string; optionIds: string[]; revises?: string; kind?: 'mindmap-snapshot' },
+    provenance: {
+      boardId?: string;
+      optionIds: string[];
+      revises?: string;
+      replaces?: string;
+      kind?: 'mindmap-snapshot';
+    },
   ): Artifact {
     const base = slugify(name);
     let slug = base;
@@ -677,7 +763,67 @@ export class SessionStore {
       JSON.stringify(artifact, null, 2),
     );
     this.artifacts.push(artifact);
+    // A kill-verdict replacement landing: stamp the killed artifact's
+    // replacedBy (sidecar rewrite — the killed SVG itself is untouched, rule 7)
+    // and retire the in-flight placeholder.
+    if (provenance.replaces) {
+      const killed = this.artifacts.find((a) => a.slug === provenance.replaces);
+      if (killed) {
+        killed.replacedBy = slug;
+        writeFileAtomic(
+          path.join(this.info.dir, 'artifacts', `${killed.slug}.json`),
+          JSON.stringify(killed, null, 2),
+        );
+        this.appendMd(`\n> Artifact \`${killed.slug}\` (killed) replaced by \`${slug}\`.`);
+      }
+      this.resolvePendingReplacement(provenance.replaces);
+    }
     return artifact;
+  }
+
+  /**
+   * Fullscreen keep/kill verdict on a captured artifact. Like notes, the
+   * verdict is metadata — the .json sidecar is rewritten in place, the SVG is
+   * never touched (rule 7). The decision also lands in brainstorm.md so the
+   * next round's synthesis sees it.
+   */
+  updateArtifactVerdict(slug: string, verdict: ArtifactVerdict, note?: string): Artifact | null {
+    const artifact = this.artifacts.find((a) => a.slug === slug);
+    if (!artifact) return null;
+    artifact.verdict = verdict;
+    if (note !== undefined) artifact.verdictNote = note;
+    artifact.verdictAt = new Date().toISOString();
+    writeFileAtomic(
+      path.join(this.info.dir, 'artifacts', `${slug}.json`),
+      JSON.stringify(artifact, null, 2),
+    );
+    this.appendMd(
+      `\n> Artifact verdict (\`${slug}\`): ${verdict.toUpperCase()}${note ? ` — ${note}` : ''}`,
+    );
+    return artifact;
+  }
+
+  private persistPendingReplacements(): void {
+    writeFileAtomic(
+      path.join(this.info.dir, 'pending-replacements.json'),
+      JSON.stringify(this.pendingReplacements, null, 2),
+    );
+  }
+
+  /** Register a kill's in-flight replacement (upsert — one per killed slug). */
+  addPendingReplacement(pending: PendingReplacement): void {
+    const i = this.pendingReplacements.findIndex((p) => p.replacesSlug === pending.replacesSlug);
+    if (i >= 0) this.pendingReplacements[i] = pending;
+    else this.pendingReplacements.push(pending);
+    this.persistPendingReplacements();
+  }
+
+  /** Retire a placeholder once its replacement was captured. */
+  resolvePendingReplacement(replacesSlug: string): void {
+    const i = this.pendingReplacements.findIndex((p) => p.replacesSlug === replacesSlug);
+    if (i < 0) return;
+    this.pendingReplacements.splice(i, 1);
+    this.persistPendingReplacements();
   }
 
   /**

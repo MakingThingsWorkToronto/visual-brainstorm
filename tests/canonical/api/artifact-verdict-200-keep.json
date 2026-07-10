@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "artifact": {
+    "slug": "glow-mark",
+    "name": "Glow Mark",
+    "svgPath": "<<abs-path>>",
+    "notes": "canonical capture",
+    "verdict": "keep",
+    "verdictNote": "love this one",
+    "verdictAt": "<<iso-date>>",
+    "provenance": { "boardId": "board-diverge-1", "optionIds": ["a"] },
+    "capturedAt": "<<iso-date>>"
+  }
+}

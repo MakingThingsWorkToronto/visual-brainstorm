@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
   ArtifactChatMessageSchema,
+  ArtifactVerdictSchema,
   BoardResponseSchema,
   PaletteColorSchema,
   ProgressEventSchema,
@@ -196,12 +197,6 @@ export class Bridge {
   private readonly responses = new Map<string, BoardResponse>();
   private activeBoard: Board | null = null;
   private thinking: string | null = null;
-  /**
-   * Kill-verdict replacements still generating (one placeholder per entry):
-   * announced via `artifact-pending`, resolved when a capture whose
-   * provenance.replaces names the entry streams in.
-   */
-  private pendingReplacements: PendingReplacement[] = [];
   private browserOpened = false;
   /** UI-invoked procedures queued while no board is awaiting a response. */
   private commandQueue: CommandRequest[] = [];
@@ -241,8 +236,6 @@ export class Bridge {
   private galleryPicked = false;
   port = 0;
 
-  /** Invoked when a UI command is queued (no board waiting) — demo orchestrator hook. */
-  onQueuedCommand: ((request: CommandRequest) => void) | null = null;
   private startedAt: string | null = null;
 
   constructor(
@@ -350,7 +343,7 @@ export class Bridge {
       tokens: this.store.tokenTotals(),
       tokensBySink: this.store.tokensBySink(),
       artifactChat: this.store.artifactChat,
-      pendingReplacements: this.pendingReplacements,
+      pendingReplacements: this.store.pendingReplacements,
       drafts: this.store.drafts,
       seedBrief: this.seedBrief,
       concierge: this.concierge,
@@ -681,6 +674,17 @@ export class Bridge {
                 tokens: z
                   .object({ input: z.number().min(0).default(0), output: z.number().min(0).default(0) })
                   .optional(),
+                // Inbound whitelists strip unknown keys silently (learning
+                // 2026-07-09): every ProgressEvent field the pipe sends must be
+                // re-declared here or it vanishes on the wire with a 200.
+                tokenCursor: z
+                  .object({
+                    id: z.string().max(200),
+                    gen: z.number().int().min(0).default(0),
+                    input: z.number().min(0),
+                    output: z.number().min(0),
+                  })
+                  .optional(),
                 category: TokenSinkSchema.optional(),
                 stage: ProgressStageSchema.optional(),
                 artifactSlug: z.string().max(200).optional(),
@@ -865,6 +869,76 @@ export class Bridge {
             }
             this.log(`artifact notes saved (${artifactSlug}): "${notes.slice(0, 80)}"`);
             this.broadcast({ type: 'artifact', artifact });
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, artifact }));
+          } catch (err) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/artifact-verdict') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { artifactSlug, verdict, note } = z
+              .object({
+                artifactSlug: z.string(),
+                verdict: ArtifactVerdictSchema,
+                note: z.string().max(4000).optional(),
+              })
+              .parse(JSON.parse(body));
+            // Live thread only: a kill triggers regeneration, which captures
+            // into the live thread — verdicts on archived artifacts would
+            // regenerate into the wrong thread (rules 6/7).
+            const artifact = this.store.updateArtifactVerdict(artifactSlug, verdict, note);
+            if (!artifact) {
+              res.writeHead(404, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `no artifact "${artifactSlug}" in the live thread` }));
+              return;
+            }
+            this.log(`artifact verdict (${artifactSlug}): ${verdict}${note ? ` — "${note.slice(0, 80)}"` : ''}`);
+            this.broadcast({ type: 'artifact', artifact });
+            if (verdict === 'kill') {
+              // The killed option's characteristic — the board option(s) this
+              // capture came from — plus the user's note become the
+              // regeneration brief. Deterministic lookup, no interpretation.
+              const round = artifact.provenance.boardId
+                ? this.store.rounds.find((r) => r.board.id === artifact.provenance.boardId)
+                : undefined;
+              const options = (round?.board.options ?? []).filter((o) =>
+                artifact.provenance.optionIds.includes(o.id),
+              );
+              const characteristic =
+                options
+                  .map((o) => `"${o.label}"${o.description ? ` — ${o.description}` : ''}`)
+                  .join('; ') || `"${artifact.name}"`;
+              const pending = {
+                replacesSlug: artifact.slug,
+                characteristic,
+                ...(note ? { note } : {}),
+                at: new Date().toISOString(),
+              };
+              this.store.addPendingReplacement(pending);
+              this.broadcast({ type: 'artifact-pending', pending });
+              const seedNote =
+                `Artifact KILLED: the user rejected artifact "${artifact.name}" (slug ${artifact.slug}, ` +
+                `SVG at ${artifact.svgPath}) with verdict note ${note ? `"${note}"` : '(none)'}. ` +
+                `Its characteristic was ${characteristic}. Run .claude/commands/replace-artifact.md: ` +
+                `ALWAYS delegate generation to svg-artisan; produce ONE replacement option that abandons ` +
+                `what the note rejects while serving the same slot, then capture_artifact it with ` +
+                `replaces: "${artifact.slug}"` +
+                (artifact.provenance.boardId
+                  ? ` and the same provenance (boardId "${artifact.provenance.boardId}", optionIds ${JSON.stringify(artifact.provenance.optionIds)})`
+                  : '') +
+                ` so the studio fills the killed slot.`;
+              const delivered = this.dispatchCommand('replace-artifact', note, seedNote);
+              res.writeHead(200, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: true, artifact, pending, delivered }));
+              return;
+            }
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, artifact }));
           } catch (err) {
@@ -1170,7 +1244,6 @@ export class Bridge {
       } else {
         this.commandQueue.push(request);
       }
-      this.onQueuedCommand?.(request);
     }
     // Full resync: the rewound round's response, cleared active board, and
     // the rewinding shimmer all land in one hello.
@@ -1510,7 +1583,6 @@ export class Bridge {
       this.journalQueued(request); // durable: survives an MCP death before the drain
       this.commandQueue.push(request);
     }
-    this.onQueuedCommand?.(request);
     return 'queued';
   }
 
@@ -1770,6 +1842,12 @@ export class Bridge {
 
   announceArtifact(artifact: Artifact): void {
     this.broadcast({ type: 'artifact', artifact });
+    // A replacement capture also refreshes the killed artifact (the store
+    // stamped its replacedBy) so every tab sees the supersession.
+    if (artifact.provenance.replaces) {
+      const killed = this.store.artifacts.find((a) => a.slug === artifact.provenance.replaces);
+      if (killed) this.broadcast({ type: 'artifact', artifact: killed });
+    }
   }
 
   /**

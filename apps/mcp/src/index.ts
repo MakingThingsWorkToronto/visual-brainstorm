@@ -350,6 +350,7 @@ server.tool(
     'session_status.pendingUiCommands) to keep waiting.',
   {
     timeoutSeconds: z.number().int().min(10).max(86400).default(1740),
+    openBrowser: z.boolean().default(true),
     brief: z
       .string()
       .max(2000)
@@ -383,11 +384,11 @@ server.tool(
           'question\'s free-text field.',
       ),
   },
-  async ({ timeoutSeconds, brief, summary, questions, picks }) => {
+  async ({ timeoutSeconds, openBrowser, brief, summary, questions, picks }) => {
     const unavailable = hostedInteractiveUnavailable('open_studio');
     if (unavailable) return unavailable;
     const { store, bridge } = ensureSession('New discussion');
-    await bridge.openStudio({ brief, summary, questions, picks });
+    await bridge.openStudio({ brief, summary, questions, picks }, openBrowser);
     console.error(
       `[mcp] studio open on the New Discussion panel${brief ? ' (brief handed off)' : ''} — waiting for a brief`,
     );
@@ -592,10 +593,11 @@ server.tool(
     boardId: z.string().optional(),
     optionIds: z.array(z.string()).default([]),
     revises: z.string().optional().describe('Slug of the artifact this capture revises (artifact-chat changes)'),
+    replaces: z.string().optional().describe('Slug of the KILLED artifact this capture replaces (kill-verdict regeneration — fills the killed slot in the studio)'),
   },
-  async ({ name, svg, notes, boardId, optionIds, revises }) => {
+  async ({ name, svg, notes, boardId, optionIds, revises, replaces }) => {
     const { store, bridge } = ensureSession(name);
-    const artifact = store.captureArtifact(name, svg, notes, { boardId, optionIds, revises });
+    const artifact = store.captureArtifact(name, svg, notes, { boardId, optionIds, revises, replaces });
     bridge.announceArtifact(artifact);
     return text({ status: 'captured', artifact, copiedTo: copyToTargetRepo(artifact) });
   },

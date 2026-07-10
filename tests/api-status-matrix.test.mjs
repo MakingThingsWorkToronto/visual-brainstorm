@@ -41,11 +41,12 @@ const CENSUS = [
   ['POST /api/artifact-chat', [200, 400, 404]],
   ['POST /api/board-draft', [200, 400, 404]],
   ['POST /api/artifact-notes', [200, 400, 404]],
+  ['POST /api/artifact-verdict', [200, 400, 404]],
   ['POST /api/respond', [200, 400]],
   ['POST /api/concierge', [200, 400, 404]],
   ['POST /api/gallery-pick', [200, 400, 404]],
   ['GET /* (static studio)', [200, 503]],
-  ['WS /ws', ['hello', 'responded', 'artifact', 'malformed-logged', 'unknown-type-ignored']],
+  ['WS /ws', ['hello', 'responded', 'artifact', 'artifact-pending', 'malformed-logged', 'unknown-type-ignored']],
 ];
 
 const PROVEN = new Map();
@@ -988,6 +989,162 @@ test('POST /api/artifact-notes → 404 unknown slug, 400 missing notes (zod refu
     prove('POST /api/artifact-notes', 400);
 
     assert.equal(store.artifacts[0].notes, 'canonical capture', 'rejected posts change nothing');
+  } finally {
+    await bridge.stop();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/artifact-verdict — 200 keep, 200 kill (+ pending/queued + WS
+// artifact/artifact-pending), 404, 400
+// ---------------------------------------------------------------------------
+test('POST /api/artifact-verdict → 200 keep: sidecar stamped, no pending, WS artifact broadcast', async () => {
+  const { bridge, store } = await startBridge();
+  const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    const messages = [];
+    ws.addEventListener('message', (event) => messages.push(JSON.parse(String(event.data))));
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve);
+      ws.addEventListener('error', reject);
+    });
+    await waitFor(() => messages.some((m) => m.type === 'hello'), 'ws hello');
+
+    const { status, body } = await postJson(bridge, '/api/artifact-verdict', {
+      artifactSlug: 'glow-mark',
+      verdict: 'keep',
+      note: 'love this one',
+    });
+    assert.equal(status, 200);
+    assertMatches(body, expectation('artifact-verdict-200-keep.json'));
+    prove('POST /api/artifact-verdict', 200);
+    assert.equal(store.pendingReplacements.length, 0, 'a keep never queues a replacement');
+
+    const sidecar = JSON.parse(
+      fs.readFileSync(path.join(store.info.dir, 'artifacts', 'glow-mark.json'), 'utf8'),
+    );
+    assert.equal(sidecar.verdict, 'keep', 'sidecar rewritten in place (rule 7 — svg untouched)');
+
+    await waitFor(() => messages.some((m) => m.type === 'artifact'), 'artifact broadcast');
+    prove('WS /ws', 'artifact');
+  } finally {
+    ws.close();
+    await bridge.stop();
+  }
+});
+
+test('POST /api/artifact-verdict → 200 kill: queues a pending replacement, broadcasts artifact then artifact-pending', async () => {
+  const { bridge, store } = await startBridge();
+  const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.recordBoard(board);
+    store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    const messages = [];
+    ws.addEventListener('message', (event) => messages.push(JSON.parse(String(event.data))));
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve);
+      ws.addEventListener('error', reject);
+    });
+    await waitFor(() => messages.some((m) => m.type === 'hello'), 'ws hello');
+
+    const { status, body } = await postJson(bridge, '/api/artifact-verdict', {
+      artifactSlug: 'glow-mark',
+      verdict: 'kill',
+      note: 'too gimmicky',
+    });
+    assert.equal(status, 200);
+    assertMatches(body, expectation('artifact-verdict-200-kill.json'));
+    assert.equal(body.delivered, 'queued', 'no live orchestrator waiting — lands in the pending-commands queue');
+    prove('POST /api/artifact-verdict', 200);
+
+    // GET /api/state afterward surfaces the pending replacement + the verdict.
+    const state = await getJson(bridge, '/api/state');
+    assert.equal(state.body.pendingReplacements.length, 1);
+    assert.equal(state.body.pendingReplacements[0].replacesSlug, 'glow-mark');
+    assert.equal(state.body.artifacts.find((a) => a.slug === 'glow-mark').verdict, 'kill');
+
+    // WS: the artifact broadcast lands BEFORE the artifact-pending broadcast.
+    await waitFor(() => messages.some((m) => m.type === 'artifact-pending'), 'artifact-pending broadcast');
+    const artifactIdx = messages.findIndex((m) => m.type === 'artifact');
+    const pendingIdx = messages.findIndex((m) => m.type === 'artifact-pending');
+    assert.ok(artifactIdx >= 0 && pendingIdx > artifactIdx, 'artifact broadcasts before artifact-pending');
+    assertMatches(messages[pendingIdx], expectation('ws-artifact-pending.json'));
+    prove('WS /ws', 'artifact');
+    prove('WS /ws', 'artifact-pending');
+
+    // A real replacement capture (the actual MCP-tool pathway: capture_artifact
+    // → store.captureArtifact + bridge.announceArtifact) resolves the pending
+    // placeholder and refreshes the killed artifact's sidecar with replacedBy.
+    const replacement = store.captureArtifact('Glow Mark v2', board.options[1].svg, 'toned down', {
+      boardId: board.id,
+      optionIds: ['b'],
+      replaces: 'glow-mark',
+    });
+    bridge.announceArtifact(replacement);
+
+    assert.equal(store.pendingReplacements.length, 0, 'resolved on capture');
+    const killedSidecar = JSON.parse(
+      fs.readFileSync(path.join(store.info.dir, 'artifacts', 'glow-mark.json'), 'utf8'),
+    );
+    assert.equal(killedSidecar.replacedBy, replacement.slug, 'killed artifact stamped with its replacement');
+
+    await waitFor(
+      () => messages.filter((m) => m.type === 'artifact').length >= 3,
+      'replacement + refreshed-killed artifact broadcasts',
+    );
+    const artifactMessages = messages.filter((m) => m.type === 'artifact');
+    // First two: the kill's own broadcast, then (this capture) the replacement,
+    // then the refreshed killed artifact — order is replacement THEN killed refresh.
+    const replacementMsg = artifactMessages.find((m) => m.artifact.slug === replacement.slug);
+    const refreshedKilledMsg = artifactMessages[artifactMessages.length - 1];
+    assert.ok(replacementMsg, 'replacement artifact broadcast');
+    assert.equal(refreshedKilledMsg.artifact.slug, 'glow-mark');
+    assert.equal(refreshedKilledMsg.artifact.replacedBy, replacement.slug, 'refreshed killed artifact carries replacedBy');
+    const replacementIdxInList = artifactMessages.indexOf(replacementMsg);
+    assert.ok(
+      replacementIdxInList < artifactMessages.length - 1,
+      'the replacement envelope arrives before the refreshed-killed envelope',
+    );
+  } finally {
+    ws.close();
+    await bridge.stop();
+  }
+});
+
+test('POST /api/artifact-verdict → 404 unknown slug, 400 bad verdict enum', async () => {
+  const { bridge, store } = await startBridge();
+  try {
+    const board = loadCanonical('boards/diverge.json', BoardSchema);
+    store.captureArtifact('Glow Mark', board.options[0].svg, 'canonical capture', {
+      boardId: board.id,
+      optionIds: ['a'],
+    });
+    const missing = await postJson(bridge, '/api/artifact-verdict', {
+      artifactSlug: 'missing',
+      verdict: 'keep',
+    });
+    assert.equal(missing.status, 404);
+    assertMatches(missing.body, expectation('artifact-verdict-404.json'));
+    prove('POST /api/artifact-verdict', 404);
+
+    const bad = await postJson(bridge, '/api/artifact-verdict', {
+      artifactSlug: 'glow-mark',
+      verdict: 'discard',
+    });
+    assert.equal(bad.status, 400);
+    assertMatches(bad.body, expectation('artifact-verdict-400.json'));
+    prove('POST /api/artifact-verdict', 400);
+
+    assert.equal(store.artifacts[0].verdict, undefined, 'rejected posts change nothing');
   } finally {
     await bridge.stop();
   }
