@@ -144,26 +144,35 @@ function transcriptTotals(file) {
  * rather than fabricate usage (rule 6). Cache reads are deliberately excluded.
  * The cursor is committed ONLY after the bridge accepted the event — a failed
  * POST must not swallow the delta (it rides along on the next event instead).
+ *
+ * Idempotency (no locking — hook safety keeps this pipe a plain read/post):
+ * each delta rides with a `tokenCursor` claim (cursor id + generation + the
+ * cumulative totals it ran up to); the store's per-(id, gen) high-water mark
+ * clamps the overlap when two hooks race the same cursor or a slow bridge
+ * accept (>1.5s abort) makes the next event re-cover a delivered window. A
+ * transcript shrink bumps `gen` so the mark resets instead of eating real usage.
  */
 function tokenDelta(sessionId, transcriptPath) {
-  const none = { delta: undefined, commit: () => {} };
+  const none = { delta: undefined, cursor: undefined, commit: () => {} };
   try {
     const totals = transcriptTotals(transcriptPath);
     const cursorFile = path.join(
       os.tmpdir(),
       `vibr-token-cursor-${String(sessionId).replace(/[^\w.-]+/g, '_')}.json`,
     );
-    let prev = { input: 0, output: 0 };
+    let prev = { input: 0, output: 0, gen: 0 };
     try {
       prev = JSON.parse(fs.readFileSync(cursorFile, 'utf8'));
     } catch {
       /* first run for this session */
     }
+    const shrunk = totals.input < (prev.input ?? 0) || totals.output < (prev.output ?? 0);
+    const gen = (Number.isInteger(prev.gen) ? prev.gen : 0) + (shrunk ? 1 : 0);
     const commit = () => {
       try {
-        fs.writeFileSync(cursorFile, JSON.stringify(totals));
+        fs.writeFileSync(cursorFile, JSON.stringify({ ...totals, gen }));
       } catch {
-        /* cursor loss only over-reports later — never blocks the pipe */
+        /* cursor loss only over-reports later (the store clamps it) — never blocks the pipe */
       }
     };
     const delta = {
@@ -174,7 +183,7 @@ function tokenDelta(sessionId, transcriptPath) {
       commit(); // nothing to report — re-base now (covers compaction shrink)
       return none;
     }
-    return { delta, commit };
+    return { delta, cursor: { id: String(sessionId), gen, ...totals }, commit };
   } catch {
     return none;
   }
@@ -214,17 +223,25 @@ function fromHook(payload) {
   const usage =
     (event === 'Stop' || event === 'SubagentStop') && payload.session_id && payload.transcript_path
       ? tokenDelta(payload.session_id, payload.transcript_path)
-      : { delta: undefined, commit: () => {} };
+      : { delta: undefined, cursor: undefined, commit: () => {} };
   // A boundary tool declares the sink for the next turn-end delta; token-bearing
   // Stop events carry no category and are attributed by the bridge.
   const category = TOOL_SINKS[tool];
-  return { note, source: `hook:${event}`, tokens: usage.delta, category, commitTokens: usage.commit };
+  return {
+    note,
+    source: `hook:${event}`,
+    tokens: usage.delta,
+    tokenCursor: usage.cursor,
+    category,
+    commitTokens: usage.commit,
+  };
 }
 
 try {
   let note = arg('--note');
   let source = arg('--source');
   let tokens;
+  let tokenCursor;
   let category = arg('--category');
   let stage = arg('--stage');
   let commitTokens = () => {};
@@ -235,6 +252,7 @@ try {
       note = hook.note;
       source ??= hook.source;
       tokens = hook.tokens;
+      tokenCursor = hook.tokenCursor;
       category ??= hook.category;
       stage ??= hook.stage;
       commitTokens = hook.commitTokens;
@@ -242,7 +260,11 @@ try {
   }
   const tokensIn = Number(arg('--in') ?? 0);
   const tokensOut = Number(arg('--out') ?? 0);
-  if (tokensIn || tokensOut) tokens = { input: tokensIn, output: tokensOut };
+  // Explicit CLI usage is not cursor-derived — it records as posted, no claim.
+  if (tokensIn || tokensOut) {
+    tokens = { input: tokensIn, output: tokensOut };
+    tokenCursor = undefined;
+  }
   if (category && !SINKS.has(category)) category = undefined; // ignore an unknown label
   if (stage && !STAGES.has(stage)) stage = undefined; // ignore an unknown stage
   // Structured correlation fields — which artifact/option/board the note concerns,
@@ -262,6 +284,7 @@ try {
       source: source ?? 'orchestrator',
       note,
       ...(tokens ? { tokens } : {}),
+      ...(tokens && tokenCursor ? { tokenCursor } : {}),
       ...(category ? { category } : {}),
       ...(stage ? { stage } : {}),
       ...(artifactSlug ? { artifactSlug } : {}),

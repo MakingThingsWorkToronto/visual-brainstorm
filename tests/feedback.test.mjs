@@ -276,3 +276,116 @@ test('rename carries the old topic; move names the new parent', () => {
   assert.ok(text.includes('RENAME: "Neon" → "Bold neon"'));
   assert.ok(text.includes('MOVE: "Sub-idea" now lives under "Second pillar"'));
 });
+
+// ---------------------------------------------------------------------------
+// TWEAK classifier matrix (token-economy follow-ups 2026-07-09, phase 3): the
+// full action / structural-signal / nudge cross, table-driven — one row per
+// path not already covered above (action suppression, each structural signal
+// alone, each nudge alone).
+// ---------------------------------------------------------------------------
+
+const minimalTree = { nodeData: { id: 'root', topic: 'Root' } };
+
+const tweakMatrix = [
+  // 1. A non-iterate action suppresses TWEAK even with nudges present.
+  {
+    name: 'action=park with nudges present',
+    extra: { action: 'park', axisValues: { tone: 80 }, perOptionNotes: { b: 'rounder' } },
+    expectTweak: false,
+  },
+  {
+    name: 'action=accept with nudges present',
+    extra: { action: 'accept', axisValues: { tone: 80 }, perOptionNotes: { b: 'rounder' } },
+    expectTweak: false,
+  },
+  {
+    name: 'action=finalize with nudges present',
+    extra: {
+      action: 'finalize',
+      finalOptionId: 'a',
+      axisValues: { tone: 80 },
+      perOptionNotes: { b: 'rounder' },
+    },
+    expectTweak: false,
+  },
+
+  // 2. Each structural signal ALONE (plus a nudge) defeats TWEAK.
+  {
+    name: 'remixPairs alone',
+    extra: { action: 'iterate', axisValues: { tone: 80 }, remixPairs: [['a', 'c']] },
+    expectTweak: false,
+  },
+  {
+    name: 'ranking alone',
+    extra: { action: 'iterate', axisValues: { tone: 80 }, ranking: ['a'] },
+    expectTweak: false,
+  },
+  {
+    name: 'duelResults alone',
+    extra: {
+      action: 'iterate',
+      axisValues: { tone: 80 },
+      duelResults: [{ pair: ['a', 'b'], winner: 'a' }],
+    },
+    expectTweak: false,
+  },
+  {
+    name: 'clusters alone',
+    extra: { action: 'iterate', axisValues: { tone: 80 }, clusters: [['a', 'b']] },
+    expectTweak: false,
+  },
+  {
+    name: 'gapNotes alone',
+    extra: { action: 'iterate', axisValues: { tone: 80 }, gapNotes: [{ between: [0, 1], note: 'x' }] },
+    expectTweak: false,
+  },
+  {
+    name: 'editedTree alone',
+    extra: { action: 'iterate', axisValues: { tone: 80 }, editedTree: minimalTree },
+    expectTweak: false,
+  },
+  {
+    name: 'treeOps alone',
+    extra: {
+      action: 'iterate',
+      axisValues: { tone: 80 },
+      treeOps: [{ op: 'delete', nodeId: 'n1', topic: 'X', note: '', at: 't' }],
+    },
+    expectTweak: false,
+  },
+
+  // 3. Each nudge ALONE (no structural signal) IS a TWEAK.
+  {
+    name: 'optionAnnotations alone',
+    extra: {
+      action: 'iterate',
+      optionAnnotations: {
+        a: {
+          viewBox: { w: 400, h: 300 },
+          background: { present: true },
+          palette: [],
+          items: [
+            { type: 'note', colorName: 'teal', colorValue: '#088', at: { x: 5, y: 6 }, text: 'make this bigger' },
+          ],
+        },
+      },
+    },
+    expectTweak: true,
+  },
+  {
+    name: 'mutations alone',
+    extra: { action: 'iterate', mutations: { a: ['flip'] } },
+    expectTweak: true,
+  },
+];
+
+for (const { name, extra, expectTweak } of tweakMatrix) {
+  test(`TWEAK classifier matrix: ${name} → ${expectTweak ? 'TWEAK' : 'not TWEAK'}`, () => {
+    const text = digestText(extra);
+    if (expectTweak) {
+      assert.ok(text.includes('TWEAK, not redirect'), `expected a TWEAK digest line for: ${name}`);
+    } else {
+      assert.ok(!text.includes('TWEAK'), `expected NO TWEAK claim for: ${name}`);
+    }
+  });
+}

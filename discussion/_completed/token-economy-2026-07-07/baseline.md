@@ -41,8 +41,9 @@ is runnable by whoever drives the next real session, without archaeology.
   (`pipe-progress.mjs`: `subagent_type: svg-artisan` → `generation`, or `tweak` on a MUTATE
   brief); sidechain usage recorded in the session transcript rides the deltas. Only usage that
   never reaches the transcript is invisible.
-- Measurement noise: the pipe's token cursor is per-event read-modify-write with no locking —
-  two hooks firing close together (Stop + SubagentStop, parallel subagents) can double-post an
-  overlap window, and a slow bridge accept (>1.5s abort) can re-post a committed delta. Treat
-  single-digit-percent inflation as noise, not signal; a locking/idempotency fix is a
-  follow-up, deliberately not built before the A/B (pipe simplicity is a hook-safety feature).
+- ~~Measurement noise~~ FIXED (token-economy-followups, 2026-07-09): every pipe delta now
+  carries a `tokenCursor` idempotency claim (cursor id + generation + cumulative totals) and
+  the store clamps overlapping windows against a per-cursor high-water mark — a concurrent
+  hook race (Stop + SubagentStop) and a slow-accept (>1.5s abort) re-post both count once,
+  proven by race/slow-accept/compaction tests in tests/pipe-progress.test.mjs and
+  tests/session-store.test.mjs. No locking; the pipe stays a plain read/post (hook safety).

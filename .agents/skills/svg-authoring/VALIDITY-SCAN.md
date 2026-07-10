@@ -20,7 +20,10 @@ if you find yourself needing them to WRITE SVG, you are doing the artisan's job 
       drawn fresh, never a graphical overlay of the parent SVGs
 
 Fix small validity defects inline (cheaper than a re-delegation round); re-delegate only
-when the concept itself missed the brief.
+when the concept itself missed the brief. The inline boundary: ATTRIBUTE-level repair only
+(a duplicate attribute, missing `xmlns`/`viewBox`, a stray quote) — anything touching
+geometry, paths, or drawn content is artisan work and goes back via re-delegation ("never
+draws board SVGs inline" includes redrawing parts of one).
 
 ## What good looks like (judging a returned round)
 
@@ -49,3 +52,4 @@ misfiles the round's cost.
   the full craft doc it delegates away (token-economy phase 4)
 - 2026-07-09 — briefing reminder: label→file mapping + keep the MUTATE marker verbatim (the token pipe bins tweak-vs-generation by it) (fresh-eyes round 2 of token-economy-2026-07-07)
 - 2026-07-09 — judging: motion only when briefed, uniform across the board, static read carries (pairs SKILL.md § Living lines) (token-economy fresh-eyes round 3)
+- 2026-07-09 — inline-fix boundary defined: attribute-level repair inline OK; geometry/paths/content re-delegates (token-economy-followups phase 4)

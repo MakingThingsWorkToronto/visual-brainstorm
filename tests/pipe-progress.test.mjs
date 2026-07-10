@@ -137,3 +137,132 @@ test('pipe-progress hook mode: a MUTATE-marked prompt emits stage revising + cat
     server.close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Cursor idempotency (token-economy follow-ups phase 1): REAL pipe processes
+// posting REAL transcript deltas to a REAL Bridge over a REAL SessionStore —
+// the store ledger must clamp the two double-count mechanisms the fresh-eyes
+// review found: a concurrent-hook cursor race and a slow-accept re-post.
+// ---------------------------------------------------------------------------
+import fs from 'node:fs';
+import os from 'node:os';
+import { startBridge, postJson } from './lib/bridge-harness.mjs';
+
+/** A Claude Code transcript JSONL with the given assistant usage entries. */
+function writeTranscript(file, usages) {
+  fs.writeFileSync(
+    file,
+    usages
+      .map((u) => JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: u.input, output_tokens: u.output } } }))
+      .join('\n') + '\n',
+  );
+}
+
+/** The pipe's cursor file for a session id (same derivation as the script). */
+const cursorFile = (sessionId) =>
+  path.join(os.tmpdir(), `vibr-token-cursor-${String(sessionId).replace(/[^\w.-]+/g, '_')}.json`);
+
+const stopPayload = (sessionId, transcriptPath) =>
+  JSON.stringify({ hook_event_name: 'Stop', session_id: sessionId, transcript_path: transcriptPath });
+
+test('concurrent-pipe cursor race: two pipes reading one base never double-count', async () => {
+  const { bridge, store, root } = await startBridge('Race test');
+  const sessionId = `vibr-race-${process.pid}-${Date.now()}`;
+  const transcript = path.join(root, 'transcript.jsonl');
+  try {
+    fs.rmSync(cursorFile(sessionId), { force: true });
+    writeTranscript(transcript, [{ input: 250, output: 25 }]);
+    // Pipe A reads base 0, posts 250/25, commits its cursor.
+    await runPipe(['--port', String(bridge.port)], stopPayload(sessionId, transcript));
+    // The race: pipe B read base 0 BEFORE A committed. Reproduce that exact
+    // interleaving by rewinding the cursor to its pre-A state, then let the
+    // transcript grow before B fires — B posts the overlapping 300/30 window.
+    fs.rmSync(cursorFile(sessionId), { force: true });
+    writeTranscript(transcript, [{ input: 250, output: 25 }, { input: 50, output: 5 }]);
+    await runPipe(['--port', String(bridge.port)], stopPayload(sessionId, transcript));
+    assert.deepEqual(
+      store.tokenTotals(),
+      { input: 300, output: 30 },
+      'the meter equals the transcript — the 250/25 overlap was clamped, not double-counted',
+    );
+    assert.ok(
+      store.progress.some((e) => e.tokenCursor),
+      'the tokenCursor claim survived the bridge inbound whitelist onto the recorded event',
+    );
+  } finally {
+    fs.rmSync(cursorFile(sessionId), { force: true });
+    await bridge.stop();
+  }
+});
+
+test('slow-accept re-post: a delta the bridge accepted after the pipe aborted is never re-counted', async () => {
+  const { bridge, store, root } = await startBridge('Slow accept test');
+  const sessionId = `vibr-slow-${process.pid}-${Date.now()}`;
+  const transcript = path.join(root, 'transcript.jsonl');
+  // A listener slower than the pipe's 1.5s abort: it records the body (the
+  // event IS delivered) but answers too late for the pipe to commit its cursor.
+  const slow = await new Promise((resolve) => {
+    const bodies = [];
+    const server = http.createServer((req, res) => {
+      let data = '';
+      req.on('data', (chunk) => (data += chunk));
+      req.on('end', () => {
+        bodies.push(JSON.parse(data));
+        setTimeout(() => {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        }, 1700);
+      });
+    });
+    server.listen(0, '127.0.0.1', () => resolve({ server, bodies, port: server.address().port }));
+  });
+  try {
+    fs.rmSync(cursorFile(sessionId), { force: true });
+    writeTranscript(transcript, [{ input: 250, output: 25 }]);
+    // The pipe posts, aborts at 1.5s, exits 0 WITHOUT committing the cursor.
+    const { code } = await runPipe(['--port', String(slow.port)], stopPayload(sessionId, transcript));
+    assert.equal(code, 0, 'hook safety: a slow accept never fails the hook');
+    assert.equal(fs.existsSync(cursorFile(sessionId)), false, 'the aborted POST did not commit');
+    assert.equal(slow.bodies.length, 1, 'the slow listener still RECEIVED the delta');
+    // ...and the bridge accepted that very body (the slow leg, delivered).
+    const accepted = await postJson(bridge, '/api/progress', slow.bodies[0]);
+    assert.equal(accepted.status, 200);
+    // Next turn-end: the cursor never committed, so the pipe re-covers the
+    // same window plus new growth. The ledger must count the overlap once.
+    writeTranscript(transcript, [{ input: 250, output: 25 }, { input: 50, output: 5 }]);
+    await runPipe(['--port', String(bridge.port)], stopPayload(sessionId, transcript));
+    assert.deepEqual(
+      store.tokenTotals(),
+      { input: 300, output: 30 },
+      'the re-posted 250/25 window counts once — the meter equals the transcript',
+    );
+  } finally {
+    fs.rmSync(cursorFile(sessionId), { force: true });
+    slow.server.close();
+    await bridge.stop();
+  }
+});
+
+test('compaction: a shrunk transcript bumps the cursor generation and later usage still counts', async () => {
+  const { bridge, store, root } = await startBridge('Compaction test');
+  const sessionId = `vibr-gen-${process.pid}-${Date.now()}`;
+  const transcript = path.join(root, 'transcript.jsonl');
+  try {
+    fs.rmSync(cursorFile(sessionId), { force: true });
+    writeTranscript(transcript, [{ input: 250, output: 25 }]);
+    await runPipe(['--port', String(bridge.port)], stopPayload(sessionId, transcript));
+    // Compaction: the transcript shrinks. Zero delta — the pipe re-bases and
+    // bumps its generation instead of posting.
+    writeTranscript(transcript, [{ input: 10, output: 1 }]);
+    await runPipe(['--port', String(bridge.port)], stopPayload(sessionId, transcript));
+    assert.equal(JSON.parse(fs.readFileSync(cursorFile(sessionId), 'utf8')).gen, 1, 'shrink bumped gen');
+    // Post-compaction growth sits BELOW the gen-0 high-water mark — the new
+    // generation must still count it (never eat real usage).
+    writeTranscript(transcript, [{ input: 10, output: 1 }, { input: 40, output: 4 }]);
+    await runPipe(['--port', String(bridge.port)], stopPayload(sessionId, transcript));
+    assert.deepEqual(store.tokenTotals(), { input: 290, output: 29 });
+  } finally {
+    fs.rmSync(cursorFile(sessionId), { force: true });
+    await bridge.stop();
+  }
+});
