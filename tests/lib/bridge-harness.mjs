@@ -63,4 +63,16 @@ export const postJson = async (bridge, p, body) => {
 
 export const getState = async (bridge) => (await fetch(`http://127.0.0.1:${bridge.port}/api/state`)).json();
 
+/** Open a WS client on the bridge and collect every parsed envelope into `messages`. */
+export async function wsCollect(bridge) {
+  const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`);
+  const messages = [];
+  ws.addEventListener('message', (event) => messages.push(JSON.parse(String(event.data))));
+  await new Promise((resolve, reject) => {
+    ws.addEventListener('open', resolve);
+    ws.addEventListener('error', reject);
+  });
+  return { ws, messages };
+}
+
 export const getHealth = async (bridge) => (await fetch(`http://127.0.0.1:${bridge.port}/api/health`)).json();

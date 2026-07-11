@@ -449,6 +449,43 @@ await runHumanSim('', {
       assert.equal(cAnswer.typed, 'shipping a CLI', 'typed concierge text stays structured on the answer');
     });
 
+    // THE 2026-07-11 REGRESSION WINDOW: the concierge is answered and NOTHING
+    // else is on the surface yet (no gallery, no board). This gap used to snap
+    // the whole timeline back to the New Discussion panel, vanishing the Q&A.
+    await step('answered intake STAYS in the chat (no snap-back to the New Discussion panel)', async () => {
+      // Wait for the answered exchange's OWN bubble (the intake envelope rides
+      // the WS a beat behind the tool resolution) — then assert the full frame.
+      await waitInPage(
+        'the intake chat history block with the answered exchange',
+        `!!document.querySelector('[data-testid="intake-history"]') &&
+         document.body.textContent.includes('developers · shipping a CLI')`,
+      );
+      // Canonical data VISIBLY in frame: the submitted brief, the concierge
+      // question, and the user's own answer — permanent chat bubbles now.
+      await assertSurfaceShowsCanonical(evaluate, 'intake chat history', [
+        brief,
+        'Who is this glyph for?',
+        'developers · shipping a CLI',
+      ]);
+      // The panel must NOT have re-taken the surface (the old snap-back).
+      assert.ok(
+        await evaluate(
+          `![...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Send & iterate')`,
+        ),
+        'the New Discussion panel did not re-take the surface after the concierge answer',
+      );
+      // The filmstrip offers the way BACK to the intake — its first slot.
+      await waitInPage(
+        'the 🌱 brief chip in the filmstrip',
+        `!!document.querySelector('[data-testid="intake-chip"]')`,
+      );
+      // And the way FORWARD is honest: the working shimmer, not a dead end.
+      await waitInPage(
+        'the working shimmer holding the gap',
+        `!!document.querySelector('[data-testid="intake-preparing"]')`,
+      );
+    });
+
     let picked;
     await step('gallery appears + human picks Mind map', async () => {
       // The REAL present_gallery tool call (canonical cards — the content is a

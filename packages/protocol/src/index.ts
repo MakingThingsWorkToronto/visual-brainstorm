@@ -602,6 +602,63 @@ export const LivingGallerySchema = z.object({
 export type LivingGallery = z.infer<typeof LivingGallerySchema>;
 
 /**
+ * One structured intake answer inside a `brief` intake-log entry: which survey
+ * question the answers belonged to. `id` is the SurveyQuestion id when known —
+ * it is the prefill key that lets "revise this brief" re-seed the New
+ * Discussion panel with the user's earlier picks.
+ */
+export const IntakeBriefAnswerSchema = z.object({
+  id: z.string().max(100).optional(),
+  question: z.string().max(500),
+  answers: z.array(z.string().max(500)).max(16).default([]),
+});
+export type IntakeBriefAnswer = z.infer<typeof IntakeBriefAnswerSchema>;
+
+/**
+ * One entry of a thread's INTAKE LOG — the chat-history record of everything
+ * the user said before round 1 (operator report 2026-07-11: "user messages
+ * shall not disappear"). The submitted New Discussion brief, every ANSWERED
+ * concierge exchange, and the Living Gallery pick persist to the thread's
+ * intake-log.json and ride StudioState.intakeLog, so the studio renders them
+ * as permanent timeline bubbles instead of letting each stage vanish when the
+ * next one takes the surface. Timeouts are NOT logged here (no user message —
+ * brainstorm.md records them honestly as text).
+ */
+export const IntakeLogEntrySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('brief'),
+    at: z.string(),
+    /** The composed brief sent to the orchestrator (typed text + flattened survey picks). */
+    prompt: z.string(),
+    /** Exactly what the user TYPED, before survey picks were folded in — the revise prefill. */
+    rawBrief: z.string().optional(),
+    /** The intake survey structured: which question each answer met. */
+    answers: z.array(IntakeBriefAnswerSchema).default([]),
+    /** Generation-model routing picked in the composer (always explicit). */
+    model: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('concierge'),
+    at: z.string(),
+    question: z.string(),
+    /** The assembled answer (chips + typed) — never empty in a logged entry. */
+    answer: z.string(),
+    /** Suggestion chips the user tapped (endorsement of Claude's framing). */
+    picked: z.array(z.string()).default([]),
+    /** What the user typed in their own words (weight above chips). */
+    typed: z.string().default(''),
+  }),
+  z.object({
+    kind: z.literal('gallery-pick'),
+    at: z.string(),
+    method: z.string(),
+    /** The methodology roster that was offered when the pick was made. */
+    offered: z.array(z.string()).default([]),
+  }),
+]);
+export type IntakeLogEntry = z.infer<typeof IntakeLogEntrySchema>;
+
+/**
  * Option chats reuse the artifact-chat channel: a board OPTION (any round,
  * incl. previous ones) is addressed by this synthetic slug in
  * ArtifactChatMessage.artifactSlug, so questions about earlier choices
@@ -860,6 +917,12 @@ export interface StudioState {
   concierge: ConciergeExchange | null;
   /** Pending Living Gallery (method cards), null when none is awaiting a pick. */
   gallery: LivingGallery | null;
+  /**
+   * The thread's intake chat history (brief, answered concierge exchanges,
+   * gallery pick) — rendered as permanent timeline bubbles so nothing the user
+   * said during intake ever disappears from the studio.
+   */
+  intakeLog: IntakeLogEntry[];
 }
 
 export type ServerToStudio =
@@ -873,6 +936,7 @@ export type ServerToStudio =
   | { type: 'artifact-chat'; message: ArtifactChatMessage; discussionId?: string }
   | { type: 'draft'; draft: BoardResponse }
   | { type: 'concierge'; exchange: ConciergeExchange | null }
-  | { type: 'gallery'; gallery: LivingGallery | null };
+  | { type: 'gallery'; gallery: LivingGallery | null }
+  | { type: 'intake'; entry: IntakeLogEntry };
 
 export type StudioToServer = { type: 'response'; response: BoardResponse };

@@ -114,20 +114,26 @@ supported path — the browser studio on `127.0.0.1` is reachable on your machin
 
 6. **Stage 1: Enter your brief.** The New Discussion panel collects your idea (see "New
    Discussion — open with anything" below for the full panel description). Refine the brief
-   and click **Send & iterate** when ready.
+   and click **Send & iterate** when ready. Your brief is logged as a permanent bubble in the
+   timeline — it stays there forever, even after you archive the thread. You can **✎ revise
+   this brief** (click the button on the brief bubble) to reopen the panel prefilled with
+   what you typed, your earlier answers, and your model pick; sending re-seeds the
+   brainstorm from the revised brief (the old brief stays in the history). If a round is
+   still waiting for your answer, the studio asks before parking it.
 
 7. **Stage 2: Concierge asks clarifying questions.** Claude moves to the **ConciergeIntake**
    surface and asks ONE question at a time — domain-tailored to your idea (audience,
    constraints, what "good" looks like, scope, liveness). Each question has tappable
    suggestion chips plus a free-text box. Answer and send; Claude asks the next. This loop
    runs as many rounds as it takes (not a fixed count; comprehensiveness pays off). Every
-   answer lives in your thread's memory so Claude can weave them in.
+   answer appears as a permanent question/answer pair in the timeline — the intake is now
+   part of your thread's visible history.
 
 8. **Stage 3: Pick a method.** Claude presents the **Living Gallery** — a set of method
    cards (Mind map, Funnel, Wreck, Cluster), each seeded with a tiny live SVG grown from
    your brief and answers. ONE card is highlighted with a **"Recommended"** ribbon and a
    reason chip quoting your answers (Claude's suggestion, not a mandate). Click any card to
-   start that methodology.
+   start that methodology. The pick is logged and appears as a marker in the timeline.
 
 9. **What happens next depends on your pick:**
    - **Mind map:** The studio opens a live co-edited **mind-elixir canvas**. Double-click any
@@ -154,10 +160,12 @@ shown in the studio's left nav (e.g. `2026-07-06-1902-visualize-5-…`). The who
 reloads from the cache; nothing is regenerated.
 
 **New Discussion — open with anything.** The button sits directly under the app title at
-the top of the left nav; clicking it swaps the main timeline for the full brainstorm-intake
-**chat panel**. An empty live session (no rounds, no active board) lands on this panel
-automatically — it is also where a bare `/run-brainstorm` puts you. This is **Stage 1 of
-the intake** (see above). Top to bottom:
+the top of the left nav; clicking it opens the brainstorm-intake **chat panel** as a timeline
+block while keeping the rest of the timeline below it visible. An empty live session (no rounds,
+no active board) lands on this panel automatically — it is also where a bare `/run-brainstorm`
+puts you. This is **Stage 1 of the intake** (see above). Once you send your first message, the
+panel becomes a permanent part of the timeline history (never snaps back to panel-only view).
+Top to bottom:
 - a Claude-side intro bubble;
 - a **survey of tappable questions** (the Survey module): *What are you making?* (icons /
   a logo / a ui flow / a palette / a system map / new feature / comparison), *What's the
@@ -275,13 +283,7 @@ a time: **→ keeps, ← kills** (arrow keys work). When every card is judged, c
 dealt as head-to-head **duels** and a live ranking builds. The ranking, every flick, and
 every duel reach Claude as preference data — top ranks lead the next round's synthesis.
 
-**Wayfinder strip** (above the timeline) — one strip is the whole brainstorm: every round as
-a clickable thumbnail (narrowing toward the winner; click = jump back), your **keeps hanging
-beneath** (each with a **✓** badge when marked kept; drag one straight into your editor to export it, no export dialog, or click to open fullscreen with notes and chat), optionally a **📌 pinned** row (artifacts you pinned from the fullscreen viewer — click to open read-only, or unpin via the 📌 toggle), optionally in-flight **pending replacements** (killed artifacts with a shimmering "↻ replacing…" placeholder until Claude draws the replacement), a **🌳 decision tree**
-toggle (opens an overlay showing how the brainstorm decided — root → one node per round → chosen
-✓ / rejected ✕ / action / explode/delete/note operations, coloured by decision kind), and a
-glowing **next-phase pill** at the right end. Once you've judged, **Enter** sends and requests
-that phase; the composer shows "Enter sends & asks for …" when it's armed.
+**Wayfinder strip** (above the timeline) — one strip is the whole brainstorm: if your discussion has intake history (answered questions, a brief, or a gallery pick), the 🌱 **brief** chip appears FIRST at the left — click it to scroll the timeline back to your intake bubbles. Then: every round as a clickable thumbnail (narrowing toward the winner; click = jump back), your **keeps hanging beneath** (each with a **✓** badge when marked kept; drag one straight into your editor to export it, no export dialog, or click to open fullscreen with notes and chat), optionally a **📌 pinned** row (artifacts you pinned from the fullscreen viewer — click to open read-only, or unpin via the 📌 toggle), optionally in-flight **pending replacements** (killed artifacts with a shimmering "↻ replacing…" placeholder until Claude draws the replacement), a **🌳 decision tree** toggle (opens an overlay showing how the brainstorm decided — root → one node per round → chosen ✓ / rejected ✕ / action / explode/delete/note operations, coloured by decision kind), and a glowing **next-phase pill** at the right end. Once you've judged, **Enter** sends and requests that phase; the composer shows "Enter sends & asks for …" when it's armed.
 
 **Fullscreen viewer — ONE surface for every artifact and option.** Clicking any captured artifact (a keep on the wayfinder strip or pinned row), a pinned artifact, a previous round's option, or a live board's option opens the same fullscreen surface: a zoom/pan/pinch SVG stage on the left, a right dock with **Notes** above an optional **Chat**. The header carries **Keep** and **Kill** buttons on live captured artifacts (archived threads and round options don't show them).
 - **Captured artifacts and live board options:** Notes are editable. For artifacts, **Save notes** persists them with the artifact; for live options, notes ship with your response. A chat composer (one box, one **Send**) lets you ask questions or request changes; answers come from Claude via subagents. A requested change is captured as a NEW version (original untouched, marked `revised`); the view switches to the revision while the dialog stays open. **Asking about a live option never costs you your work:** the board stays put and your **dials, selections, and notes are kept** while Claude answers (your in-progress answer is saved with the thread, so it also survives a reload).

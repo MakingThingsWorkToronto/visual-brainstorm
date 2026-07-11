@@ -53,6 +53,8 @@ export function WayfinderStrip({
   pinned = [],
   activeBoard,
   proposal,
+  hasIntake = false,
+  onIntake,
   onJump,
   onAdvance,
   onOpenArtifact,
@@ -66,6 +68,10 @@ export function WayfinderStrip({
   pinned?: Artifact[];
   activeBoard: Board | null;
   proposal: PhaseProposal | null;
+  /** True once the thread has intake history (brief/concierge) — shows the 🌱 chip. */
+  hasIntake?: boolean;
+  /** Jump back to the intake history — ALWAYS the strip's first slot. */
+  onIntake?: () => void;
   onJump: (boardId: string) => void;
   onAdvance: () => void;
   /** When provided, clicking a keep opens the artifact chat instead of downloading (drag-out still exports). */
@@ -73,14 +79,27 @@ export function WayfinderStrip({
   /** Opens the per-discussion decision-tree overlay (the visual decision record). */
   onDecisionTree?: () => void;
 }) {
-  if (rounds.length === 0) return null;
+  if (rounds.length === 0 && !hasIntake) return null;
   const keeps = shelfSlots(artifacts, pendingReplacements).slice(-6);
   return (
     <div className="mb-4 rounded-2xl border border-line bg-surface px-3 py-2">
       <div className="flex items-center gap-2 overflow-x-auto">
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-ink-dim">
-          rounds
-        </span>
+        {hasIntake && onIntake && (
+          <button
+            type="button"
+            data-testid="intake-chip"
+            onClick={onIntake}
+            title="Back to the start — your brief and intake answers; revise the brief from there"
+            className="shrink-0 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-ink-dim hover:border-accent hover:text-ink"
+          >
+            🌱 brief
+          </button>
+        )}
+        {rounds.length > 0 && (
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-ink-dim">
+            rounds
+          </span>
+        )}
         {rounds.map((record, i) => {
           const size = Math.max(30, 46 - i * 4); // the strip narrows toward the winner
           const isActive = activeBoard?.id === record.board.id;

@@ -5,7 +5,9 @@ import {
   type ArtifactChatMessage,
   type BoardResponse,
   type DiscussionSummary,
+  type IntakeLogEntry,
   type RoundRecord,
+  type SeedBrief,
   type SeedIntake,
   type SessionInfo,
 } from '@visual-brainstorm/protocol';
@@ -16,6 +18,7 @@ import { proposeNextPhase } from './lib/wayfinder';
 import { BulbIcon, Bubble, Marker, SvgPane } from './components/primitives';
 import { ArtifactFullscreen } from './components/ArtifactFullscreen';
 import { BoardSurvey } from './components/BoardSurvey';
+import { IntakeHistory } from './components/IntakeHistory';
 import { NewDiscussionPanel, type NewDiscussionExtras } from './components/NewDiscussionPanel';
 import { ConciergeIntake } from './components/ConciergeIntake';
 import { LivingGallery } from './components/LivingGallery';
@@ -32,6 +35,8 @@ interface Thread {
   artifacts: Artifact[];
   /** Reloaded dialogs — shown read-only when viewing an archived thread. */
   artifactChat?: ArtifactChatMessage[];
+  /** The thread's intake chat history (brief, concierge Q&A, gallery pick). */
+  intakeLog?: IntakeLogEntry[];
   /** Cumulative token totals over the thread's progress events. */
   tokens?: { input: number; output: number };
 }
@@ -175,6 +180,14 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false);
   const [commandStatus, setCommandStatus] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  // "Revise this brief": the New Discussion panel reopens prefilled from the
+  // intake-log brief entry. `nonce` keys the remount so a SECOND revise click
+  // re-prefills even when the brief text is unchanged; `seed` carries the raw
+  // typed text + the ORIGINAL questions (synthesized from the logged answers,
+  // so bespoke handoff answers survive) + picks; `model` restores the routing.
+  const [revise, setRevise] = useState<{ nonce: number; seed: SeedBrief; model?: string } | null>(
+    null,
+  );
   // True from a brief submit until the intake's first stage (concierge/gallery/
   // board) arrives — keeps the human off the New Discussion panel meanwhile.
   const [intakeAwaiting, setIntakeAwaiting] = useState(false);
@@ -577,6 +590,9 @@ export default function App() {
   const viewingLive = archived === null;
   const rounds = viewingLive ? state.rounds : archived.rounds;
   const history = rounds.filter((r) => r.response !== null);
+  // The intake chat history — the user's brief, answered concierge exchanges,
+  // and gallery pick. Rendered FIRST in the timeline; never disappears.
+  const intakeLog = viewingLive ? state.intakeLog : archived.intakeLog ?? [];
   // Pinned artifacts (session.json) → a dedicated filmstrip row. Slugs resolve
   // against the same thread's artifacts; a stale slug (deleted capture) drops.
   const artifactSource = viewingLive ? state.artifacts : archived.artifacts;
@@ -584,41 +600,95 @@ export default function App() {
   const pinned = pinnedSlugs
     .map((slug) => artifactSource.find((a) => a.slug === slug))
     .filter((a): a is Artifact => Boolean(a));
-  // Empty live session → land on the New Discussion panel (the intake surface),
-  // e.g. a bare /run-brainstorm opening the studio via open_studio. A pending
-  // concierge question takes over the surface instead (adaptive intake).
-  const landing =
-    viewingLive &&
-    history.length === 0 &&
-    !state.activeBoard &&
-    !state.thinking &&
-    !state.concierge &&
-    !state.gallery &&
-    !intakeAwaiting;
-  // After a brief is submitted the mandatory concierge→gallery intake is coming
-  // (run-brainstorm.md step 0; enforced by the bridge intake gate). Show a
-  // "preparing your questions" surface so the human is NEVER stranded back on the
-  // New Discussion panel while the orchestrator dispatches the first stage.
+  // ONE pair of derived predicates decides who owns the surface — never a
+  // hand-maintained list of negations per consumer (the original snap-back bug
+  // was born from exactly that shape). A new surface type added to StudioState
+  // gets added HERE once and every consumer follows.
+  const surfaceLive = Boolean(
+    state.activeBoard || state.thinking || state.concierge || state.gallery,
+  );
+  // The thread has begun once ANY user message exists (a round answer or an
+  // intake entry) — from then on the timeline owns the surface forever; the
+  // New Discussion panel must never re-take it and swallow the user's messages
+  // (operator report 2026-07-11: "anything I click takes me back to the new
+  // discussion... my answer disappeared").
+  const threadStarted = history.length > 0 || state.intakeLog.length > 0 || intakeAwaiting;
+  // TRULY empty live session → land on the New Discussion panel (the intake
+  // surface), e.g. a bare /run-brainstorm opening the studio via open_studio.
+  const landing = viewingLive && !threadStarted && !surfaceLive;
+  // Between intake stages (brief submitted; concierge answered and the next
+  // question/gallery/board hasn't arrived yet) hold the gap with an honest
+  // waiting shimmer so the human is never stranded — the gap used to snap
+  // back to the panel. Hidden while the panel itself is open (composing).
   const intakePreparing =
-    viewingLive &&
-    intakeAwaiting &&
-    !state.concierge &&
-    !state.gallery &&
-    !state.activeBoard &&
-    history.length === 0;
+    viewingLive && threadStarted && !surfaceLive && history.length === 0 && !newOpen;
 
   // Wayfinder: what the studio would do next (the orchestrator still decides).
   const proposal = useMemo(
     () => (viewingLive ? proposeNextPhase(state.rounds, state.activeBoard?.phase ?? null) : null),
     [viewingLive, state.rounds, state.activeBoard?.phase],
   );
-  const jumpToRound = useCallback((boardId: string) => {
-    document.getElementById(`round-${boardId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // ONE timeline scroll helper — every anchor jump goes through it.
+  const jumpTo = useCallback((elementId: string) => {
+    document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+  const jumpToRound = useCallback((boardId: string) => jumpTo(`round-${boardId}`), [jumpTo]);
+  // Filmstrip 🌱 chip: back to the start of the conversation — the intake
+  // history (submitted brief + concierge answers).
+  const jumpToIntake = useCallback(() => jumpTo('intake-history'), [jumpTo]);
+  // Reopen the New Discussion panel prefilled from a logged brief. Sending
+  // re-seeds the brainstorm with the revised brief (nothing is rewound). The
+  // logged answers become the panel's QUESTION SET (id-less ones get synthetic
+  // ids), so bespoke handoff questions prefill instead of being dropped by the
+  // generic preset.
+  const reviseBrief = useCallback((brief: Extract<IntakeLogEntry, { kind: 'brief' }>) => {
+    const picks: Record<string, string[]> = {};
+    const questions = brief.answers.map((qa, i) => {
+      const id = qa.id ?? `revise-q-${i}`;
+      picks[id] = qa.answers;
+      return { id, question: qa.question, options: qa.answers, multi: true };
+    });
+    setRevise((prev) => ({
+      nonce: (prev?.nonce ?? 0) + 1,
+      seed: {
+        brief: brief.rawBrief ?? brief.prompt,
+        ...(questions.length > 0 ? { questions, picks } : {}),
+      },
+      model: brief.model,
+    }));
+    setNewOpen(true);
   }, []);
 
+  // Follow the live conversation to its newest turn (board, thinking note,
+  // concierge question, gallery, or a just-logged intake answer) — unless the
+  // New Discussion panel is open at the top (the user is composing there).
+  // newOpen is read through a ref, NOT a dep: closing the panel (Cancel) must
+  // not itself fire a scroll that yanks the user away from where they were.
+  const newOpenRef = useRef(newOpen);
+  newOpenRef.current = newOpen;
   useEffect(() => {
-    if (viewingLive) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [viewingLive, state.activeBoard?.id, state.rounds.length, state.thinking]);
+    if (viewingLive && !newOpenRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [
+    viewingLive,
+    state.activeBoard?.id,
+    state.rounds.length,
+    state.thinking,
+    state.concierge?.id,
+    state.gallery?.id,
+    state.intakeLog.length,
+  ]);
+  // Opening the panel (New Discussion button / ✎ revise) must land the user ON
+  // it — it mounts as the FIRST timeline block, which on a long scrollback is
+  // otherwise several screens above the viewport (the click looks dead).
+  useEffect(() => {
+    if (newOpen) {
+      document
+        .getElementById('new-discussion-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [newOpen, revise?.nonce]);
 
   return (
     <div className="flex h-screen">
@@ -716,31 +786,33 @@ export default function App() {
           newOpen || landing ? 'pb-0' : 'pb-6'
         }`}
       >
-        {!newOpen && (
-          <div className="pr-4 lg:pr-8">
-            {/* Archived threads render the same strip so a captured keep stays
-                clickable (its chat replays read-only); live gets the proposal. */}
-            <WayfinderStrip
-              rounds={viewingLive ? state.rounds : archived.rounds}
-              artifacts={viewingLive ? state.artifacts : archived.artifacts}
-              pendingReplacements={viewingLive ? state.pendingReplacements : []}
-              pinned={pinned}
-              activeBoard={viewingLive ? state.activeBoard : null}
-              proposal={viewingLive ? proposal : null}
-              onJump={jumpToRound}
-              onOpenArtifact={openArtifactChat}
-              onDecisionTree={() => {
-                const id = viewingLive ? state.session?.id : archived.session.id;
-                const title = viewingLive ? state.session?.title : archived.session.title;
-                if (id) void openDecisionTree(id, title ?? 'this discussion');
-              }}
-              onAdvance={() => {
-                setAdvanceSignal((s) => s + 1);
-                bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-              }}
-            />
-          </div>
-        )}
+        <div className="pr-4 lg:pr-8">
+          {/* Archived threads render the same strip so a captured keep stays
+              clickable (its chat replays read-only); live gets the proposal.
+              Stays visible while the New Discussion panel is open — the panel
+              is a timeline block now, not a surface takeover. */}
+          <WayfinderStrip
+            rounds={viewingLive ? state.rounds : archived.rounds}
+            artifacts={viewingLive ? state.artifacts : archived.artifacts}
+            pendingReplacements={viewingLive ? state.pendingReplacements : []}
+            pinned={pinned}
+            activeBoard={viewingLive ? state.activeBoard : null}
+            proposal={viewingLive ? proposal : null}
+            hasIntake={intakeLog.length > 0}
+            onIntake={jumpToIntake}
+            onJump={jumpToRound}
+            onOpenArtifact={openArtifactChat}
+            onDecisionTree={() => {
+              const id = viewingLive ? state.session?.id : archived.session.id;
+              const title = viewingLive ? state.session?.title : archived.session.title;
+              if (id) void openDecisionTree(id, title ?? 'this discussion');
+            }}
+            onAdvance={() => {
+              setAdvanceSignal((s) => s + 1);
+              bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
+        </div>
 
         <main
           className={`flex-1 space-y-6 overflow-y-auto pr-4 lg:pr-8 ${
@@ -748,23 +820,57 @@ export default function App() {
           }`}
         >
           {(newOpen || landing) && (
-            <NewDiscussionPanel
-              themes={state.themes}
-              models={state.models}
-              defaultModel={state.defaultModel}
-              runtime={state.runtime}
-              targetRepo={state.targetRepo}
-              cancellable={!landing}
-              seedBrief={state.seedBrief}
-              onCancel={() => setNewOpen(false)}
-              onStart={(prompt, seed, extras) => {
-                invokeCommand('new-brainstorm', prompt || undefined, seed, extras);
-                setNewOpen(false);
-                setIntakeAwaiting(true); // the concierge→gallery intake is coming — don't fall back to the panel
-              }}
-            />
+            <div id="new-discussion-panel" className="flex flex-1 flex-col gap-3">
+              {/* A blocking question arrived while the user is composing here —
+                  say so, or it sits invisible at the bottom until it times out. */}
+              {newOpen && (state.concierge || state.gallery) && (
+                <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs">
+                  <span>Claude is asking a question below — it's waiting for your answer.</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewOpen(false)}
+                    className="ml-auto shrink-0 rounded-lg border border-accent/50 bg-surface px-2.5 py-1 font-medium text-accent hover:bg-accent/10"
+                  >
+                    Take me there
+                  </button>
+                </div>
+              )}
+              <NewDiscussionPanel
+                key={revise ? `revise-${revise.nonce}` : 'panel'}
+                themes={state.themes}
+                models={state.models}
+                defaultModel={revise?.model ?? state.defaultModel}
+                runtime={state.runtime}
+                targetRepo={state.targetRepo}
+                cancellable={!landing}
+                seedBrief={revise?.seed ?? state.seedBrief}
+                onCancel={() => {
+                  setNewOpen(false);
+                  setRevise(null);
+                }}
+                onStart={(prompt, seed, extras) => {
+                  // A live board is mid-answer: dispatching a command parks it
+                  // (the round records as parked; its half-set dials are not
+                  // sent). Make that explicit before destroying the user's work.
+                  if (
+                    viewingLive &&
+                    state.activeBoard &&
+                    !window.confirm(
+                      'A round below is still waiting for your answer. Starting a new brainstorm ' +
+                        'parks it — the selections and dials on that board will NOT be sent. Continue?',
+                    )
+                  ) {
+                    return;
+                  }
+                  invokeCommand('new-brainstorm', prompt || undefined, seed, extras);
+                  setNewOpen(false);
+                  setRevise(null);
+                  setIntakeAwaiting(true); // the concierge→gallery intake is coming — don't fall back to the panel
+                }}
+              />
+            </div>
           )}
-          {!newOpen && !landing && (
+          {!landing && (
             <>
           {!viewingLive && (
             <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs">
@@ -793,6 +899,14 @@ export default function App() {
               )}
             </div>
           )}
+
+          {/* The intake chat history — always first, live or archived: the
+              user's brief and concierge answers are permanent chat messages. */}
+          <IntakeHistory
+            entries={intakeLog}
+            modelLabels={modelLabels}
+            onRevise={viewingLive ? reviseBrief : undefined}
+          />
 
           {history.map((record) => (
             <div key={record.board.id} id={`round-${record.board.id}`}>
@@ -876,13 +990,11 @@ export default function App() {
 
           {intakePreparing && (
             <div className="mt-3 space-y-2" data-testid="intake-preparing">
-              <Bubble side="claude">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-dim">
-                  Intake
-                </div>
-                Got your brief — reading it and preparing your first clarifying questions…
-              </Bubble>
-              <Marker shimmer>Preparing the concierge…</Marker>
+              {/* Honest copy: this states the THREAD's state (mid-intake,
+                  waiting), not a claim that Claude is actively working — the
+                  studio cannot know that (rule 6). Session activity below
+                  carries the real liveness signal. */}
+              <Marker shimmer>waiting for the next step…</Marker>
             </div>
           )}
 
@@ -921,10 +1033,12 @@ export default function App() {
                   onCommand={invokeCommand}
                   targetRepo={state.targetRepo}
                   themes={state.themes}
-                  // While a past round is being revisited, that round's BoardSurvey
-                  // owns the wayfinding pulse — suppress this live board's guide
-                  // tags so the two don't emit duplicate step/input boxes.
-                  guide={revisitId === null}
+                  // While a past round is being revisited OR the New Discussion
+                  // panel is open, another surface owns the wayfinding pulse —
+                  // suppress this live board's guide tags so two surfaces never
+                  // emit duplicate step/input boxes (the pulse would steer the
+                  // user to the wrong composer).
+                  guide={revisitId === null && !newOpen}
                   // Restore the persisted in-progress answer (dials/selections/
                   // notes) so it survives an artifact-chat detour + reloads.
                   initial={state.drafts.find((d) => d.boardId === state.activeBoard!.id)}

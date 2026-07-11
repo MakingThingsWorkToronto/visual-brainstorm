@@ -21,7 +21,10 @@ import {
   type ArtifactChatMessage,
   type Board,
   type BoardResponse,
+  IntakeBriefAnswerSchema,
   type ConciergeExchange,
+  type IntakeBriefAnswer,
+  type IntakeLogEntry,
   type LivingGallery,
   type ModelCatalogEntry,
   type PendingReplacement,
@@ -348,6 +351,7 @@ export class Bridge {
       seedBrief: this.seedBrief,
       concierge: this.concierge,
       gallery: this.gallery,
+      intakeLog: this.store.intakeLog,
     };
   }
 
@@ -412,10 +416,12 @@ export class Bridge {
         req.on('data', (chunk) => (body += chunk));
         req.on('end', () => {
           try {
-            const { command, prompt, seed, attachments, model, palette, discussionId, round, intakeAnswers } = z
+            const { command, prompt, rawBrief, seed, attachments, model, palette, discussionId, round, intakeAnswers } = z
               .object({
                 command: z.enum(['plan-closeout', 'discover-skills', 'new-brainstorm', 'reopen']),
                 prompt: z.string().max(2000).optional(),
+                /** new-brainstorm: exactly what the user TYPED (prompt = typed + flattened picks) — the revise prefill. */
+                rawBrief: z.string().max(2000).optional(),
                 seed: SeedIntakeSchema.optional(),
                 /** New Discussion composer: files/photos seeding the brainstorm. */
                 attachments: z.array(ResponseAttachmentSchema).optional(),
@@ -431,16 +437,10 @@ export class Bridge {
                  * new-brainstorm: the intake survey STRUCTURED (question → picked
                  * answers), so the question each answer belonged to survives —
                  * the flattened parenthetical in `prompt` loses that mapping.
+                 * The item shape is protocol-owned (rule 5): IntakeBriefAnswerSchema
+                 * carries the ids ("revise this brief" prefill keys) and size caps.
                  */
-                intakeAnswers: z
-                  .array(
-                    z.object({
-                      question: z.string().max(500),
-                      answers: z.array(z.string().max(500)).max(16),
-                    }),
-                  )
-                  .max(16)
-                  .optional(),
+                intakeAnswers: z.array(IntakeBriefAnswerSchema).max(16).optional(),
               })
               .parse(JSON.parse(body));
             const seedNote = command === 'reopen'
@@ -480,6 +480,16 @@ export class Bridge {
                   ].filter(Boolean);
                   return notes.length > 0 ? notes.join('\n') : undefined;
                 })();
+            // The brief is the thread's FIRST user chat message — log it so it
+            // never disappears from the studio timeline (operator, 2026-07-11).
+            if (command === 'new-brainstorm') {
+              this.recordBriefIntake(
+                prompt ?? '',
+                rawBrief,
+                (intakeAnswers ?? []).filter((qa) => qa.answers.length > 0),
+                model,
+              );
+            }
             const delivered = this.dispatchCommand(command, prompt, seedNote);
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, delivered }));
@@ -653,6 +663,8 @@ export class Bridge {
               tokensBySink: thread.tokensBySink(),
               // Persisted dialogs reload with the thread (read-only in the studio).
               artifactChat: thread.artifactChat,
+              // The intake chat history replays with the archived view too.
+              intakeLog: thread.intakeLog,
             }),
           );
         } catch (err) {
@@ -1002,7 +1014,7 @@ export class Bridge {
               // answer durably; the next ask_concierge with this question collects
               // it instead of re-asking — the user's answer is never lost.
               const exchange = { ...this.concierge, answer, picked, typed };
-              this.store.recordConcierge(exchange.question, answer, picked, typed);
+              this.announceIntake(this.store.recordConcierge(exchange.question, answer, picked, typed));
               this.store.writeIntakePending({ kind: 'concierge-answered', exchange, picked, typed } satisfies IntakePending);
               this.concierge = null;
               this.broadcast({ type: 'concierge', exchange: null });
@@ -1043,7 +1055,7 @@ export class Bridge {
               // returns this pick instead of re-presenting.
               const gallery = this.gallery;
               this.galleryPicked = true;
-              this.store.recordGalleryPick(method, gallery.cards.map((c) => c.method));
+              this.announceIntake(this.store.recordGalleryPick(method, gallery.cards.map((c) => c.method)));
               this.store.writeIntakePending({ kind: 'gallery-picked', gallery, method } satisfies IntakePending);
               this.gallery = null;
               this.broadcast({ type: 'gallery', gallery: null });
@@ -1413,7 +1425,9 @@ export class Bridge {
       }, timeoutMs);
       this.conciergeResolve = (answer) => {
         clearTimeout(timer);
-        this.store.recordConcierge(question, answer?.answer ?? null, answer?.picked, answer?.typed);
+        this.announceIntake(
+          this.store.recordConcierge(question, answer?.answer ?? null, answer?.picked, answer?.typed),
+        );
         this.store.clearIntakePending();
         finish(answer);
       };
@@ -1466,7 +1480,7 @@ export class Bridge {
       this.galleryResolve = (method) => {
         clearTimeout(timer);
         this.galleryPicked = true; // intake gate satisfied — boards may now present
-        this.store.recordGalleryPick(method, methods);
+        this.announceIntake(this.store.recordGalleryPick(method, methods));
         this.store.clearIntakePending();
         finish(method);
       };
@@ -1540,6 +1554,34 @@ export class Bridge {
    * response carrying the command — Claude stops brainstorming and runs the
    * procedure. Otherwise queue it; it drains into the next present_board result.
    */
+  /** Broadcast a just-recorded intake entry — the ONE wire point for the log. */
+  private announceIntake(entry: IntakeLogEntry | null): void {
+    if (entry) this.broadcast({ type: 'intake', entry });
+  }
+
+  /**
+   * Log the submitted New Discussion brief as the thread's first chat message.
+   * Pre-round-1 (the landing flow, and a revise during intake) the brainstorm
+   * continues on the CURRENT thread, so the entry lands there. A brief over a
+   * thread that already has rounds is NOT logged locally: it travels to the
+   * orchestrator with the command, and the fresh brainstorm it starts records
+   * its own brief through that process's landing loop (open_studio → panel).
+   */
+  private recordBriefIntake(
+    prompt: string,
+    rawBrief: string | undefined,
+    answers: IntakeBriefAnswer[],
+    model: string | undefined,
+  ): void {
+    if (this.store.rounds.length > 0) {
+      this.log('brief not logged on this thread (it has rounds) — it travels with the new-brainstorm command');
+      return;
+    }
+    this.announceIntake(
+      this.store.recordBrief(prompt, rawBrief, answers, model ?? this.options.defaultModel),
+    );
+  }
+
   dispatchCommand(command: string, prompt?: string, seedNote?: string): 'via-board-response' | 'queued' {
     this.log(`UI command: ${command}${prompt ? ` (seed: "${prompt.slice(0, 60)}")` : ''}${seedNote ? ' (+seed payload)' : ''} (${this.activeBoard && this.pending.has(this.activeBoard.id) ? 'board waiting — delivering via response' : 'queueing'})`);
     if (this.activeBoard && this.pending.has(this.activeBoard.id)) {

@@ -31,6 +31,7 @@ const EMPTY: StudioState = {
   seedBrief: null,
   concierge: null,
   gallery: null,
+  intakeLog: [],
 };
 
 /** WS in (boards), HTTP POST out (responses), auto-reconnect, hello resync. */
@@ -159,6 +160,20 @@ export function useBridge() {
               return { ...prev, concierge: msg.exchange };
             case 'gallery':
               return { ...prev, gallery: msg.gallery };
+            case 'intake': {
+              // Idempotent append (full-content identity — kind+at alone could
+              // collide within one millisecond): a hello resync racing an
+              // intake envelope must not duplicate a timeline bubble.
+              const incoming = JSON.stringify(msg.entry);
+              const seen = prev.intakeLog.some((e) => JSON.stringify(e) === incoming);
+              return seen ? prev : { ...prev, intakeLog: [...prev.intakeLog, msg.entry] };
+            }
+            default:
+              // An envelope type this bundle doesn't know (newer bridge, older
+              // studio — routine across an MCP rebuild with a tab left open)
+              // must never blank the app: returning undefined here would
+              // replace the whole StudioState.
+              return prev;
             case 'progress':
               // The bridge stamps `category` (and dedupes overlapping deltas)
               // onto the broadcast event, so the per-sink meter mirrors the

@@ -17,19 +17,22 @@ in `.claude/commands/run-brainstorm.md` step 0, `.claude/agents/brainstorm-orche
 1. **Hand off the brief via `open_studio`** — lands the user on the New Discussion panel (brief
    + voice, chips, colors, scribble, attachments, model, target folder) and blocks until they
    submit. If the human already described the purpose in Claude Code, pass it as `brief`
-   (pre-fills the panel; no rework). Submission arrives as a new-brainstorm command.
+   (pre-fills the panel; no rework). Submission arrives as a new-brainstorm command. The brief
+   is logged as a structured `IntakeLogEntry` and rendered as a permanent bubble in the timeline.
 
 2. **Adaptive concierge — call `ask_concierge` as many times as it takes** (no fixed-count cap;
    comprehensiveness rewards the brainstorm). Each question is presented in the studio
    (ConciergeIntake surface) with tappable suggestion chips + free text; answers return and
    append to the thread's `brainstorm.md` digest. Domain-tailored questions: audience,
-   constraints, what "good" looks like, scope, liveness.
+   constraints, what "good" looks like, scope, liveness. Each answer is logged as an
+   `IntakeLogEntry` and rendered as question/answer bubbles in the timeline (live or archived).
 
 3. **Living Gallery — call `present_gallery`** with the roster as method cards, each carrying a
    LIVE mini SVG genuinely seeded from the brief + answers (delegate the 4 minis to `svg-artisan`
    — never generic icons). Mark exactly ONE `recommended:true` with a `reason` quoting the
    user's answers. The studio's LivingGallery surface ribbons the recommended card and collects
-   the pick.
+   the pick. The pick is logged as an `IntakeLogEntry` and rendered as a marker line in the
+   timeline.
 
 4. **Route the pick** — `present_gallery` returns the chosen `method` (routing key); start there:
    - **mindmap** → `present_board` with a `tree` (kind `"mindmap"`, no options); user co-edits
@@ -40,6 +43,17 @@ in `.claude/commands/run-brainstorm.md` step 0, `.claude/agents/brainstorm-orche
 
    Non-mindmap picks still flow through run-brainstorm's pre-phrase (step 1) and the funnel — the
    gallery only chose the STARTING mechanic.
+
+## Intake persists as chat history (2026-07-11)
+
+Once intake begins (the first message is submitted), the timeline is permanent — the studio never
+swaps back to the New Discussion panel alone. Each step (brief, concierge exchange, gallery pick)
+appears as structured bubbles at the TOP of the timeline and remains visible in the thread history
+forever, including archived threads. Gaps between intake stages show a "preparing…" shimmer. The
+user can **✎ revise the brief** (a button on the brief bubble, live threads only) to restart the
+intake with a different prompt — sending a fresh new-brainstorm, leaving the old intake in history.
+The WayfinderStrip gains a 🌱 **brief** chip (testid: `intake-chip`) as its FIRST slot when intake
+history exists; clicking it scrolls the timeline back to the intake bubbles.
 
 ## The intake is STRUCTURALLY enforced, not just instructed (2026-07-08)
 

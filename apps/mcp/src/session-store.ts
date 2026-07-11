@@ -5,6 +5,7 @@ import {
   ArtifactSchema,
   BoardResponseSchema,
   BoardSchema,
+  IntakeLogEntrySchema,
   PendingReplacementSchema,
   ProgressEventSchema,
   SessionInfoSchema,
@@ -14,6 +15,8 @@ import {
   type Board,
   type BoardResponse,
   type DiscussionSummary,
+  type IntakeBriefAnswer,
+  type IntakeLogEntry,
   type MindTree,
   type PendingReplacement,
   type ProgressEvent,
@@ -79,6 +82,34 @@ function writeFileAtomic(file: string, data: string): void {
 }
 
 /**
+ * Load a whole-array JSON file (pending-replacements.json, intake-log.json)
+ * into `target`, validating PER ENTRY so one corrupt element skips honestly
+ * instead of discarding every entry after it (a whole-loop catch truncated
+ * the tail — and the next whole-array rewrite made the loss permanent).
+ */
+function loadJsonArray<T>(file: string, schema: { parse(raw: unknown): T }, target: T[]): void {
+  if (!fs.existsSync(file)) return;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    console.error(`[store] skipping unreadable ${path.basename(file)}: ${String(err)}`);
+    return;
+  }
+  if (!Array.isArray(raw)) {
+    console.error(`[store] skipping ${path.basename(file)}: not an array`);
+    return;
+  }
+  for (const item of raw) {
+    try {
+      target.push(schema.parse(item));
+    } catch (err) {
+      console.error(`[store] skipping one ${path.basename(file)} entry: ${String(err)}`);
+    }
+  }
+}
+
+/**
  * Persists every board, per-option SVG, response, and artifact (CLAUDE.md rule 7) to the
  * donor-style discussion folder: <root>/<stamp>-<slug>/. Nothing is ever regenerated —
  * threads reload via SessionStore.open() and list via SessionStore.list().
@@ -128,6 +159,12 @@ export class SessionStore {
    * in-flight placeholder instead of losing it.
    */
   readonly pendingReplacements: PendingReplacement[] = [];
+  /**
+   * The thread's intake chat history (submitted brief, answered concierge
+   * exchanges, gallery pick) — persisted to intake-log.json so the studio's
+   * timeline bubbles survive reloads (user messages never disappear).
+   */
+  readonly intakeLog: IntakeLogEntry[] = [];
 
   /** Create a NEW thread under the discussion root. */
   constructor(title: string, root: string) {
@@ -173,18 +210,15 @@ export class SessionStore {
       artifactChat: [],
       drafts: [],
       pendingReplacements: [],
+      intakeLog: [],
       cursorHighWater: new Map(),
     });
-    const pendingFile = path.join(dir, 'pending-replacements.json');
-    if (fs.existsSync(pendingFile)) {
-      try {
-        for (const raw of JSON.parse(fs.readFileSync(pendingFile, 'utf8'))) {
-          store.pendingReplacements.push(PendingReplacementSchema.parse(raw));
-        }
-      } catch (err) {
-        console.error(`[store] skipping pending-replacements.json: ${String(err)}`);
-      }
-    }
+    loadJsonArray(path.join(dir, 'intake-log.json'), IntakeLogEntrySchema, store.intakeLog);
+    loadJsonArray(
+      path.join(dir, 'pending-replacements.json'),
+      PendingReplacementSchema,
+      store.pendingReplacements,
+    );
     const chatFile = path.join(dir, 'artifacts', 'chat.jsonl');
     if (fs.existsSync(chatFile)) {
       for (const line of fs.readFileSync(chatFile, 'utf8').split('\n')) {
@@ -662,7 +696,12 @@ export class SessionStore {
    * — the digest the orchestrator builds the Living Gallery and boards on. A
    * null answer means the question timed out (recorded honestly, no fake answer).
    */
-  recordConcierge(question: string, answer: string | null, picked?: string[], typed?: string): void {
+  recordConcierge(
+    question: string,
+    answer: string | null,
+    picked?: string[],
+    typed?: string,
+  ): IntakeLogEntry | null {
     // Chips vs typed words are DIFFERENT signals (endorsement of Claude's
     // framing vs the user's own words) — keep both in the text memory.
     const detail =
@@ -673,6 +712,59 @@ export class SessionStore {
     this.appendMd(
       `\n> Concierge Q: ${question}\n> Concierge A: ${answer ?? '(no answer — timed out)'}${detail}`,
     );
+    // Only ANSWERED exchanges enter the intake log (a timeout has no user
+    // message to preserve — brainstorm.md above records it honestly).
+    if (answer === null) return null;
+    return this.appendIntakeLog({
+      kind: 'concierge',
+      at: new Date().toISOString(),
+      question,
+      answer,
+      picked: picked ?? [],
+      typed: typed ?? '',
+    });
+  }
+
+  /**
+   * The submitted New Discussion brief (composed prompt + structured survey
+   * answers) — the FIRST user message of the thread's chat history. Logged so
+   * the studio's timeline always shows how the brainstorm was seeded and can
+   * prefill a "revise this brief" panel from it.
+   */
+  recordBrief(
+    prompt: string,
+    rawBrief: string | undefined,
+    answers: IntakeBriefAnswer[],
+    model: string | undefined,
+  ): IntakeLogEntry {
+    this.appendMd(
+      `\n> New Discussion brief: ${prompt || '(no text — seeded by sketch/attachment)'}` +
+        (answers.length > 0
+          ? `\n> Intake answers: ${answers.map((a) => `${a.question} → ${a.answers.join(' · ')}`).join('; ')}`
+          : ''),
+    );
+    return this.appendIntakeLog({
+      kind: 'brief',
+      at: new Date().toISOString(),
+      prompt,
+      ...(rawBrief !== undefined ? { rawBrief } : {}),
+      answers,
+      ...(model ? { model } : {}),
+    });
+  }
+
+  /** Append one intake-log entry and persist the whole (small) log atomically. */
+  private appendIntakeLog(entry: IntakeLogEntry): IntakeLogEntry {
+    this.intakeLog.push(entry);
+    try {
+      writeFileAtomic(
+        path.join(this.info.dir, 'intake-log.json'),
+        JSON.stringify(this.intakeLog, null, 2),
+      );
+    } catch (err) {
+      console.error(`[store] intake-log.json write failed: ${String(err)}`);
+    }
+    return entry;
   }
 
   /**
@@ -682,18 +774,23 @@ export class SessionStore {
    * A real pick ALSO persists the intake gate to session.json (info.intake) so
    * the mandatory-front-door lock survives an MCP restart.
    */
-  recordGalleryPick(method: string | null, offered: string[]): void {
+  recordGalleryPick(method: string | null, offered: string[]): IntakeLogEntry | null {
     this.appendMd(
       `\n> Living Gallery — offered [${offered.join(', ')}]; user picked: ${method ?? '(no pick — timed out)'}`,
     );
-    if (method !== null) {
-      this.info.intake = { complete: true, method };
-      try {
-        writeFileAtomic(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
-      } catch (err) {
-        console.error(`[store] session.json intake write failed: ${String(err)}`);
-      }
+    if (method === null) return null;
+    this.info.intake = { complete: true, method };
+    try {
+      writeFileAtomic(path.join(this.info.dir, 'session.json'), JSON.stringify(this.info, null, 2));
+    } catch (err) {
+      console.error(`[store] session.json intake write failed: ${String(err)}`);
     }
+    return this.appendIntakeLog({
+      kind: 'gallery-pick',
+      at: new Date().toISOString(),
+      method,
+      offered,
+    });
   }
 
   /**

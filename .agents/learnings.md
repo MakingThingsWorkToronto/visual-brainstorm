@@ -1,5 +1,53 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-11 — a typed WS-reducer switch with no default case blanks the app the first time an OLD bundle meets a NEW envelope type
+
+- **The trap:** useBridge's setState updater switched over every KNOWN ServerToStudio
+  type, so TypeScript was satisfied — but at runtime an envelope type the loaded bundle
+  doesn't know (a tab left open across an MCP rebuild auto-reconnects to the newer bridge)
+  fell through and returned `undefined`, replacing the ENTIRE StudioState and blanking the
+  page. The repo already hardened hello-merge for missing FIELDS (2026-07-07 blank-page
+  skew) but nothing guarded unknown TYPES; adding the first new envelope in months
+  (`intake`) is what exposed it.
+- **How to apply:** every reducer over a wire-versioned union ends with
+  `default: return prev` — exhaustiveness at compile time says nothing about the OTHER
+  side of the wire being the same version. Check this whenever adding a new envelope.
+
+## 2026-07-11 — a green unit test on a pathway production never calls is a fabricated proof; grep the CALLERS before building on a hook
+
+- **The trap:** the intake-history fix routed "brief submitted over a busy thread" through
+  `Bridge.attachStore` — a hook whose doc comment says "Point the bridge at a fresh thread
+  (New Brainstorm)" — and proved it with a unit test that called `attachStore` directly.
+  But `attachStore` has ZERO production callers (`ensureSession` creates one store per MCP
+  process and never re-attaches): the held brief could never flush in a real run, and the
+  test passed by driving a pathway only tests exercise — the same false-green class as the
+  2026-07-09 fake-harness learning, reached from the opposite direction (real producer,
+  unreal caller). Found only by the adversarial review's caller-grep.
+- **How to apply:** before wiring behavior to an existing hook, grep who CALLS it in
+  production — a suggestive name/comment is not a caller. If the answer is "only tests",
+  the design is wrong: either delete the dependence (here: let the brief travel with the
+  command and be recorded by the flow that actually creates the thread) or wire the hook
+  into production first. And treat "the unit test passes" as proof ONLY when the test
+  enters through a route production takes.
+
+## 2026-07-11 — an ephemeral surface that only lives in "pending" state makes user input vanish; every user message needs a durable, renderable record
+
+- **The trap:** the concierge exchange lived ONLY as `StudioState.concierge` (the pending
+  question); answering it broadcast `concierge: null` and the Q&A survived nowhere the
+  studio could render (brainstorm.md is model-facing text, not UI state). Meanwhile the
+  App's `landing` flag re-took the whole surface with the New Discussion panel whenever no
+  live surface remained — so the moment after an answer, the user's words vanished AND every
+  idle gap "took me back to the new discussion" (operator report). Two designs conspired:
+  pending-only state for user input + a takeover surface keyed on "nothing else is up".
+  The client-side `intakeAwaiting` veil could not fix it — it reset when the FIRST stage
+  arrived and covered none of the later gaps.
+- **How to apply:** any user submission must land in a durable, protocol-shaped log the UI
+  renders as permanent history (here: `intake-log.json` → `StudioState.intakeLog` →
+  timeline bubbles), never only in the transient pending slot. And never key a surface
+  takeover on the ABSENCE of other surfaces — key it on "this thread truly has nothing"
+  (here: `intakeLog.length === 0` joined the landing condition). Gaps between stages get a
+  working shimmer, not a fallback to an input panel.
+
 ## 2026-07-10 — a delegated DOC pass fails by FABRICATING plausible glue facts, not only by dying mid-file
 
 - **The trap:** the wiki-librarian delegation for in-progress-feedback got every named fact

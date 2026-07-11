@@ -34,8 +34,14 @@ model: haiku
    tool names and a real response shape (e.g. search returns bounded snippets with no page
    body; a granular read returns only the requested subsection). This is the MCP analogue of
    step 3's "prove the real path."
-6. Report results verbatim — failures are reported as failures with output, never smoothed over.
-7. **Trust the EXIT CODE you actually captured, not the one the shell hands back.**
+6. **Rule-5 sweep on protocol-touching changes**: any NEW inbound `z.object` whitelist or
+   structural TS type in `apps/*` that spells a shape `packages/protocol` exports (or gains
+   in the same change) is drift-by-duplication — zod whitelists strip unknown keys
+   SILENTLY, so the copies diverge without an error. Grep the diff for `z.object({` /
+   inline `{ id?: ...; question: ...; }`-style shapes and point them at the protocol
+   schema/type (transport caps belong ON the protocol schema).
+7. Report results verbatim — failures are reported as failures with output, never smoothed over.
+8. **Trust the EXIT CODE you actually captured, not the one the shell hands back.**
    `npm test 2>&1 | tail -40` reports TAIL's exit code (0) even when the suite failed —
    a false-green that survived one real session until a FAIL line was spotted by luck.
    Capture the suite's own status (`PIPESTATUS[0]` in bash, or run unpiped / append
@@ -43,6 +49,10 @@ model: haiku
    to any trailing `echo`/`grep` whose exit code masks the command before it.
 
 ## Changelog
+- 2026-07-11 — added step 6 rule-5 sweep: new inbound zod whitelists / structural types that
+  re-spell a protocol shape are silent drift (zod strips unknown keys) — point them at the
+  protocol schema; steps renumbered 7→8 (from new-discussion-chat-history-2026-07-11
+  adversarial review)
 - 2026-07-09 — step 7: piped test output masks the suite's exit code (`| tail` reports tail's
   0) — capture PIPESTATUS/unpiped status before claiming green (from mindmap-chat-hardening)
 - 2026-07-09 — step 1: build order now protocol → studio → mcp → wiki-mcp; a NEW workspace

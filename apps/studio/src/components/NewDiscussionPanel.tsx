@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_INTAKE_QUESTIONS } from '@visual-brainstorm/protocol';
 import type {
+  IntakeBriefAnswer,
   ModelCatalogEntry,
   PaletteColor,
   ResponseAttachment,
@@ -57,9 +58,12 @@ export interface NewDiscussionExtras {
    * The intake survey STRUCTURED (question text → picked answers + typed
    * "other") — the composed prompt flattens answers into a parenthetical,
    * losing which question each belonged to; this preserves the mapping for
-   * the orchestrator's seed note.
+   * the orchestrator's seed note. The shape is protocol-owned (rule 5);
+   * `id` is the SurveyQuestion id — the key "revise this brief" prefills from.
    */
-  intakeAnswers?: { question: string; answers: string[] }[];
+  intakeAnswers?: IntakeBriefAnswer[];
+  /** Exactly what the user TYPED (the composed prompt folds survey picks in). */
+  rawBrief?: string;
 }
 
 // The panel's intake questions come from ONE of two sources: a run-brainstorm
@@ -433,11 +437,12 @@ export function NewDiscussionPanel({
                   .map((q) => {
                     const a = answerOf(answers, q.id);
                     const picked = [...a.picked, ...(a.other.trim() ? [a.other.trim()] : [])];
-                    return { question: q.question, answers: picked };
+                    return { id: q.id, question: q.question, answers: picked };
                   })
                   .filter((qa) => qa.answers.length > 0);
                 onStart(composedPrompt, seed, {
                   attachments: intake.attachments,
+                  rawBrief: prompt.trim(),
                   // Always explicit (token-economy decision 4): the seed names the
                   // generation model even when it's the default — no undefined
                   // fallthrough that leaves routing to omission.

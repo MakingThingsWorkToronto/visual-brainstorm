@@ -58,6 +58,12 @@ straggler browser (see the leaked-browser rule below).
   silently breaks the moment the schema gains a defaulted field (bit us: `ranking`).
 - Never mock providers or fake success (rules 6/11-spirit): tests hit the real Bridge,
   real filesystem, real schemas.
+- **A test must ENTER through a route production takes — grep the CALLERS of any hook you
+  drive directly.** A green unit test that calls a method with zero production callers
+  (e.g. `bridge.attachStore` — tests-only) proves a pathway that never runs: the
+  held-brief flush "passed" while the real second-brainstorm path silently dropped the
+  user's message. A suggestive name or doc comment is not a caller; if the only callers
+  are tests, the design under test is wrong, not proven.
 - Failures are reported verbatim with output — then fixed at the root cause.
 - **APIs: every status code proven.** A new or changed endpoint lands with a test per
   REACHABLE status code, asserting the response BODY against the canonical expectation —
@@ -87,7 +93,16 @@ straggler browser (see the leaked-browser rule below).
   server→studio channel (like `askConcierge`/`presentGallery`, mirroring `presentAndWait`) = a
   protocol field + `ServerToStudio` case + `bridge.state()`/broadcast + a `useBridge` reducer case
   (no case → the app blanks) + an endpoint with 200/404/400 in the matrix. When you test one,
-  verify all five exist.
+  verify all five exist. AND the reducer must end `default: return prev` — TypeScript
+  exhaustiveness says nothing about the OTHER side of the wire: an old tab auto-reconnecting
+  to a newer bridge receives envelope types its bundle doesn't know, and a fallthrough
+  `undefined` replaces the whole StudioState (blank page). Check the default survives
+  whenever a new envelope type is added.
+- **A whole-array JSON store loads through per-entry validation** (`loadJsonArray` in
+  session-store): one corrupt entry must skip ALONE — a whole-loop catch truncates every
+  entry after it, and the next whole-array rewrite makes the tail loss PERMANENT (user
+  data destroyed behind a passing "skips corrupt file" test). Test the middle-entry-corrupt
+  case, not just the whole-file-corrupt case.
 - **A live-DOM engine (mind-elixir) is only exercised in the REAL browser (human-sim), never
   `renderToString`/ui-smoke** — its mount happens in a `useEffect` the server renderer never runs.
   ui-smoke proves the static wrapper markers; the human-sim asserts the engine actually mounted
@@ -160,6 +175,10 @@ A test-honesty gap once let a whole methodology ship unproven — encode these s
      assertion.
 
 ## Changelog
+- 2026-07-11 — production-route rule (grep the callers of any hook a test drives directly —
+  tests-only callers = fabricated proof); reducer `default: return prev` on wire-versioned
+  unions; whole-array JSON stores need the middle-entry-corrupt test (from
+  new-discussion-chat-history-2026-07-11 adversarial review)
 - 2026-07-09 — point 3 hardened structurally: sim-runner now SPAWNS the real stdio MCP server
   and sims orchestrate via mcp-client tools/call (no bridge handle exists to misuse); fixtures
   must satisfy tool-boundary contracts (≥5 axes caught canonical diverge.json violating the
