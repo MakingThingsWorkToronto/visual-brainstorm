@@ -1,5 +1,26 @@
 # Agentic Learnings (newest first)
 
+## 2026-07-12 — a thread can be completed OFFLINE (operator: "do not use visual brainstorm"); the recipe is disk-level, and decision-tree.* is derived — never hand-edit it
+
+- **The discovery:** the operator can order a mid-flight thread completed without the studio.
+  The pending `round-NN/response.json` IS the signal — a single selection + note + one
+  deliberate dial move is a complete finalize instruction (per the repo's own "a dial-only
+  response is a complete instruction" doctrine). The offline recipe: append the
+  interpretation + a `## Completion — converged offline` block to `brainstorm.md`
+  (append-only, honest that no further board was presented — rule 6); write
+  `artifacts/<slug>.svg` plus its `.json` sidecar BY HAND in exact `ArtifactSchema` shape
+  (slug/name/svgPath/notes/provenance{boardId,optionIds}/capturedAt) — sidecars are
+  zod-validated on reload and a malformed one is SILENTLY skipped, so the artifact would
+  vanish from the studio's archive view; skip `compose_poster` with an honest note
+  (MCP-only tool); archive + commit as a normal closeout.
+- **The trap:** `decision-tree.json`/`.svg` look editable but are DERIVED —
+  `SessionStore.writeDecisionTree` rebuilds both from round records on every response, so a
+  hand-edit both drifts from the builder's shape and gets silently erased by the next
+  server write. Leave them reflecting only the rounds actually presented.
+- **How to apply:** offline completion touches `brainstorm.md` + `artifacts/` only; the
+  tree stays as the server left it; the completion block carries the constraints the build
+  plan will need.
+
 ## 2026-07-11 — a typed WS-reducer switch with no default case blanks the app the first time an OLD bundle meets a NEW envelope type
 
 - **The trap:** useBridge's setState updater switched over every KNOWN ServerToStudio

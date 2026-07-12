@@ -1,0 +1,13 @@
+{
+  "slug": "final-gentle-handoff-one-shared-light",
+  "name": "FINAL — Gentle Handoff, One Shared Light",
+  "svgPath": "C:\\Code\\svgbrainstorm\\discussion\\2026-07-11-1707-two-border-stars-how-should-they-relate\\artifacts\\final-gentle-handoff-one-shared-light.svg",
+  "notes": "The thread's finale: soft-relay mechanic re-tuned by the user's Coupling 28→3 dial move — one light only, ever. Plays the full 14s cycle via SMIL (travel → handoff bloom → conic edge-glow wears the light down the nav border → decay to dark → depart), with opacity crossfades at identical coordinates so no frame shows two lights; a static annotated layer (numbered phases, dashed travel paths, handoff ring) keeps the story legible with animation frozen. Captured offline at operator instruction (no studio round 2 — see brainstorm.md Completion block).",
+  "provenance": {
+    "boardId": "board-r1-1783805197306",
+    "optionIds": [
+      "soft-relay"
+    ]
+  },
+  "capturedAt": "2026-07-12T14:00:01.221Z"
+}

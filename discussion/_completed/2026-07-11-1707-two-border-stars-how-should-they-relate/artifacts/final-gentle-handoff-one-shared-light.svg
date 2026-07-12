@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360">
+  <defs>
+    <radialGradient id="fg-halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="35%" stop-color="#e75af2" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="fg-bloom" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#e75af2" stop-opacity="0.85"/>
+      <stop offset="45%" stop-color="#c084fc" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fg-cometBody" gradientUnits="userSpaceOnUse" x1="0" y1="-54" x2="0" y2="0">
+      <stop offset="0" stop-color="#a855f7" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#c084fc" stop-opacity="0.7"/>
+      <stop offset="0.85" stop-color="#e75af2" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#e75af2"/>
+    </linearGradient>
+    <linearGradient id="fg-residual" gradientUnits="userSpaceOnUse" x1="118" y1="150" x2="118" y2="285">
+      <stop offset="0" stop-color="#c084fc" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#c084fc" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="480" height="360" rx="10" fill="#3b2141"/>
+
+  <text x="24" y="30" font-family="sans-serif" font-size="15" fill="#f0efeb" fill-opacity="0.9">Gentle Handoff — One Shared Light</text>
+  <text x="24" y="46" font-family="sans-serif" font-size="9" fill="#f0efeb" fill-opacity="0.5">There is only ever one light. The pulse carries it; the nav border wears it; the dark returns on its own.</text>
+
+  <!-- nav rail -->
+  <rect x="28" y="64" width="90" height="272" rx="14" fill="#ffffff" fill-opacity="0.035"/>
+  <text x="40" y="86" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.35">nav rail</text>
+  <circle cx="52" cy="106" r="4" fill="#f0efeb" fill-opacity="0.18"/>
+  <rect x="64" y="103" width="34" height="6" rx="3" fill="#f0efeb" fill-opacity="0.12"/>
+  <circle cx="52" cy="136" r="4" fill="#f0efeb" fill-opacity="0.18"/>
+  <rect x="64" y="133" width="34" height="6" rx="3" fill="#f0efeb" fill-opacity="0.12"/>
+  <circle cx="52" cy="166" r="4" fill="#f0efeb" fill-opacity="0.18"/>
+  <rect x="64" y="163" width="34" height="6" rx="3" fill="#f0efeb" fill-opacity="0.12"/>
+  <circle cx="52" cy="196" r="4" fill="#f0efeb" fill-opacity="0.18"/>
+  <rect x="64" y="193" width="34" height="6" rx="3" fill="#f0efeb" fill-opacity="0.12"/>
+
+  <!-- content cards -->
+  <rect x="190" y="64" width="266" height="70" rx="8" fill="#ffffff" fill-opacity="0.05" stroke="#f0efeb" stroke-opacity="0.12"/>
+  <text x="204" y="84" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.35">content cards</text>
+  <rect x="204" y="96" width="200" height="6" rx="3" fill="#f0efeb" fill-opacity="0.08"/>
+  <rect x="204" y="110" width="140" height="6" rx="3" fill="#f0efeb" fill-opacity="0.06"/>
+  <rect x="190" y="144" width="266" height="70" rx="8" fill="#ffffff" fill-opacity="0.05" stroke="#f0efeb" stroke-opacity="0.12"/>
+  <rect x="204" y="160" width="90" height="7" rx="3.5" fill="#f0efeb" fill-opacity="0.1"/>
+  <rect x="204" y="178" width="220" height="6" rx="3" fill="#f0efeb" fill-opacity="0.08"/>
+  <rect x="204" y="192" width="160" height="6" rx="3" fill="#f0efeb" fill-opacity="0.06"/>
+  <rect x="190" y="224" width="266" height="70" rx="8" fill="#ffffff" fill-opacity="0.05" stroke="#f0efeb" stroke-opacity="0.12"/>
+  <rect x="204" y="240" width="90" height="7" rx="3.5" fill="#f0efeb" fill-opacity="0.1"/>
+  <rect x="204" y="258" width="210" height="6" rx="3" fill="#f0efeb" fill-opacity="0.08"/>
+  <rect x="204" y="272" width="150" height="6" rx="3" fill="#f0efeb" fill-opacity="0.06"/>
+  <rect x="190" y="304" width="266" height="32" rx="6" fill="#ffffff" fill-opacity="0.04" stroke="#f0efeb" stroke-opacity="0.1"/>
+  <rect x="204" y="317" width="120" height="6" rx="3" fill="#f0efeb" fill-opacity="0.06"/>
+
+  <!-- nav border (brightens only while it wears the light) -->
+  <path d="M42 64 H104 A14 14 0 0 1 118 78 V322 A14 14 0 0 1 104 336 H42 A14 14 0 0 1 28 322 V78 A14 14 0 0 1 42 64 Z" fill="none" stroke="#a855f7" stroke-opacity="0.12" stroke-width="2">
+    <animate attributeName="stroke-opacity" dur="14s" repeatCount="indefinite" values="0.12;0.12;0.22;0.22;0.12;0.12" keyTimes="0;0.28;0.34;0.58;0.72;1"/>
+  </path>
+
+  <!-- static annotation layer: the cycle reads even with animation frozen -->
+  <path d="M190,179 C176,166 150,150 118,132" fill="none" stroke="#f0efeb" stroke-opacity="0.18" stroke-width="1.2" stroke-dasharray="2 4"/>
+  <path d="M137,134 L129,141 L138,144" fill="none" stroke="#f0efeb" stroke-opacity="0.35" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="118" cy="132" r="11" fill="none" stroke="#e75af2" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="2 3"/>
+  <path d="M118,150 V285" fill="none" stroke="#c084fc" stroke-opacity="0.1" stroke-width="5" stroke-linecap="round"/>
+  <path d="M118,296 C136,272 166,210 190,179" fill="none" stroke="#f0efeb" stroke-opacity="0.18" stroke-width="1.2" stroke-dasharray="2 4"/>
+  <path d="M182,175 L189,180 L181,186" fill="none" stroke="#f0efeb" stroke-opacity="0.35" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="146" y="150" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.45">1 · travel</text>
+  <text x="128" y="106" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.45">2 · handoff</text>
+  <text x="126" y="216" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.45">3 · glow glides</text>
+  <text x="126" y="312" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.45">4 · dark returns</text>
+  <text x="148" y="252" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.45">5 · departs</text>
+
+  <!-- card edge glow: the light resting between trips -->
+  <path d="M190,158 V200" fill="none" stroke="#e75af2" stroke-width="3" stroke-linecap="round" stroke-opacity="0.55">
+    <animate attributeName="stroke-opacity" dur="14s" repeatCount="indefinite" values="0.55;0.2;0;0;0.4;0.55" keyTimes="0;0.08;0.14;0.84;0.92;1"/>
+  </path>
+
+  <!-- residual border light decaying to dark after the glide -->
+  <path d="M118,150 V285" fill="none" stroke="url(#fg-residual)" stroke-width="3" stroke-linecap="round" opacity="0">
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" values="0;0;0.3;0.3;0;0" keyTimes="0;0.3;0.4;0.58;0.78;1"/>
+  </path>
+
+  <!-- THE light, inbound: the guide pulse carries it from the cards to the nav -->
+  <g>
+    <animateMotion dur="14s" repeatCount="indefinite" calcMode="linear" path="M190,179 C176,166 150,150 118,132" keyPoints="0;0;1;1" keyTimes="0;0.06;0.24;1"/>
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" values="1;1;0;0" keyTimes="0;0.235;0.27;1"/>
+    <circle r="9" fill="url(#fg-halo)"/>
+    <circle r="2.6" fill="#ffffff"/>
+  </g>
+
+  <!-- handoff bloom: the glow receives the same light -->
+  <circle cx="118" cy="132" r="8" fill="url(#fg-bloom)" opacity="0">
+    <animate attributeName="r" dur="14s" repeatCount="indefinite" values="8;8;20;24;24" keyTimes="0;0.21;0.27;0.33;1"/>
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" values="0;0;0.9;0;0" keyTimes="0;0.21;0.26;0.33;1"/>
+  </circle>
+
+  <!-- the edge glow wearing the light: Orchid→pink conic body gliding the nav border -->
+  <g opacity="0">
+    <animateMotion dur="14s" repeatCount="indefinite" calcMode="linear" path="M118,132 L118,296" keyPoints="0;0;1;1" keyTimes="0;0.29;0.6;1"/>
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.245;0.3;0.6;0.72;1"/>
+    <path d="M0,-54 L0,0" fill="none" stroke="#c084fc" stroke-opacity="0.18" stroke-width="14" stroke-linecap="round"/>
+    <path d="M0,-54 L0,0" fill="none" stroke="url(#fg-cometBody)" stroke-width="6" stroke-linecap="round"/>
+    <circle r="8" fill="url(#fg-halo)"/>
+    <circle r="2.6" fill="#ffffff"/>
+  </g>
+
+  <!-- THE light, departing: same light leaves the decaying glow and returns to the cards -->
+  <g opacity="0">
+    <animateMotion dur="14s" repeatCount="indefinite" calcMode="linear" path="M118,296 C136,272 166,210 190,179" keyPoints="0;0;1;1" keyTimes="0;0.66;0.86;1"/>
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" values="0;0;1;1" keyTimes="0;0.6;0.66;1"/>
+    <circle r="9" fill="url(#fg-halo)"/>
+    <circle r="2.6" fill="#ffffff"/>
+  </g>
+
+  <text x="24" y="352" font-family="sans-serif" font-size="8" fill="#f0efeb" fill-opacity="0.5">FINAL · one light only — travel → handoff → glide → dark → depart · event-triggered, calm, one speed · coupling re-tuned 28 → 3</text>
+</svg>

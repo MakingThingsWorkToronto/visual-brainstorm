@@ -203,6 +203,14 @@ top to bottom; each numbered step below dispatches the next UI stage.
    `.claude/commands/plan-closeout.md` immediately — finality IS the closeout trigger,
    and closeout step 7 offers the human the brainstorm's real deliverable: a loopable
    build plan authored from `brainstorm.md` for the target repo (or this one).
+   **Offline completion (operator forbids the studio/MCP):** a decisive pending
+   `round-NN/response.json` (selection + note + deliberate dial moves) may be finalized
+   without another board. Recipe: append the interpretation + a
+   `## Completion — converged offline` block to `brainstorm.md` (honest that no further
+   board was presented), hand-write `artifacts/<slug>.svg` + its sidecar in exact
+   `ArtifactSchema` shape (zod-validated on reload — malformed = silently skipped), skip
+   `compose_poster` with a note, then closeout as usual. Never hand-edit
+   `decision-tree.json`/`.svg` — they are derived and rebuilt from round records.
 9. **Timeouts are not failures** — `{status:"pending"}` means the human is thinking; use
    `peek_response` later. It is CRASH-SAFE: after memory it falls back to the persisted
    `round-NN/response.json` on disk, so an answer that landed just before an MCP restart is
@@ -210,6 +218,10 @@ top to bottom; each numbered step below dispatches the next UI stage.
    `session_status`) so the store is attached, then peek.
 
 ## Changelog
+- 2026-07-12 — step 8: offline-completion contract — a decisive pending response.json can be
+  finalized without the studio (hand-written artifact + sidecar in ArtifactSchema shape,
+  honest completion block, poster skipped, derived decision-tree left alone) (from
+  two-border-stars offline closeout)
 - 2026-07-09 — step 7: replace-artifact (fullscreen kill verdict) is a detour-and-resume
   like artifact-chat — regenerate the killed slot via /replace-artifact, drain its queue
   the same two ways; digest now carries standing artifact KEPT/KILLED lines

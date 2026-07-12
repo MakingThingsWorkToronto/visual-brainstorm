@@ -1,0 +1,38 @@
+{
+  "nodeData": {
+    "label": "Two border stars — how should they relate?",
+    "kind": "root",
+    "children": [
+      {
+        "label": "Round 1 · diverge",
+        "kind": "round",
+        "children": [
+          {
+            "label": "Iterated",
+            "kind": "action"
+          },
+          {
+            "label": "✓ Gentle Handoff",
+            "kind": "chosen"
+          },
+          {
+            "label": "✕ Lockstep Lead-Follow",
+            "kind": "rejected"
+          },
+          {
+            "label": "✕ Merge Into One",
+            "kind": "rejected"
+          },
+          {
+            "label": "✕ Keep the Glow, Drop the Pulse",
+            "kind": "rejected"
+          },
+          {
+            "label": "✕ Calm Afterglow",
+            "kind": "rejected"
+          }
+        ]
+      }
+    ]
+  }
+}

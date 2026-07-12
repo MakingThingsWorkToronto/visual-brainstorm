@@ -1,0 +1,39 @@
+{
+  "boardId": "board-r1-1783805197306",
+  "selectedOptionIds": [
+    "soft-relay"
+  ],
+  "elaboration": "",
+  "perOptionNotes": {
+    "soft-relay": "this sounds great"
+  },
+  "axisValues": {
+    "coupling": 3,
+    "sync": 80,
+    "idle": 15,
+    "gap": 45,
+    "character": 20,
+    "lift": 45
+  },
+  "remixPairs": [],
+  "remixNotes": {},
+  "action": "iterate",
+  "model": "claude-fable-5",
+  "triage": {},
+  "mutations": {},
+  "flaws": {},
+  "positions": {},
+  "clusters": [],
+  "gapNotes": [],
+  "deckVerdicts": {},
+  "duelResults": [],
+  "ranking": [],
+  "attachments": [],
+  "paletteColors": [],
+  "commands": [],
+  "questionAnswers": {},
+  "uncertainties": [],
+  "optionAnnotations": {},
+  "treeOps": [],
+  "respondedAt": "2026-07-11T22:59:14.017Z"
+}

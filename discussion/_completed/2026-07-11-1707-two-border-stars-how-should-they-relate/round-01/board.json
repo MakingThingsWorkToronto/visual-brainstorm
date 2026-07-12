@@ -1,0 +1,109 @@
+{
+  "id": "board-r1-1783805197306",
+  "sessionId": "2026-07-11-1707-two-border-stars-how-should-they-relate",
+  "round": 1,
+  "kind": "system-map",
+  "phase": "diverge",
+  "title": "Two border stars — locking them into one calm light",
+  "prompt": "Taking your steer literally: keep BOTH, lock them so they move as ONE calm light at the same speed (the guide pulse leads, the pretty edge-glow follows), and let the nav go quiet when the pulse is off on the cards — with \"drop the pulse later\" still on the table. Here are 5 ways that lock can work, from tightest fusion to a looser handoff. All are calm and all go dark when idle; they differ in HOW the two couple. The edge-glow's look (Orchid → pink bright conic body) is preserved in every one. Pick the ones worth pursuing, note what you'd tune, and I'll narrow toward the winner. Dials are pre-set to where your answers landed — nudge any and I'll re-tune.",
+  "options": [
+    {
+      "id": "lockstep",
+      "label": "Lockstep Lead-Follow",
+      "description": "Both survive on ONE shared JS clock at the SAME speed. The guide-pulse head leads; the conic edge-glow rides a fixed short gap behind it around the same nav-border path — one calm elongated light. Nav dark when the pulse is off on the cards. Survives: A + B (re-clocked). Clock: guidePath geometry drives both.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><defs><radialGradient id=\"lk-head\" cx=\"50%\" cy=\"50%\" r=\"50%\"><stop offset=\"0\" stop-color=\"#ffffff\"/><stop offset=\"40%\" stop-color=\"#e75af2\"/><stop offset=\"100%\" stop-color=\"#e75af2\" stop-opacity=\"0\"/></radialGradient><linearGradient id=\"lk-tail\" gradientUnits=\"userSpaceOnUse\" x1=\"22\" y1=\"12\" x2=\"37\" y2=\"28\"><stop offset=\"0\" stop-color=\"#a855f7\" stop-opacity=\"0\"/><stop offset=\"0.55\" stop-color=\"#e75af2\" stop-opacity=\"0.9\"/><stop offset=\"1\" stop-color=\"#c084fc\" stop-opacity=\"0.35\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"160\" height=\"120\" rx=\"6\" fill=\"#3b2141\"/><rect x=\"8\" y=\"12\" width=\"28\" height=\"96\" rx=\"7\" fill=\"#ffffff\" fill-opacity=\"0.035\"/><circle cx=\"22\" cy=\"52\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><circle cx=\"22\" cy=\"66\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><circle cx=\"22\" cy=\"80\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><rect x=\"46\" y=\"14\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"40\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"66\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"94\" width=\"104\" height=\"12\" rx=\"3\" fill=\"#ffffff\" fill-opacity=\"0.04\" stroke=\"#f0efeb\" stroke-opacity=\"0.1\"/><path d=\"M15 12 H29 A7 7 0 0 1 36 19 V101 A7 7 0 0 1 29 108 H15 A7 7 0 0 1 8 101 V19 A7 7 0 0 1 15 12 Z\" fill=\"none\" stroke=\"#a855f7\" stroke-opacity=\"0.15\" stroke-width=\"1.5\"/><path d=\"M22 12 H29 A7 7 0 0 1 36 19 V27\" fill=\"none\" stroke=\"#c084fc\" stroke-opacity=\"0.18\" stroke-width=\"9\" stroke-linecap=\"round\"/><path d=\"M22 12 H29 A7 7 0 0 1 36 19 V27\" fill=\"none\" stroke=\"url(#lk-tail)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"36\" y1=\"27\" x2=\"36\" y2=\"31\" stroke=\"#c084fc\" stroke-opacity=\"0.5\" stroke-dasharray=\"1 1.5\"/><circle cx=\"36\" cy=\"33\" r=\"6\" fill=\"url(#lk-head)\"/><circle cx=\"36\" cy=\"33\" r=\"2.2\" fill=\"#ffffff\"/><path d=\"M33 38 L36 41 L39 38\" fill=\"none\" stroke=\"#f0efeb\" stroke-opacity=\"0.45\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><text x=\"40\" y=\"34\" font-family=\"sans-serif\" font-size=\"3.2\" fill=\"#f0efeb\" fill-opacity=\"0.45\">lead</text><text x=\"40\" y=\"18\" font-family=\"sans-serif\" font-size=\"3.2\" fill=\"#c084fc\" fill-opacity=\"0.55\">glow</text><text x=\"9\" y=\"116\" font-family=\"sans-serif\" font-size=\"4\" fill=\"#f0efeb\" fill-opacity=\"0.55\">same speed · locked</text></svg>",
+      "tags": [],
+      "parents": [],
+      "rationale": "Your 'keep both locked together, moving at the same speed, pulse leading' — drawn literally: one shared clock, a fixed small gap between the leading pulse and the trailing edge-glow."
+    },
+    {
+      "id": "twin-merge",
+      "label": "Merge Into One",
+      "description": "No visible gap — the two collapse into a SINGLE calm light: the edge-glow's conic body carrying the pulse's bright leading node, one object doing both jobs. The cleanest read of 'one unified light,' and the shortest path to eventually dropping the separate pulse. Survives: one merged light. Clock: single source.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><defs><radialGradient id=\"tm-head\" cx=\"50%\" cy=\"50%\" r=\"50%\"><stop offset=\"0\" stop-color=\"#ffffff\"/><stop offset=\"45%\" stop-color=\"#e75af2\"/><stop offset=\"100%\" stop-color=\"#e75af2\" stop-opacity=\"0\"/></radialGradient><linearGradient id=\"tm-body\" gradientUnits=\"userSpaceOnUse\" x1=\"20\" y1=\"12\" x2=\"37\" y2=\"32\"><stop offset=\"0\" stop-color=\"#a855f7\" stop-opacity=\"0.15\"/><stop offset=\"0.5\" stop-color=\"#e75af2\" stop-opacity=\"0.85\"/><stop offset=\"1\" stop-color=\"#ffffff\" stop-opacity=\"0.9\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"160\" height=\"120\" rx=\"6\" fill=\"#3b2141\"/><rect x=\"8\" y=\"12\" width=\"28\" height=\"96\" rx=\"7\" fill=\"#ffffff\" fill-opacity=\"0.035\"/><rect x=\"46\" y=\"14\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"40\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"66\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"94\" width=\"104\" height=\"12\" rx=\"3\" fill=\"#ffffff\" fill-opacity=\"0.04\" stroke=\"#f0efeb\" stroke-opacity=\"0.1\"/><path d=\"M15 12 H29 A7 7 0 0 1 36 19 V101 A7 7 0 0 1 29 108 H15 A7 7 0 0 1 8 101 V19 A7 7 0 0 1 15 12 Z\" fill=\"none\" stroke=\"#a855f7\" stroke-opacity=\"0.15\" stroke-width=\"1.5\"/><path d=\"M20 12 H29 A7 7 0 0 1 36 19 V31\" fill=\"none\" stroke=\"#c084fc\" stroke-opacity=\"0.2\" stroke-width=\"11\" stroke-linecap=\"round\"/><path d=\"M20 12 H29 A7 7 0 0 1 36 19 V31\" fill=\"none\" stroke=\"url(#tm-body)\" stroke-width=\"5\" stroke-linecap=\"round\"/><circle cx=\"36\" cy=\"31\" r=\"6\" fill=\"url(#tm-head)\"/><circle cx=\"36\" cy=\"31\" r=\"2.3\" fill=\"#ffffff\"/><circle cx=\"16\" cy=\"72\" r=\"1.7\" fill=\"#c084fc\" fill-opacity=\"0.8\"/><circle cx=\"16\" cy=\"79\" r=\"1.7\" fill=\"#e75af2\" fill-opacity=\"0.8\"/><path d=\"M17.6 72.6 L23 75.5\" fill=\"none\" stroke=\"#f0efeb\" stroke-opacity=\"0.4\" stroke-linecap=\"round\"/><path d=\"M17.6 78.4 L23 75.5\" fill=\"none\" stroke=\"#f0efeb\" stroke-opacity=\"0.4\" stroke-linecap=\"round\"/><circle cx=\"24.5\" cy=\"75.5\" r=\"2\" fill=\"#ffffff\"/><text x=\"9\" y=\"116\" font-family=\"sans-serif\" font-size=\"4\" fill=\"#f0efeb\" fill-opacity=\"0.55\">two lights → one calm light</text></svg>",
+      "tags": [],
+      "parents": [],
+      "rationale": "Your top survey pick was 'One unified light' — this fuses the two with no visible gap: a single calm light that is the edge-glow's body plus the pulse's bright head."
+    },
+    {
+      "id": "drop-pulse",
+      "label": "Keep the Glow, Drop the Pulse",
+      "description": "The future fallback you named, shown today: remove the guide pulse, keep ONLY the pretty conic edge-glow gliding the nav border, calm and slow, dark when idle. Least engineering — but loses the wayfinding function. Survives: B only. Clock: existing CSS, calmed.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><defs><linearGradient id=\"dp-tail\" gradientUnits=\"userSpaceOnUse\" x1=\"20\" y1=\"12\" x2=\"37\" y2=\"30\"><stop offset=\"0\" stop-color=\"#a855f7\" stop-opacity=\"0\"/><stop offset=\"0.55\" stop-color=\"#c084fc\" stop-opacity=\"0.85\"/><stop offset=\"1\" stop-color=\"#e75af2\" stop-opacity=\"0.55\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"160\" height=\"120\" rx=\"6\" fill=\"#3b2141\"/><rect x=\"8\" y=\"12\" width=\"28\" height=\"96\" rx=\"7\" fill=\"#ffffff\" fill-opacity=\"0.035\"/><circle cx=\"22\" cy=\"52\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><circle cx=\"22\" cy=\"66\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><circle cx=\"22\" cy=\"80\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><rect x=\"46\" y=\"14\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"40\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"66\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"94\" width=\"104\" height=\"12\" rx=\"3\" fill=\"#ffffff\" fill-opacity=\"0.04\" stroke=\"#f0efeb\" stroke-opacity=\"0.1\"/><path d=\"M15 12 H29 A7 7 0 0 1 36 19 V101 A7 7 0 0 1 29 108 H15 A7 7 0 0 1 8 101 V19 A7 7 0 0 1 15 12 Z\" fill=\"none\" stroke=\"#a855f7\" stroke-opacity=\"0.15\" stroke-width=\"1.5\"/><path d=\"M20 12 H29 A7 7 0 0 1 36 19 V30\" fill=\"none\" stroke=\"#c084fc\" stroke-opacity=\"0.18\" stroke-width=\"10\" stroke-linecap=\"round\"/><path d=\"M20 12 H29 A7 7 0 0 1 36 19 V30\" fill=\"none\" stroke=\"url(#dp-tail)\" stroke-width=\"4.5\" stroke-linecap=\"round\"/><circle cx=\"36\" cy=\"40\" r=\"3\" fill=\"none\" stroke=\"#c084fc\" stroke-opacity=\"0.4\" stroke-dasharray=\"1.5 1.5\"/><line x1=\"33.5\" y1=\"42.5\" x2=\"38.5\" y2=\"37.5\" stroke=\"#c084fc\" stroke-opacity=\"0.5\"/><text x=\"41\" y=\"41\" font-family=\"sans-serif\" font-size=\"3.2\" fill=\"#f0efeb\" fill-opacity=\"0.45\">drop later</text><text x=\"9\" y=\"116\" font-family=\"sans-serif\" font-size=\"4\" fill=\"#f0efeb\" fill-opacity=\"0.55\">keep the glow only</text></svg>",
+      "tags": [],
+      "parents": [],
+      "rationale": "You said the edge-glow is your preference and you 'may ultimately remove the wayfinder pulse' — here's that endpoint drawn now: keep only the pretty glow."
+    },
+    {
+      "id": "afterglow",
+      "label": "Calm Afterglow",
+      "description": "The pulse leads and DEPOSITS a slow-fading glow along the border it traces; the nav lights as it passes, then decays to dark by itself (your 'go quiet when away,' by construction). The trail wears the edge-glow's look. Survives: A + a decay buffer. Clock: rAF pulse + per-edge fade.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><defs><radialGradient id=\"ag-head\" cx=\"50%\" cy=\"50%\" r=\"50%\"><stop offset=\"0\" stop-color=\"#ffffff\"/><stop offset=\"42%\" stop-color=\"#e75af2\"/><stop offset=\"100%\" stop-color=\"#e75af2\" stop-opacity=\"0\"/></radialGradient><linearGradient id=\"ag-tail\" gradientUnits=\"userSpaceOnUse\" x1=\"17\" y1=\"12\" x2=\"37\" y2=\"46\"><stop offset=\"0\" stop-color=\"#3b2141\" stop-opacity=\"0\"/><stop offset=\"0.4\" stop-color=\"#a855f7\" stop-opacity=\"0.2\"/><stop offset=\"0.75\" stop-color=\"#c084fc\" stop-opacity=\"0.55\"/><stop offset=\"1\" stop-color=\"#e75af2\" stop-opacity=\"0.9\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"160\" height=\"120\" rx=\"6\" fill=\"#3b2141\"/><rect x=\"8\" y=\"12\" width=\"28\" height=\"96\" rx=\"7\" fill=\"#ffffff\" fill-opacity=\"0.035\"/><circle cx=\"22\" cy=\"66\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><circle cx=\"22\" cy=\"80\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><rect x=\"46\" y=\"14\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"40\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"66\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"94\" width=\"104\" height=\"12\" rx=\"3\" fill=\"#ffffff\" fill-opacity=\"0.04\" stroke=\"#f0efeb\" stroke-opacity=\"0.1\"/><path d=\"M15 12 H29 A7 7 0 0 1 36 19 V101 A7 7 0 0 1 29 108 H15 A7 7 0 0 1 8 101 V19 A7 7 0 0 1 15 12 Z\" fill=\"none\" stroke=\"#a855f7\" stroke-opacity=\"0.12\" stroke-width=\"1.5\"/><path d=\"M17 12 H29 A7 7 0 0 1 36 19 V44\" fill=\"none\" stroke=\"url(#ag-tail)\" stroke-width=\"4.5\" stroke-linecap=\"round\"/><circle cx=\"36\" cy=\"47\" r=\"6\" fill=\"url(#ag-head)\"/><circle cx=\"36\" cy=\"47\" r=\"2.2\" fill=\"#ffffff\"/><path d=\"M33 52 L36 55 L39 52\" fill=\"none\" stroke=\"#f0efeb\" stroke-opacity=\"0.45\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M14 96 A5 5 0 1 1 11.5 91.5\" fill=\"none\" stroke=\"#c084fc\" stroke-opacity=\"0.4\" stroke-dasharray=\"1.5 1.5\"/><path d=\"M11 92 L11.8 91.2 L12.6 92.2\" fill=\"none\" stroke=\"#c084fc\" stroke-opacity=\"0.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><text x=\"9\" y=\"116\" font-family=\"sans-serif\" font-size=\"4\" fill=\"#f0efeb\" fill-opacity=\"0.55\">re-lights next lap</text></svg>",
+      "tags": [],
+      "parents": [],
+      "rationale": "You wanted the nav to 'go dark / quiet' when the pulse is away — here that's causal: the pulse leaves a slow-fading glow that decays to dark on its own until the next lap."
+    },
+    {
+      "id": "soft-relay",
+      "label": "Gentle Handoff",
+      "description": "The looser foil: not rigidly glued. The pulse arrives at the nav, the edge-glow gently takes the light and holds a slow brief glide, then quiets to dark when the pulse departs. Feels organic rather than mechanical. Survives: A + B, softly coupled. Clock: event-triggered, not frame-locked.",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><defs><radialGradient id=\"sr-bloom\" cx=\"50%\" cy=\"50%\" r=\"50%\"><stop offset=\"0\" stop-color=\"#e75af2\" stop-opacity=\"0.85\"/><stop offset=\"45%\" stop-color=\"#c084fc\" stop-opacity=\"0.5\"/><stop offset=\"100%\" stop-color=\"#a855f7\" stop-opacity=\"0\"/></radialGradient><linearGradient id=\"sr-streak\" gradientUnits=\"userSpaceOnUse\" x1=\"16\" y1=\"12\" x2=\"26\" y2=\"12\"><stop offset=\"0\" stop-color=\"#ffffff\" stop-opacity=\"0\"/><stop offset=\"1\" stop-color=\"#ffffff\" stop-opacity=\"0.9\"/></linearGradient><linearGradient id=\"sr-fade\" gradientUnits=\"userSpaceOnUse\" x1=\"36\" y1=\"24\" x2=\"36\" y2=\"50\"><stop offset=\"0\" stop-color=\"#c084fc\" stop-opacity=\"0.55\"/><stop offset=\"1\" stop-color=\"#c084fc\" stop-opacity=\"0\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"160\" height=\"120\" rx=\"6\" fill=\"#3b2141\"/><rect x=\"8\" y=\"12\" width=\"28\" height=\"96\" rx=\"7\" fill=\"#ffffff\" fill-opacity=\"0.035\"/><circle cx=\"22\" cy=\"66\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><circle cx=\"22\" cy=\"80\" r=\"1.8\" fill=\"#f0efeb\" fill-opacity=\"0.2\"/><rect x=\"46\" y=\"14\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"40\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"66\" width=\"104\" height=\"22\" rx=\"4\" fill=\"#ffffff\" fill-opacity=\"0.05\" stroke=\"#f0efeb\" stroke-opacity=\"0.12\"/><rect x=\"46\" y=\"94\" width=\"104\" height=\"12\" rx=\"3\" fill=\"#ffffff\" fill-opacity=\"0.04\" stroke=\"#f0efeb\" stroke-opacity=\"0.1\"/><path d=\"M15 12 H29 A7 7 0 0 1 36 19 V101 A7 7 0 0 1 29 108 H15 A7 7 0 0 1 8 101 V19 A7 7 0 0 1 15 12 Z\" fill=\"none\" stroke=\"#a855f7\" stroke-opacity=\"0.12\" stroke-width=\"1.5\"/><path d=\"M16 12 H25\" fill=\"none\" stroke=\"url(#sr-streak)\" stroke-width=\"2\" stroke-linecap=\"round\"/><circle cx=\"25\" cy=\"12\" r=\"1.8\" fill=\"#ffffff\"/><path d=\"M27 12 L30 14\" fill=\"none\" stroke=\"#f0efeb\" stroke-opacity=\"0.4\" stroke-linecap=\"round\"/><circle cx=\"34\" cy=\"18\" r=\"9\" fill=\"url(#sr-bloom)\"/><path d=\"M27 12 H29 A7 7 0 0 1 36 19 V22\" fill=\"none\" stroke=\"#e75af2\" stroke-opacity=\"0.55\" stroke-width=\"3\" stroke-linecap=\"round\"/><path d=\"M36 24 V50\" fill=\"none\" stroke=\"url(#sr-fade)\" stroke-width=\"3\" stroke-linecap=\"round\"/><text x=\"41\" y=\"40\" font-family=\"sans-serif\" font-size=\"3.2\" fill=\"#f0efeb\" fill-opacity=\"0.4\">then dark</text><text x=\"9\" y=\"116\" font-family=\"sans-serif\" font-size=\"4\" fill=\"#f0efeb\" fill-opacity=\"0.55\">gentle handoff</text></svg>",
+      "tags": [],
+      "parents": [],
+      "rationale": "A softer reading of 'moving together' in case rigid locking feels stiff — the pulse hands the light to the glow, which holds a calm beat, then quiets to dark."
+    }
+  ],
+  "questions": [],
+  "survey": {
+    "multiSelect": true,
+    "minSelect": 0,
+    "elaborationPrompt": "Elaborate — what direction should the next round take?",
+    "allowPerOptionNotes": true,
+    "allowRemix": true,
+    "axes": [
+      {
+        "id": "coupling",
+        "label": "Coupling",
+        "leftLabel": "One shared light",
+        "rightLabel": "Two separate animations",
+        "defaultValue": 28
+      },
+      {
+        "id": "sync",
+        "label": "Lock tightness",
+        "leftLabel": "Loosely related",
+        "rightLabel": "Rigidly locked",
+        "defaultValue": 80
+      },
+      {
+        "id": "idle",
+        "label": "Nav when pulse is away",
+        "leftLabel": "Goes dark / quiet",
+        "rightLabel": "Stays lit",
+        "defaultValue": 15
+      },
+      {
+        "id": "gap",
+        "label": "Lead-follow spacing",
+        "leftLabel": "Fused (no gap)",
+        "rightLabel": "Trailing gap",
+        "defaultValue": 45
+      },
+      {
+        "id": "character",
+        "label": "Motion character",
+        "leftLabel": "Calm ambient",
+        "rightLabel": "Energetic kinetic",
+        "defaultValue": 20
+      },
+      {
+        "id": "lift",
+        "label": "Engineering lift",
+        "leftLabel": "Minimal (reuse / delete)",
+        "rightLabel": "New shared-clock system",
+        "defaultValue": 45
+      }
+    ]
+  },
+  "createdAt": "2026-07-11T21:26:37.306Z"
+}
